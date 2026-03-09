@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Function Debugger &mdash; TSN/GCL Solver</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* ═══════════════════════════════════════════════
+       Light Theme Override
+       ═══════════════════════════════════════════════ */
+    :root {
+      --bg: #f8f9fa; --bg2: #f0f2f5;
+      --card: #ffffff; --card-hi: #f8fafc;
+      --border: rgba(59,130,246,0.2); --border-hi: rgba(59,130,246,0.4);
+      --text: #1e293b; --text2: #475569; --text3: #64748b;
+      --cyan: #0891b2; --blue: #3B82F6; --purple: #7c3aed;
+      --orange: #d97706; --red: #dc2626; --green: #059669; --pink: #db2777;
+      --flow-ctrl: #3B82F6; --flow-sensor: #059669; --flow-video: #db2777;
+      --guard: #d97706; --be: #e2e8f0;
+    }
+    body { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 50%, #dee2e6 100%); }
+    .bg-grid {
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59,130,246,0.06), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(6,182,212,0.04), transparent),
+        linear-gradient(rgba(59,130,246,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.06) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+    }
+    .card {
+      background: rgba(255,255,255,0.95);
+      border: 1px solid rgba(59,130,246,0.15);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    }
+    .card:hover { border-color: rgba(59,130,246,0.3); }
+    .card-title { color: var(--text2); }
+    .card-title::before { background: var(--blue); }
+    .tooltip {
+      background: rgba(255,255,255,0.97);
+      border: 1px solid rgba(59,130,246,0.25);
+      color: var(--text); box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
+    .tooltip .tt-title { color: var(--blue); }
+    .tooltip .tt-k { color: var(--text3); }
+    .btn-primary { background: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%); color: #fff; }
+    .btn-secondary { background: rgba(248,250,252,0.8); color: var(--text); border: 1px solid rgba(59,130,246,0.2); }
+    .btn-secondary:hover { border-color: var(--blue); background: #fff; }
+    .gcl-grid line { stroke: rgba(59,130,246,0.06); stroke-width: 1; }
+    .gcl-axis text { fill: var(--text2) !important; font-size: 11px; }
+    .gcl-axis path, .gcl-axis line { stroke: rgba(59,130,246,0.15); }
+    .gcl-label { fill: rgba(0,0,0,0.75); font-size: 11px; font-weight: 700; pointer-events: none; }
+    .scan-cursor { stroke: var(--blue); stroke-width: 2; opacity: 0; filter: drop-shadow(0 0 4px rgba(59,130,246,0.4)); }
+    .scan-cursor.active { opacity: 1; }
+
+    /* ── Header ───────────────────────────────────── */
+    .keti-header {
+      display: flex; align-items: center; justify-content: center;
+      gap: 16px; margin-bottom: 8px;
+    }
+    .keti-header img { height: 40px; width: auto; }
+    .keti-header h1 {
+      font-size: 2rem; font-weight: 800; letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+
+    /* ── Controls Bar ─────────────────────────────── */
+    .ctrl-bar {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      padding: 12px 20px;
+    }
+    .ctrl-bar .btn { font-size: 0.88rem; padding: 7px 16px; font-weight: 700; }
+    .ctrl-bar .btn.active {
+      background: linear-gradient(135deg, #3B82F6, #06B6D4); color: #fff; border: none;
+    }
+    .ctrl-group {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.82rem; color: var(--text2); font-weight: 600;
+    }
+    .ctrl-group input[type="range"] { width: 70px; accent-color: var(--blue); }
+    .ctrl-group span.val { font-family: 'Courier New', monospace; min-width: 28px; }
+    #stepCounter {
+      font-family: 'Courier New', monospace; font-size: 0.82rem;
+      color: var(--text3); font-weight: 600;
+    }
+
+    /* ── Dependency Info Card ─────────────────────── */
+    .dep-info {
+      font-size: 0.78rem; padding: 10px 16px;
+      color: var(--text2); background: rgba(59,130,246,0.03);
+      border-bottom: 1px solid rgba(59,130,246,0.08);
+    }
+    .dep-info .dep-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 6px;
+      font-size: 0.7rem; font-weight: 700; margin-right: 6px;
+      background: rgba(5,150,105,0.1); color: var(--green);
+    }
+
+    /* ── Debug Split Layout ───────────────────────── */
+    .debug-split {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+      border: 1px solid rgba(59,130,246,0.15); border-radius: var(--radius);
+      overflow: hidden; background: rgba(255,255,255,0.95);
+      margin-bottom: 16px; min-height: 420px;
+    }
+    @media (max-width: 900px) { .debug-split { grid-template-columns: 1fr; } }
+
+    /* ── Source Code Panel ─────────────────────────── */
+    .code-panel {
+      border-right: 1px solid rgba(59,130,246,0.12);
+      overflow-y: auto; max-height: 500px;
+      font-family: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+      font-size: 0.9rem; line-height: 1.7;
+    }
+    .code-panel .fn-label {
+      padding: 8px 16px; font-size: 0.72rem; font-weight: 700;
+      color: var(--blue); background: rgba(59,130,246,0.05);
+      border-bottom: 1px solid rgba(59,130,246,0.1);
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .code-line {
+      display: flex; padding: 1px 0; transition: background 0.15s;
+      cursor: default;
+    }
+    .code-line:hover { background: rgba(59,130,246,0.03); }
+    .code-line.highlight {
+      background: rgba(59,130,246,0.12);
+      border-left: 3px solid var(--blue);
+    }
+    .code-line.highlight .line-no { color: var(--blue); font-weight: 700; }
+    .code-line .line-no {
+      display: inline-block; width: 42px; text-align: right;
+      padding-right: 10px; color: var(--text3); user-select: none;
+      flex-shrink: 0; font-size: 0.82rem;
+    }
+    .code-line .line-code {
+      white-space: pre; flex: 1; min-width: 0;
+      padding-right: 12px;
+    }
+    /* Syntax highlighting */
+    .syn-kw { color: #7c3aed; font-weight: 600; }
+    .syn-fn { color: #0891b2; }
+    .syn-str { color: #059669; }
+    .syn-num { color: #d97706; }
+    .syn-cmt { color: #94a3b8; font-style: italic; }
+    .syn-op { color: #dc2626; }
+
+    /* ── Inspector Panel (right) ──────────────────── */
+    .inspector-panel {
+      display: flex; flex-direction: column; overflow-y: auto; max-height: 500px;
+    }
+    .insp-section {
+      padding: 10px 16px;
+      border-bottom: 1px solid rgba(59,130,246,0.08);
+    }
+    .insp-section.hidden { display: none; }
+    .insp-title {
+      font-size: 0.7rem; font-weight: 700; color: var(--text3);
+      text-transform: uppercase; letter-spacing: 0.06em;
+      margin-bottom: 8px;
+    }
+
+    /* Variable Watch */
+    .var-list { font-size: 0.9rem; font-family: 'Courier New', monospace; }
+    .var-row {
+      display: flex; gap: 8px; padding: 3px 0;
+      align-items: baseline; transition: background 0.3s;
+    }
+    .var-row.changed { animation: varPulse 0.6s ease; }
+    @keyframes varPulse {
+      0% { background: rgba(59,130,246,0.2); }
+      100% { background: transparent; }
+    }
+    .var-name { color: var(--purple); font-weight: 600; min-width: 90px; }
+    .var-val { color: var(--text); word-break: break-all; }
+    .var-val .truncated { color: var(--text3); font-style: italic; }
+
+    /* Link Occupancy Bars */
+    .occ-bars { display: flex; flex-direction: column; gap: 5px; }
+    .occ-row {
+      display: flex; align-items: center; gap: 8px; font-size: 0.72rem;
+    }
+    .occ-label { color: var(--text2); min-width: 120px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .occ-bar-bg {
+      flex: 1; height: 14px; background: rgba(59,130,246,0.06);
+      border-radius: 3px; overflow: hidden; position: relative;
+    }
+    .occ-seg {
+      position: absolute; top: 0; height: 100%; border-radius: 2px;
+      transition: all 0.3s;
+    }
+    .occ-seg.guard {
+      background: repeating-linear-gradient(45deg, #f9a825, #f9a825 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px);
+    }
+    .occ-pct { color: var(--text3); font-size: 0.68rem; min-width: 32px; text-align: right; }
+
+    /* Packet Status Chips */
+    .pkt-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pkt-chip {
+      font-size: 0.85rem; padding: 4px 12px; border-radius: 8px;
+      font-weight: 600; font-family: 'Courier New', monospace;
+      border: 1px solid transparent; transition: all 0.3s;
+    }
+    .pkt-chip.current {
+      border-color: var(--blue); background: rgba(59,130,246,0.15);
+      color: var(--blue); box-shadow: 0 0 8px rgba(59,130,246,0.2);
+    }
+    .pkt-chip.done-ok { background: rgba(5,150,105,0.1); color: var(--green); border-color: rgba(5,150,105,0.2); }
+    .pkt-chip.done-miss { background: rgba(220,38,38,0.1); color: var(--red); border-color: rgba(220,38,38,0.2); }
+    .pkt-chip.done-nonst { background: rgba(100,116,139,0.1); color: var(--text3); border-color: rgba(100,116,139,0.2); }
+    .pkt-chip.waiting { background: rgba(0,0,0,0.02); color: var(--text3); border-color: rgba(0,0,0,0.05); }
+
+    /* ── Topology Visualization ─────────────────── */
+    .topo-viz-link { stroke: #000000; stroke-width: 2; fill: none; transition: stroke 0.3s, stroke-width 0.3s; }
+    .topo-viz-link.active { stroke: var(--blue); stroke-width: 3; }
+    .topo-viz-link.highlight { stroke: var(--purple); stroke-width: 3.5; filter: drop-shadow(0 0 4px rgba(124,58,237,0.5)); }
+    .topo-viz-node { cursor: default; }
+    .topo-viz-node text { font-size: 12px; fill: var(--text); font-weight: 700; pointer-events: none; }
+    .topo-viz-node .node-label { font-size: 7.5px; fill: var(--text3); }
+    .queue-inset { font-size: 9px; }
+    .queue-cell { stroke: rgba(0,0,0,0.15); stroke-width: 0.7; rx: 2; transition: fill 0.3s; }
+    .queue-cell.open { fill: rgba(59,130,246,0.08); }
+    .queue-cell.closed { fill: rgba(100,116,139,0.15); }
+    .queue-cell.pulse { animation: queuePulse 0.5s ease; }
+    @keyframes queuePulse {
+      0% { filter: brightness(1.6); } 100% { filter: brightness(1); }
+    }
+    .pkt-particle { pointer-events: none; }
+    .queue-legend {
+      font-size: 10px; fill: var(--text3); font-weight: 600;
+    }
+
+    /* ── Gantt Container ──────────────────────────── */
+    .gantt-wrap { min-height: 380px; position: relative; }
+
+    /* ── White backgrounds for viz containers ───── */
+    #topoVizContainer, #ganttContainer { background: #ffffff; border-radius: 8px; }
+
+    /* ── Gantt Legend ─────────────────────────────── */
+    #ganttLegend {
+      display: flex; flex-wrap: wrap; gap: 8px 16px;
+      padding: 10px 16px; border-top: 1px solid rgba(59,130,246,0.1);
+      background: #f8fafc; border-radius: 0 0 8px 8px;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.78rem; color: var(--text2);
+    }
+    .legend-swatch {
+      width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0;
+    }
+
+    /* ── Step Description ─────────────────────────── */
+    .step-desc {
+      font-size: 0.82rem; padding: 10px 16px;
+      color: var(--text2); min-height: 40px;
+      border-bottom: 1px solid rgba(59,130,246,0.08);
+    }
+    .step-desc .phase-badge {
+      display: inline-block; padding: 2px 10px; border-radius: 6px;
+      font-size: 0.72rem; font-weight: 700; margin-right: 8px;
+    }
+    .step-desc .phase-badge.kpaths { background: rgba(124,58,237,0.1); color: var(--purple); }
+    .step-desc .phase-badge.expand { background: rgba(8,145,178,0.1); color: var(--cyan); }
+    .step-desc .phase-badge.greedy { background: rgba(59,130,246,0.1); color: var(--blue); }
+    .step-desc .phase-badge.ilp { background: rgba(217,119,6,0.1); color: var(--orange); }
+    .step-desc .phase-badge.build { background: rgba(5,150,105,0.1); color: var(--green); }
+
+    /* Progress bar */
+    .progress-bar { height: 4px; background: rgba(59,130,246,0.08); border-radius: 2px; overflow: hidden; }
+    .progress-bar .fill { height: 100%; background: linear-gradient(90deg, #3B82F6, #06B6D4); border-radius: 2px; transition: width 0.3s; }
+
+    /* GLPK status */
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="wrap">
+    <!-- Header -->
+    <div class="header">
+      <div class="keti-header">
+        <img src="keti.png" alt="KETI" onerror="this.style.display='none'">
+        <h1>Function Debugger</h1>
+      </div>
+      <div class="sub">Select a single function and step through its execution line-by-line &mdash; delta-based state tracking for minimal memory</div>
+    </div>
+
+    <!-- Controls -->
+    <div class="card" style="padding:0;">
+      <div class="ctrl-bar">
+        <select id="fnSelect" class="btn btn-secondary" style="font-weight:600;font-size:0.82rem;">
+          <option value="generateKPaths">generateKPaths</option>
+          <option value="expandPackets">expandPackets</option>
+          <option value="solveGreedy" selected>solveGreedy</option>
+          <option value="solveILP">solveILP</option>
+          <option value="buildResult">buildResult</option>
+        </select>
+        <select id="modelSelect" class="btn btn-secondary" style="font-weight:600;font-size:0.82rem;">
+          <option value="standard" selected>Standard (13N, 9F)</option>
+          <option value="reconf">Reconf (14N, 11F)</option>
+          <option value="optimal">Optimal Tri-Star</option>
+        </select>
+        <select id="flowSelect" class="btn btn-secondary" style="font-weight:600;font-size:0.82rem;display:none;"></select>
+        <select id="solverSelect" class="btn btn-secondary" style="font-weight:600;font-size:0.82rem;display:none;">
+          <option value="greedy" selected>Greedy</option>
+          <option value="ilp">ILP</option>
+        </select>
+        <button class="btn btn-primary" id="btnPlay">&#9654; Play</button>
+        <button class="btn btn-secondary" id="btnPause">&#9208; Pause</button>
+        <button class="btn btn-secondary" id="btnPrev">&#9664; Prev</button>
+        <button class="btn btn-secondary" id="btnNext">Next &#9654;</button>
+        <button class="btn btn-secondary" id="btnReset">&#10226; Reset</button>
+        <div class="ctrl-group">
+          <label>Speed</label>
+          <input type="range" id="speedSlider" min="0.25" max="4" step="0.25" value="1">
+          <span class="val" id="speedLabel">1&times;</span>
+        </div>
+        <span id="stepCounter" style="margin-left:auto;">0 / 0</span>
+
+      </div>
+      <div class="progress-bar"><div class="fill" id="progressFill" style="width:0%"></div></div>
+    </div>
+
+    <!-- Dependency Info + Step Description -->
+    <div class="card" style="padding:0;">
+      <div class="dep-info" id="depInfo" style="display:none;"></div>
+      <div class="step-desc" id="stepDesc">Select a function and press &#9654; Play or Next to start &ensp;|&ensp; Space: play/pause &middot; &larr;&rarr;: step &middot; R: reset</div>
+    </div>
+
+    <!-- Debug Split: Code + Inspector -->
+    <div class="debug-split">
+      <!-- Source Code Panel -->
+      <div class="code-panel" id="codePanel">
+        <div class="fn-label" id="codeFnLabel">solveGreedy</div>
+        <div id="codeLines"></div>
+      </div>
+      <!-- Inspector Panel -->
+      <div class="inspector-panel" id="inspectorPanel">
+        <div class="insp-section">
+          <div class="insp-title">Variables</div>
+          <div class="var-list" id="varPanel"></div>
+        </div>
+        <div class="insp-section" id="occSection">
+          <div class="insp-title">Link Occupancy</div>
+          <div class="occ-bars" id="occPanel"></div>
+        </div>
+        <div class="insp-section" id="pktSection">
+          <div class="insp-title">Packets</div>
+          <div class="pkt-chips" id="pktPanel"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Network Topology -->
+    <div class="card" id="topoCard">
+      <div class="card-title">Network Topology &mdash; Queue State</div>
+      <div class="svg-container" id="topoVizContainer" style="min-height:600px;"></div>
+    </div>
+
+    <!-- Gantt Chart -->
+    <div class="card" id="ganttCard">
+      <div class="card-title">Schedule Timeline</div>
+      <div class="svg-container gantt-wrap" id="ganttContainer"></div>
+      <div id="ganttLegend" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <script src="vendor/d3.min.js"></script>
+  <script type="module">
+  import { initDebugger } from './js/debug-controller.js';
+  initDebugger();
+  </script>
+</body>
+</html>
