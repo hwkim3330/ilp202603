@@ -1,6 +1,6 @@
 /* solve-ilp.js — instrumentSolveILP (line-by-line LP formulation trace) */
 import { round3, deep } from '../debug-utils.js';
-import { expandPackets, solveILP, flowColor } from '../ilp-core.js';
+import { expandPackets, solveILP, flowColor, computeGateSchedule } from '../ilp-core.js';
 
 export async function instrumentSolveILP(model, glpk, opts = {}) {
   if (!glpk) throw new Error('GLPK failed to load');
@@ -144,8 +144,24 @@ export async function instrumentSolveILP(model, glpk, opts = {}) {
     const av  = n => { vars.add(n); return n; };
     const ac  = (pre, terms, bnd) => { sub.push({ name: `${pre}_${ci++}`, vars: terms, bnds: bnd }); };
 
-    // lineIdx 19: empty line
-    steps.push({ lineIdx: 19, desc: ``, vars: {} });
+    // ── IEEE 802.1Qbv gate schedule for ILP constraints ──
+    const gateSchedule = computeGateSchedule(model, pkts);
+    const linkGateWindows = {};
+    for (const lnk of model.links) {
+      const nodeGates = gateSchedule[lnk.from];
+      const entries = nodeGates && nodeGates[lnk.id];
+      if (entries) {
+        linkGateWindows[lnk.id] = entries.filter(e => e.type === 'tc' || e.type === 'be').sort((a, b) => a.open - b.open);
+      }
+    }
+    const gateLinksCount = Object.keys(linkGateWindows).length;
+    let totalGateWindows = 0;
+    for (const ws of Object.values(linkGateWindows)) totalGateWindows += ws.length;
+
+    steps.push({
+      lineIdx: 19, desc: `IEEE 802.1Qbv gate schedule: ${gateLinksCount} links with gate windows, ${totalGateWindows} TC windows total`,
+      vars: { 'gateLinks': gateLinksCount, 'totalGateWindows': totalGateWindows }
+    });
 
     if (allSingleRoute) {
       /* ── allSingleRoute === true 분기: 현재 미사용 (allSingleRoute는 항상 false)
@@ -737,6 +753,36 @@ export async function instrumentSolveILP(model, glpk, opts = {}) {
               lineIdx: 82, desc: `    ac('ub'): ${s} + ${z}*M ≤ ${model.cycle_time_us - hp.tx} + M (=${model.cycle_time_us - hp.tx + M})`,
               vars: { p, r, h, s, z, M, ci, sub: sub.map(c => ({ name: c.name, vars: c.vars.map(v => `${v.name}*${v.coef}`), bnds: c.bnds })), 'sub.length': sub.length }
             });
+
+            // ── IEEE 802.1Qbv gate window constraints ──
+            const gw = linkGateWindows[hp.lid];
+            if (gw) {
+              const tc = pk.pri;
+              const tcWindows = gw.filter(w => w.queue === tc && w.close - w.open >= hp.tx - 1e-9);
+              if (tcWindows.length === 1) {
+                const fw = tcWindows[0];
+                ac('gw_lo', [{ name: s, coef: 1 }, { name: z, coef: -M }], { type: glpk.GLP_LO, lb: fw.open - M, ub: 0 });
+                ac('gw_up', [{ name: s, coef: 1 }, { name: z, coef: M }], { type: glpk.GLP_UP, lb: 0, ub: fw.close - hp.tx + M });
+                steps.push({
+                  lineIdx: 82, desc: `    gate TC${tc}: ${s} ∈ [${round3(fw.open)}, ${round3(fw.close - hp.tx)}] (1 window, z-relaxed)`,
+                  vars: { tc, 'fw.open': round3(fw.open), 'fw.close': round3(fw.close), gwConstr: 2, 'sub.length': sub.length }
+                });
+              } else if (tcWindows.length > 1) {
+                const gwTerms = [];
+                for (let j = 0; j < tcWindows.length; j++) {
+                  const fw = tcWindows[j];
+                  const g = av(`gw_${p}_${r}_${h}_${j}`); bins.push(g); gwTerms.push({ name: g, coef: 1 });
+                  ac('gw_lo', [{ name: s, coef: 1 }, { name: g, coef: -M }, { name: z, coef: -M }], { type: glpk.GLP_LO, lb: fw.open - 2*M, ub: 0 });
+                  ac('gw_up', [{ name: s, coef: 1 }, { name: g, coef: M }, { name: z, coef: M }], { type: glpk.GLP_UP, lb: 0, ub: fw.close - hp.tx + 2*M });
+                }
+                gwTerms.push({ name: z, coef: -1 });
+                ac('gw_sel', gwTerms, { type: glpk.GLP_FX, lb: 0, ub: 0 });
+                steps.push({
+                  lineIdx: 82, desc: `    gate TC${tc}: ${tcWindows.length} windows, ${tcWindows.length} binary gw vars + selection (Σgw=z)`,
+                  vars: { tc, windows: tcWindows.map(w => `[${round3(w.open)},${round3(w.close)}]`).join(', '), gwBins: tcWindows.length, 'bins.length': bins.length, 'sub.length': sub.length }
+                });
+              }
+            }
 
             if (h < rt.hops.length - 1) {
               // ── Step: line 83 — chain condition (true) ──

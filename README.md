@@ -168,9 +168,12 @@ Greedy 스케줄러. O(P × R × H × O) where P=packets, R=routes, H=hops, O=oc
 제약:
   - 하한: s_{p,h} ≥ earliest_arrival
   - 상한: s_{p,h} ≤ latest_start (deadline 기반)
+  - IEEE 802.1Qbv 게이트: s_{p,h} ∈ [gate_open, gate_close - tx]
+    · 1 feasible window → lb/ub 강화 (추가 변수 없음)
+    · N feasible windows → gw_{p,h,j} binary, Σ gw = 1
   - 체인: s_{p,h+1} ≥ s_{p,h} + tx + pd + processing_delay
   - 데드라인: s_{p,last} ≤ dl - tx - pd
-  - 비겹침: pairwise ordering (tight M per pair, window pruning)
+  - 비겹침: pairwise ordering (tight M per pair, gate-tightened window pruning)
 목적함수: min Σ s_{p,last} (TSN 패킷의 최종 홉 시작 시간 합)
 ```
 
@@ -179,6 +182,9 @@ Greedy 스케줄러. O(P × R × H × O) where P=packets, R=routes, H=hops, O=oc
 ```
 추가 변수: z_{p,r} ∈ {0,1} (패킷 p가 경로 r 사용 여부)
 추가 제약: Σ_r z_{p,r} = 1 (각 패킷은 정확히 1 경로)
+게이트 제약 (z 연동):
+  - 1 window: s ≥ open - M*(1-z), s ≤ close-tx + M*(1-z)
+  - N windows: gw binary + Σ gw_j = z (route 선택 시만 window 선택)
 ```
 
 ### 6. `buildResult(model, pkts, schedHops, method, stats)` — GCL 생성

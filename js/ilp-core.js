@@ -510,6 +510,17 @@ export async function solveILP(model, glpk, opts = {}) {
   // Check if all packets have exactly 1 route → use tight formulation
   const allSingleRoute = pkts.every(pk => pk.routes.length === 1);
 
+  // IEEE 802.1Qbv gate schedule — constrain ILP to TC gate windows
+  const gateSchedule = computeGateSchedule(model, pkts);
+  const linkGateWindows = {};
+  for (const lnk of model.links) {
+    const nodeGates = gateSchedule[lnk.from];
+    const entries = nodeGates && nodeGates[lnk.id];
+    if (entries) {
+      linkGateWindows[lnk.id] = entries.filter(e => e.type === 'tc' || e.type === 'be').sort((a, b) => a.open - b.open);
+    }
+  }
+
   const vars = new Set(), sub = [], bins = [], obj = [];
   let ci = 0;
   const sv = (p, h) => `s_${p}_${h}`;
@@ -536,13 +547,38 @@ export async function solveILP(model, glpk, opts = {}) {
           latestStart = Math.min(latestStart, pk.dl - hp.tx - hp.pd - tailTime);
         }
         ac('ub', [{ name: s, coef: 1 }], { type: glpk.GLP_UP, lb: 0, ub: latestStart });
+        // IEEE 802.1Qbv gate window constraints
+        let gateEarliest = earliestArr, gateLatest = latestStart;
+        const gw = linkGateWindows[hp.lid];
+        if (gw) {
+          const tc = pk.pri;
+          const feasibleWindows = gw.filter(w => w.queue === tc && w.open <= latestStart + 1e-9 && w.close >= earliestArr + hp.tx - 1e-9 && w.close - w.open >= hp.tx - 1e-9);
+          if (feasibleWindows.length === 1) {
+            const fw = feasibleWindows[0];
+            gateEarliest = Math.max(earliestArr, fw.open);
+            gateLatest = Math.min(latestStart, fw.close - hp.tx);
+            ac('gw_lb', [{ name: s, coef: 1 }], { type: glpk.GLP_LO, lb: gateEarliest, ub: 0 });
+            ac('gw_ub', [{ name: s, coef: 1 }], { type: glpk.GLP_UP, lb: 0, ub: gateLatest });
+          } else if (feasibleWindows.length > 1) {
+            const gwTerms = [], Mgw = model.cycle_time_us;
+            gateEarliest = Math.max(earliestArr, Math.min(...feasibleWindows.map(w => w.open)));
+            gateLatest = Math.min(latestStart, Math.max(...feasibleWindows.map(w => w.close - hp.tx)));
+            for (let j = 0; j < feasibleWindows.length; j++) {
+              const fw = feasibleWindows[j];
+              const g = av(`gw_${p}_${h}_${j}`); bins.push(g); gwTerms.push({ name: g, coef: 1 });
+              ac('gw_lo', [{ name: s, coef: 1 }, { name: g, coef: -Mgw }], { type: glpk.GLP_LO, lb: fw.open - Mgw, ub: 0 });
+              ac('gw_up', [{ name: s, coef: 1 }, { name: g, coef: Mgw }], { type: glpk.GLP_UP, lb: 0, ub: fw.close - hp.tx + Mgw });
+            }
+            ac('gw_sel', gwTerms, { type: glpk.GLP_FX, lb: 1, ub: 1 });
+          }
+        }
         // Chain
         if (h < rt.hops.length - 1) {
           const sn = av(sv(p, h + 1));
           ac('ch', [{ name: sn, coef: 1 }, { name: s, coef: -1 }], { type: glpk.GLP_LO, lb: hp.tx + hp.pd + model.processing_delay_us, ub: 0 });
         }
         const blk = hp.tx;
-        ops.push({ oi: ops.length, p, r: 0, h, lid: hp.lid, sn: s, tx: hp.tx, blk, earliest: earliestArr, latest: latestStart });
+        ops.push({ oi: ops.length, p, r: 0, h, lid: hp.lid, sn: s, tx: hp.tx, blk, earliest: gateEarliest, latest: gateLatest });
         earliestArr += hp.tx + hp.pd + model.processing_delay_us;
       }
       // Deadline
@@ -581,6 +617,27 @@ export async function solveILP(model, glpk, opts = {}) {
           const hp = rt.hops[h], s = av(`s_${p}_${r}_${h}`);
           ac('lb', [{ name: s, coef: 1 }, { name: z, coef: -M }], { type: glpk.GLP_LO, lb: pk.rel - M, ub: 0 });
           ac('ub', [{ name: s, coef: 1 }, { name: z, coef: M }], { type: glpk.GLP_UP, lb: 0, ub: model.cycle_time_us - hp.tx + M });
+          // IEEE 802.1Qbv gate window constraints (with route selection interaction)
+          const gw = linkGateWindows[hp.lid];
+          if (gw) {
+            const tc = pk.pri;
+            const tcWindows = gw.filter(w => w.queue === tc && w.close - w.open >= hp.tx - 1e-9);
+            if (tcWindows.length === 1) {
+              const fw = tcWindows[0];
+              ac('gw_lo', [{ name: s, coef: 1 }, { name: z, coef: -M }], { type: glpk.GLP_LO, lb: fw.open - M, ub: 0 });
+              ac('gw_up', [{ name: s, coef: 1 }, { name: z, coef: M }], { type: glpk.GLP_UP, lb: 0, ub: fw.close - hp.tx + M });
+            } else if (tcWindows.length > 1) {
+              const gwTerms = [];
+              for (let j = 0; j < tcWindows.length; j++) {
+                const fw = tcWindows[j];
+                const g = av(`gw_${p}_${r}_${h}_${j}`); bins.push(g); gwTerms.push({ name: g, coef: 1 });
+                ac('gw_lo', [{ name: s, coef: 1 }, { name: g, coef: -M }, { name: z, coef: -M }], { type: glpk.GLP_LO, lb: fw.open - 2*M, ub: 0 });
+                ac('gw_up', [{ name: s, coef: 1 }, { name: g, coef: M }, { name: z, coef: M }], { type: glpk.GLP_UP, lb: 0, ub: fw.close - hp.tx + 2*M });
+              }
+              gwTerms.push({ name: z, coef: -1 });
+              ac('gw_sel', gwTerms, { type: glpk.GLP_FX, lb: 0, ub: 0 });
+            }
+          }
           if (h < rt.hops.length - 1) {
             const sn = av(`s_${p}_${r}_${h + 1}`);
             ac('ch', [{ name: sn, coef: 1 }, { name: s, coef: -1 }, { name: z, coef: -M }], { type: glpk.GLP_LO, lb: hp.tx + hp.pd + model.processing_delay_us - M, ub: 0 });
