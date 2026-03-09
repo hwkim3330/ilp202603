@@ -53,10 +53,10 @@ export async function instrumentSolveILP(model, glpk, opts = {}) {
     });
 
     // ── Step: line 4 — tmlim ───────────────────────────────────────────────
-    const tmlim = opts.tmlim || 15;
+    const tmlim = opts.tmlim || 30;
     steps.push({
       lineIdx: 4, desc: `const tmlim = opts.tmlim || 15 → ${tmlim}`,
-      vars: { tmlim, 'opts.tmlim': opts.tmlim || 15 }
+      vars: { tmlim, 'opts.tmlim': opts.tmlim || 30 }
     });
 
     // lineIdx 5: empty line
@@ -758,7 +758,9 @@ export async function instrumentSolveILP(model, glpk, opts = {}) {
             const gw = linkGateWindows[hp.lid];
             if (gw) {
               const tc = pk.pri;
-              const tcWindows = gw.filter(w => w.queue === tc && w.close - w.open >= hp.tx - 1e-9);
+              const dlBound = pk.dl ?? model.cycle_time_us;
+              const tcWindows = gw.filter(w => w.queue === tc && w.close - w.open >= hp.tx - 1e-9
+                && w.close >= pk.rel + hp.tx - 1e-9 && w.open <= dlBound - hp.tx + 1e-9);
               if (tcWindows.length === 1) {
                 const fw = tcWindows[0];
                 ac('gw_lo', [{ name: s, coef: 1 }, { name: z, coef: -M }], { type: glpk.GLP_LO, lb: fw.open - M, ub: 0 });

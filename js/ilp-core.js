@@ -502,7 +502,7 @@ export async function solveILP(model, glpk, opts = {}) {
   if (!glpk) throw new Error('GLPK not ready');
   if (!model.processing_delay_us) model.processing_delay_us = 3;
   if (!model.guard_band_us) model.guard_band_us = 12.304;
-  const tmlim = opts.tmlim || 15;
+  const tmlim = opts.tmlim || 30;
 
   const pkts = expandPackets(model);
   if (pkts.length > 70) throw new Error(`Too many packets (${pkts.length}). Reduce flows or increase period.`);
@@ -621,7 +621,9 @@ export async function solveILP(model, glpk, opts = {}) {
           const gw = linkGateWindows[hp.lid];
           if (gw) {
             const tc = pk.pri;
-            const tcWindows = gw.filter(w => w.queue === tc && w.close - w.open >= hp.tx - 1e-9);
+            const dlBound = pk.dl ?? model.cycle_time_us;
+            const tcWindows = gw.filter(w => w.queue === tc && w.close - w.open >= hp.tx - 1e-9
+              && w.close >= pk.rel + hp.tx - 1e-9 && w.open <= dlBound - hp.tx + 1e-9);
             if (tcWindows.length === 1) {
               const fw = tcWindows[0];
               ac('gw_lo', [{ name: s, coef: 1 }, { name: z, coef: -M }], { type: glpk.GLP_LO, lb: fw.open - M, ub: 0 });

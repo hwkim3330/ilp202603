@@ -150,7 +150,7 @@ export const SOURCE_CODE = {
       '  if (!glpk) throw new Error(\'GLPK not ready\');',
       '  if (!model.processing_delay_us) model.processing_delay_us = 3;',
       '  if (!model.guard_band_us) model.guard_band_us = 12.304;',
-      '  const tmlim = opts.tmlim || 15;',
+      '  const tmlim = opts.tmlim || 30;',
       '',
       '  const pkts = expandPackets(model);',
       '  if (pkts.length > 70) throw new Error(`Too many packets`);',
