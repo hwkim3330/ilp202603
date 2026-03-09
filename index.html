@@ -17,13 +17,13 @@
       <h1>TSN/GCL Greedy Solver</h1>
       <div class="sub">
         IEEE 802.1Qbv TAS (Time-Aware Shaper) 기반 GCL 스케줄링 디버거.<br>
-        PCP 기반 RR 게이트 제어 + Greedy/ILP 솔버를 단계별로 시각화합니다.
+        PCP 기반 802.1Qbv 게이트 제어 + Greedy/ILP 솔버를 단계별로 시각화합니다.
       </div>
       <div class="landing-badges">
         <span class="badge">D3.js Visualization</span>
         <span class="badge">GLPK/WASM ILP</span>
         <span class="badge">PCP-based Gate Control</span>
-        <span class="badge">RR Scheduling</span>
+        <span class="badge">802.1Qbv TAS</span>
       </div>
     </div>
 
@@ -49,13 +49,13 @@
       <div class="landing-card" style="cursor:default;">
         <h2>Algorithm Overview</h2>
         <p>
-          <strong>Greedy (RR Gate-Aware)</strong>: PCP 내림차순 정렬 &rarr; 각 패킷에 대해
-          RR 게이트 윈도우 + 링크 점유율 이중 제약을 만족하는 가장 빠른 슬롯을 탐색합니다.
-          Guard band(12.304&micro;s)는 worst-case MTU 기반으로 정의됩니다.
+          <strong>Greedy (802.1Qbv TAS)</strong>: PCP 내림차순 정렬 &rarr; 각 패킷에 대해
+          TC별 게이트 윈도우 + 링크 점유율 이중 제약을 만족하는 가장 빠른 슬롯을 탐색합니다.
+          Guard band(12.304&micro;s)는 TC 전환 시 삽입되며, TC7(LiDAR) &gt; TC6(Radar) &gt; TC0(BE) 순 할당.
         </p>
         <div class="card-tags">
           <span>PCP Priority</span>
-          <span>Round-Robin Gate</span>
+          <span>802.1Qbv Gate</span>
           <span>Dual Constraint</span>
           <span>k-shortest paths</span>
         </div>
@@ -66,7 +66,6 @@
         <h2>Network Models</h2>
         <p>
           <strong>Standard</strong>: 13 nodes, 16 links, 9 flows (G32 + Pandar 40P + MRR-35), 10ms cycle, 14 pkts/cycle.<br>
-          <strong>Reconf</strong>: 802.1CB replicator, 14 nodes, 11 flows, 17 pkts/cycle.<br>
           <strong>Optimal Tri-Star</strong>: 3&times; direct ACU links, 모든 flow 2-hop.
         </p>
         <div class="card-tags">
@@ -83,7 +82,7 @@
         <p>
           <strong>generateKPaths</strong> &mdash; k-shortest path 탐색 (DFS)<br>
           <strong>expandPackets</strong> &mdash; 플로우 &rarr; 패킷 확장 (PCP, 릴리즈/데드라인)<br>
-          <strong>solveGreedy</strong> &mdash; RR 게이트 제약 기반 그리디 스케줄링<br>
+          <strong>solveGreedy</strong> &mdash; 802.1Qbv TC별 게이트 제약 기반 그리디 스케줄링<br>
           <strong>solveILP</strong> &mdash; GLPK/WASM 정수 선형 프로그래밍<br>
           <strong>buildResult</strong> &mdash; GCL 생성 + 결과 조합
         </p>

@@ -14,9 +14,6 @@ const FLOW_COLOR_MAP = {
   "f_radar_rlc": "#7c3aed",  // 보라
   "f_radar_rrc": "#171717",  // 검정
   "f_lidar_r":   "#6b7280",  // 회색
-  // Reconf 802.1CB replicated flows
-  "f_lidar_fc_rep": "#f59e0b",  // amber
-  "f_radar_f_rep":  "#a855f7",  // purple
 };
 
 export function flowColor(flowId) {
@@ -115,45 +112,149 @@ export function expandPackets(model) {
 
 export function computeGateSchedule(model, pkts) {
   const nodeType = Object.fromEntries(model.nodes.map(n => [n.id, n.type]));
+  const guard_us = model.guard_band_us || 12.304;
   const schedule = {};
+
+  // GCD helper for sub-period computation
+  function gcd(a, b) { a = Math.round(a); b = Math.round(b); while (b) { [a, b] = [b, a % b]; } return a; }
+
+  // Flow period lookup
+  const flowPeriod = Object.fromEntries(model.flows.map(f => [f.id, f.period_us]));
 
   for (const lnk of model.links) {
     if (nodeType[lnk.from] !== 'switch') continue;
 
-    // 이 링크를 사용하는 큐(PCP) 수집 + 큐별 최대 패킷 전송시간 산출
-    const queueSet = new Set();
-    const queueMaxTx = {};
+    // Collect TCs + per-TC max single TX + all flow periods + per-TC min deadline
+    const tcMaxTx = {};       // TC → max single packet TX time
+    const tcMinDeadline = {}; // TC → min relative deadline (for EDF gate ordering)
+    const linkPeriods = new Set();  // all flow periods on this link
+    const tcSet = new Set();
     for (const pk of pkts) {
+      let found = false;
       for (const rt of pk.routes) {
+        if (found) break;
         for (const hp of rt.hops) {
           if (hp.lid === lnk.id) {
-            queueSet.add(pk.pri);
-            if (!queueMaxTx[pk.pri]) queueMaxTx[pk.pri] = 0;
-            queueMaxTx[pk.pri] = Math.max(queueMaxTx[pk.pri], hp.tx);
+            const tc = pk.pri;
+            tcSet.add(tc);
+            tcMaxTx[tc] = Math.max(tcMaxTx[tc] || 0, hp.tx);
+            linkPeriods.add(flowPeriod[pk.fid]);
+            // Track minimum relative deadline per TC for gate ordering
+            if (pk.dl != null) {
+              const relDl = pk.dl - pk.rel;
+              tcMinDeadline[tc] = Math.min(tcMinDeadline[tc] || Infinity, relDl);
+            }
+            found = true;
+            break;
           }
         }
       }
     }
 
-    const queues = Array.from(queueSet).sort((a, b) => b - a);
-    if (queues.length <= 1) continue;
+    // Sort TCs by deadline urgency (EDF: tightest deadline first)
+    // This ensures tight-deadline TCs get early gate windows
+    const allTCs = [...tcSet].sort((a, b) =>
+      (tcMinDeadline[a] || Infinity) - (tcMinDeadline[b] || Infinity)
+    );
+    if (allTCs.length <= 1) continue;
 
-    // RR: 최소 슬롯 크기 = 큐별 maxTx 중 최대값 (모든 큐가 동일 크기)
-    const maxTxAll = Math.max(...Object.values(queueMaxTx));
-    const minRoundLen = maxTxAll * queues.length;
-    const numRounds = Math.max(1, Math.floor(model.cycle_time_us / minRoundLen));
-    const roundLen = round3(model.cycle_time_us / numRounds);
-    const eqSlot = round3(roundLen / queues.length);
+    // Compute sub-period = GCD of all flow periods on this link
+    const periodsArr = [...linkPeriods];
+    let subPeriod = periodsArr[0];
+    for (let i = 1; i < periodsArr.length; i++) subPeriod = gcd(subPeriod, periodsArr[i]);
+    const numSubPeriods = Math.round(model.cycle_time_us / subPeriod);
 
-    // RR 엔트리 생성: 균등한 라운드 반복
+    // Per sub-period: compute TX needs per TC (count each packet ONCE per link)
+    const spTcTx = [];  // array of { tc → totalTx } per sub-period
+    for (let k = 0; k < numSubPeriods; k++) {
+      const spStart = k * subPeriod;
+      const spEnd = (k + 1) * subPeriod;
+      const tcTx = {};
+      for (const pk of pkts) {
+        if (pk.rel < spStart || pk.rel >= spEnd) continue;
+        let found = false;
+        for (const rt of pk.routes) {
+          if (found) break;
+          for (const hp of rt.hops) {
+            if (hp.lid === lnk.id) {
+              const tc = pk.pri;
+              tcTx[tc] = (tcTx[tc] || 0) + hp.tx;
+              found = true;
+              break;
+            }
+          }
+        }
+      }
+      spTcTx.push(tcTx);
+    }
+
+    // Build gate entries across all sub-periods
     const entries = [];
     let cursor = 0;
-    for (let r = 0; r < numRounds; r++) {
-      for (const q of queues) {
+
+    for (let k = 0; k < numSubPeriods; k++) {
+      const spEnd = (k + 1) * subPeriod;
+      const tcTx = spTcTx[k];
+      // Sort by deadline urgency (EDF), same as allTCs
+      const activeTCs = Object.keys(tcTx).map(Number).sort((a, b) =>
+        (tcMinDeadline[a] || Infinity) - (tcMinDeadline[b] || Infinity)
+      );
+
+      if (activeTCs.length === 0) {
+        // No traffic in this sub-period — all BE
+        entries.push({ queue: 0, open: round3(cursor), close: round3(spEnd), type: 'be' });
+        cursor = spEnd;
+        continue;
+      }
+
+      // Allocate per-TC windows within this sub-period
+      const spAvailable = spEnd - cursor;
+      const numGuards = activeTCs.length;  // guard after each TC
+      const totalGuardTime = numGuards * guard_us;
+      const availableTime = spAvailable - totalGuardTime;
+
+      if (availableTime <= 0) {
+        // Sub-period too small for guards — fallback: one big open window
+        entries.push({ queue: activeTCs[0], open: round3(cursor), close: round3(spEnd), type: 'tc' });
+        cursor = spEnd;
+        continue;
+      }
+
+      // Proportional allocation based on actual TX needs
+      const totalTx = Object.values(tcTx).reduce((a, b) => a + b, 0);
+      const allocations = {};
+      for (const tc of activeTCs) {
+        const proportional = (tcTx[tc] / totalTx) * availableTime;
+        allocations[tc] = Math.max(proportional, tcMaxTx[tc] + 1);
+      }
+
+      // Normalize if total exceeds available
+      const totalAlloc = Object.values(allocations).reduce((a, b) => a + b, 0);
+      if (totalAlloc > availableTime) {
+        const scale = availableTime / totalAlloc;
+        for (const tc of activeTCs) allocations[tc] = round3(allocations[tc] * scale);
+      }
+
+      // Build TC windows + guard bands for this sub-period
+      for (let i = 0; i < activeTCs.length; i++) {
+        const tc = activeTCs[i];
+        const duration = round3(allocations[tc]);
         const open = round3(cursor);
-        const close = round3(cursor + eqSlot);
-        entries.push({ queue: q, open, close });
+        const close = round3(cursor + duration);
+        entries.push({ queue: tc, open, close, type: 'tc' });
         cursor = close;
+
+        // Guard band after TC window
+        const gOpen = round3(cursor);
+        const gClose = round3(Math.min(cursor + guard_us, spEnd));
+        entries.push({ queue: -1, open: gOpen, close: gClose, type: 'guard' });
+        cursor = gClose;
+      }
+
+      // Remaining time in sub-period → BE
+      if (cursor < spEnd - 0.001) {
+        entries.push({ queue: 0, open: round3(cursor), close: round3(spEnd), type: 'be' });
+        cursor = spEnd;
       }
     }
 
@@ -190,26 +291,65 @@ function buildResult(model, pkts, schedHops, method, stats) {
     const linkGate = (gateSchedule[lnk.from] || {})[lnk.id];
 
     if (linkGate) {
-      // Gate schedule 있는 링크 — RR 기반 GCL (동적 큐 할당)
+      // IEEE 802.1Qbv gate schedule — TC windows + guard bands
+      // Place actual packet transmissions within TC windows
+      const rows = linkRows[lnk.id].slice().sort((a, b) => a.start_us - b.start_us);
       const entries = [];
-      for (let i = 0; i < linkGate.length; i++) {
-        const gs = linkGate[i];
-        const q = gs.queue;
-        const mask = Array(8).fill('0'); mask[7 - q] = '1';
-        entries.push({ index: i, gate_mask: mask.join(''), start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: `Q${q}` });
+      let idx = 0;
+
+      for (const gs of linkGate) {
+        if (gs.type === 'guard') {
+          // Guard band — all gates closed
+          entries.push({ index: idx++, gate_mask: '00000000', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'guard' });
+        } else if (gs.type === 'be') {
+          // Best-effort window
+          entries.push({ index: idx++, gate_mask: '11111111', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'non-ST' });
+        } else {
+          // TC window — insert actual packet bars
+          const tc = gs.queue;
+          const mask = Array(8).fill('0'); mask[7 - tc] = '1';
+          const gateMask = mask.join('');
+
+          // Find packets scheduled in this window
+          const windowPkts = rows.filter(r => r.start_us >= gs.open - 1e-9 && r.end_us <= gs.close + 1e-9);
+          if (windowPkts.length > 0) {
+            for (const wp of windowPkts) {
+              entries.push({ index: idx++, gate_mask: gateMask, start_us: wp.start_us, end_us: wp.end_us, duration_us: wp.duration_us, note: wp.note });
+            }
+          } else {
+            // Empty TC window — show the allocation
+            entries.push({ index: idx++, gate_mask: gateMask, start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'non-ST' });
+          }
+        }
       }
       gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries };
     } else {
-      // Gate schedule 없는 링크 — 전체 사이클 오픈
-      gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries: [
-        { index: 0, gate_mask: '11111111', start_us: 0, end_us: model.cycle_time_us, duration_us: model.cycle_time_us, note: 'all queues open' }
-      ]};
+      // No gate schedule — all queues open, place packet bars directly
+      const rows = linkRows[lnk.id].slice().sort((a, b) => a.start_us - b.start_us);
+      const entries = [];
+      let idx = 0;
+      if (rows.length > 0) {
+        for (const r of rows) {
+          entries.push({ index: idx++, gate_mask: '11111111', start_us: r.start_us, end_us: r.end_us, duration_us: r.duration_us, note: r.note });
+        }
+        // Fill remaining as non-ST
+        const lastEnd = rows.at(-1).end_us;
+        if (lastEnd < model.cycle_time_us - 1) {
+          entries.push({ index: idx++, gate_mask: '11111111', start_us: round3(lastEnd), end_us: model.cycle_time_us, duration_us: round3(model.cycle_time_us - lastEnd), note: 'non-ST' });
+        }
+      } else {
+        entries.push({ index: 0, gate_mask: '11111111', start_us: 0, end_us: model.cycle_time_us, duration_us: model.cycle_time_us, note: 'non-ST' });
+      }
+      gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries };
     }
   }
 
   let worstUtil = 0;
   for (const lnk of model.links) {
-    let act = 0; for (const e of gcl.links[lnk.id].entries) if (!e.note.includes('non-ST')) act += e.duration_us;
+    let act = 0;
+    for (const e of gcl.links[lnk.id].entries) {
+      if (!e.note.includes('non-ST') && !e.note.includes('guard')) act += e.duration_us;
+    }
     worstUtil = Math.max(worstUtil, act / model.cycle_time_us * 100);
   }
 
@@ -240,24 +380,22 @@ export function solveGreedy(model) {
   const pkts = expandPackets(model);
   let fallbackCount = 0;
 
-  // RR 게이트 스케줄을 미리 계산 — 스케줄링 시 게이트 제약 반영용
+  // IEEE 802.1Qbv gate schedule — TC-based windows with guard bands
   const gateSchedule = computeGateSchedule(model, pkts);
-  // 링크별 게이트 윈도우 (큐 무관, 열린 구간만 모아서 시간순 정렬)
+  // Per-link gate windows filtered by TC (only TC-type entries, no guards)
   const linkGateWindows = {};
   for (const lnk of model.links) {
     const nodeGates = gateSchedule[lnk.from];
     const entries = nodeGates && nodeGates[lnk.id];
     if (entries) {
-      // RR이므로 모든 큐 윈도우가 동적 할당 가능 → 전부 사용
-      linkGateWindows[lnk.id] = entries.slice().sort((a, b) => a.open - b.open);
+      linkGateWindows[lnk.id] = entries.filter(e => e.type === 'tc' || e.type === 'be').sort((a, b) => a.open - b.open);
     }
-    // entries 없으면 게이트 제약 없음 (항상 열림)
   }
 
   const linkOcc = Object.fromEntries(model.links.map(l => [l.id, []]));
 
-  // 게이트 윈도우 + 링크 점유를 모두 만족하는 가장 빠른 시작 시간과 할당된 큐를 반환
-  function findEarliest(lid, earliest, duration) {
+  // Find earliest start time within the correct TC gate window + no link overlap
+  function findEarliest(lid, earliest, duration, pktTC) {
     const occ = linkOcc[lid];
     const gw = linkGateWindows[lid];
     let t = earliest;
@@ -265,10 +403,12 @@ export function solveGreedy(model) {
     const MAX_ITER = 10000;
 
     for (let iter = 0; iter < MAX_ITER; iter++) {
-      // 1) 게이트 제약: t에서 duration만큼 열린 윈도우를 찾는다
+      // 1) Gate constraint: find window for this packet's TC
       if (gw) {
         let inGate = false;
         for (const w of gw) {
+          // Only schedule in matching TC window
+          if (w.queue !== pktTC) continue;
           if (w.open > t + 1e-9) {
             if (duration <= w.close - w.open + 1e-9) { t = w.open; assignedQueue = w.queue; inGate = true; break; }
           } else if (t >= w.open - 1e-9 && t + duration <= w.close + 1e-9) {
@@ -278,7 +418,7 @@ export function solveGreedy(model) {
         if (!inGate) return { t: Infinity, queue: -1 };
       }
 
-      // 2) 링크 점유 제약: 다른 패킷과 겹치지 않는지 확인
+      // 2) Link occupancy constraint: no overlap with already-scheduled packets
       let moved = false;
       for (const [s, e] of occ) {
         if (t < e && t + duration > s) {
@@ -286,7 +426,7 @@ export function solveGreedy(model) {
         }
       }
       if (!moved) return { t, queue: assignedQueue };
-      // t가 밀렸으므로 다시 게이트 윈도우부터 재확인
+      // t was pushed → re-check gate window
     }
     return { t: Infinity, queue: -1 };
   }
@@ -314,7 +454,7 @@ export function solveGreedy(model) {
 
       for (let h = 0; h < rt.hops.length; h++) {
         const hp = rt.hops[h];
-        const res = findEarliest(hp.lid, t, hp.tx);
+        const res = findEarliest(hp.lid, t, hp.tx, pk.pri);
         if (res.t === Infinity || res.t + hp.tx > model.cycle_time_us) { valid = false; break; }
         starts.push(res.t);
         queues.push(res.queue);
@@ -349,7 +489,7 @@ export function solveGreedy(model) {
   }
 
   const elapsed = round3(performance.now() - t0);
-  return buildResult(model, pkts, schedHops, 'Greedy (RR gate-aware scheduler)', {
+  return buildResult(model, pkts, schedHops, 'Greedy (802.1Qbv TAS scheduler)', {
     constraints: 0, variables: 0, binaries: 0, status: 'heuristic', runtime_ms: elapsed, fallback_packets: fallbackCount
   });
 }

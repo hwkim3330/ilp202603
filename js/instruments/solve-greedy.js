@@ -67,7 +67,7 @@ export function instrumentSolveGreedy(model) {
     vars: { fallbackCount: 0 }
   });
 
-  // ── RR 게이트 스케줄 미리 계산 ──
+  // ── IEEE 802.1Qbv gate schedule ──
   const gateSchedule = computeGateSchedule(model, pkts);
   const linkGateWindows = {};
   let totalGateWindows = 0;
@@ -75,22 +75,22 @@ export function instrumentSolveGreedy(model) {
     const nodeGates = gateSchedule[lnk.from];
     const entries = nodeGates && nodeGates[lnk.id];
     if (entries) {
-      linkGateWindows[lnk.id] = entries.slice().sort((a, b) => a.open - b.open);
-      totalGateWindows += entries.length;
+      linkGateWindows[lnk.id] = entries.filter(e => e.type === 'tc' || e.type === 'be').sort((a, b) => a.open - b.open);
+      totalGateWindows += linkGateWindows[lnk.id].length;
     }
   }
 
   const gateLinksCount = Object.keys(linkGateWindows).length;
   steps.push({
-    lineIdx: 6, desc: `const gateSchedule = computeGateSchedule(model, pkts) → ${gateLinksCount} links with gate, ${totalGateWindows} windows`,
+    lineIdx: 6, desc: `const gateSchedule = computeGateSchedule(model, pkts) → ${gateLinksCount} links with gate, ${totalGateWindows} TC windows`,
     vars: { 'gateLinks': gateLinksCount, 'totalGateWindows': totalGateWindows }
   });
 
-  // 게이트 윈도우 상세 표시 (링크별)
+  // Gate window details per link
   for (const [lid, windows] of Object.entries(linkGateWindows)) {
-    const windowSummary = windows.map(w => `Q${w.queue}[${round3(w.open)}-${round3(w.close)}]`).join(', ');
+    const windowSummary = windows.map(w => `TC${w.queue}[${round3(w.open)}-${round3(w.close)}]`).join(', ');
     steps.push({
-      lineIdx: 7, desc: `linkGateWindows["${lid}"] — ${windows.length} windows`,
+      lineIdx: 7, desc: `linkGateWindows["${lid}"] — ${windows.length} TC windows`,
       vars: { lid, windows: windowSummary }
     });
   }
@@ -101,7 +101,7 @@ export function instrumentSolveGreedy(model) {
     vars: { 'linkOcc.size': model.links.length, linkOcc: fmtLinkOcc(linkOcc) }
   });
 
-  function findEarliest(lid, earliest, duration) {
+  function findEarliest(lid, earliest, duration, pktTC) {
     const occ = linkOcc[lid];
     const gw = linkGateWindows[lid];
     let t = earliest;
@@ -112,6 +112,7 @@ export function instrumentSolveGreedy(model) {
       if (gw) {
         let inGate = false;
         for (const w of gw) {
+          if (w.queue !== pktTC) continue;
           if (w.open > t + 1e-9) {
             if (duration <= w.close - w.open + 1e-9) { t = w.open; assignedQueue = w.queue; inGate = true; break; }
           } else if (t >= w.open - 1e-9 && t + duration <= w.close + 1e-9) {
@@ -283,11 +284,11 @@ export function instrumentSolveGreedy(model) {
 
         const hasGate = !!linkGateWindows[hp.lid];
         steps.push({
-          lineIdx: 45, desc: `→ findEarliest("${hp.lid}", ${round3(t)}, ${round3(hp.tx)})${hasGate ? ' [gate-constrained]' : ' [no gate]'}`,
-          vars: { 'hp.lid': hp.lid, t: round3(t), 'hp.tx': round3(hp.tx), 'hasGate': hasGate }
+          lineIdx: 45, desc: `→ findEarliest("${hp.lid}", ${round3(t)}, ${round3(hp.tx)}, TC${pk.pri})${hasGate ? ' [gate-constrained]' : ' [no gate]'}`,
+          vars: { 'hp.lid': hp.lid, t: round3(t), 'hp.tx': round3(hp.tx), 'pktTC': pk.pri, 'hasGate': hasGate }
         });
 
-        const res = findEarliest(hp.lid, t, hp.tx);
+        const res = findEarliest(hp.lid, t, hp.tx, pk.pri);
 
         if (res.t === Infinity) {
           valid = false;
@@ -476,7 +477,7 @@ export function instrumentSolveGreedy(model) {
   });
 
   steps.push({
-    lineIdx: 73, desc: `return buildResult(model, pkts, schedHops, "Greedy (RR gate-aware scheduler)", { runtime_ms: ${elapsed}, fallback_packets: ${fallbackCount} })`,
+    lineIdx: 73, desc: `return buildResult(model, pkts, schedHops, "Greedy (802.1Qbv TAS scheduler)", { runtime_ms: ${elapsed}, fallback_packets: ${fallbackCount} })`,
     vars: { elapsed: elapsed + 'ms', fallbackCount }
   });
 

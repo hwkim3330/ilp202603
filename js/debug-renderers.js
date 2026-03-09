@@ -383,7 +383,7 @@ export function renderTopoViz(container, model, modelKey) {
   svg.append('text')
     .attr('class', 'queue-legend')
     .attr('x', 10).attr('y', H - 8)
-    .text('Queue cells: 8 queues per egress port (RR dynamic assignment)');
+    .text('Queue cells: 8 queues per egress port (IEEE 802.1Qbv TAS)');
 
   return { svg: svg.node(), positions, linkLines, nodeData, queueData, queueG: queueG.node(), particleG: particleG.node() };
 }

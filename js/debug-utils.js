@@ -2,9 +2,9 @@
    debug-utils.js — Helpers, formatters, constants
    ═══════════════════════════════════════════════ */
 import {
-  ROII_REAL_STANDARD, ROII_REAL_RECONF, ROII_OPTIMAL,
-  getRealPositions, getReconfPositions, getOptimalPositions,
-  ROII_REAL_NODE_COLORS, ROII_RECONF_NODE_COLORS, ROII_OPTIMAL_NODE_COLORS,
+  ROII_REAL_STANDARD, ROII_OPTIMAL,
+  getRealPositions, getOptimalPositions,
+  ROII_REAL_NODE_COLORS, ROII_OPTIMAL_NODE_COLORS,
   ROII_REAL_SWITCHES
 } from './roii-real-data.js';
 
@@ -63,7 +63,6 @@ export function pktColor(pi) { return PKT_COLORS[pi % PKT_COLORS.length]; }
 /* ── Model Configs ─────────────────────────────── */
 export const CONFIGS = {
   standard: { data: ROII_REAL_STANDARD, getPositions: getRealPositions,   nodeColors: ROII_REAL_NODE_COLORS,    switches: ROII_REAL_SWITCHES },
-  reconf:   { data: ROII_REAL_RECONF,   getPositions: getReconfPositions, nodeColors: ROII_RECONF_NODE_COLORS,  switches: ROII_REAL_SWITCHES },
   optimal:  { data: ROII_OPTIMAL,       getPositions: getOptimalPositions, nodeColors: ROII_OPTIMAL_NODE_COLORS, switches: ROII_REAL_SWITCHES },
 };
 

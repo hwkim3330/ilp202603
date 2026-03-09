@@ -71,27 +71,27 @@ export const SOURCE_CODE = {
       '  let fallbackCount = 0;',                                                                    // 4
       '',                                                                                            // 5
       '  const gateSchedule = computeGateSchedule(model, pkts);',                                   // 6
-      '  const linkGateWindows = {};',                                                               // 7
-      '  for (const lnk of model.links) {',                                                         // 8
-      '    const linkOcc = Object.fromEntries(model.links.map(l => [l.id, []]));',                   // 9
+      '  const linkGateWindows = {};  // TC-based gate windows',                                     // 7
+      '  for (const lnk of model.links) { ... }',                                                   // 8
+      '  const linkOcc = Object.fromEntries(model.links.map(l => [l.id, []]));',                    // 9
       '',                                                                                            // 10
-      '  function findEarliest(lid, earliest, duration) {',                                          // 11
+      '  function findEarliest(lid, earliest, duration, pktTC) {',                                   // 11
       '    const occ = linkOcc[lid];',                                                               // 12
       '    const gw = linkGateWindows[lid];',                                                        // 13
       '    let t = earliest;',                                                                       // 14
       '    for (let iter = 0; iter < MAX_ITER; iter++) {',                                           // 15
-      '      // 1) 게이트 제약: t에서 duration만큼 열린 윈도우를 찾는다',                               // 16
+      '      // 1) Gate constraint: find window for this packet\'s TC',                              // 16
       '      if (gw) {',                                                                             // 17
       '        let inGate = false;',                                                                 // 18
       '        for (const w of gw) {',                                                               // 19
-      '          if (w.open > t + 1e-9) {',                                                          // 20
-      '            if (duration <= w.close - w.open + 1e-9) { t = w.open; inGate = true; break; }',  // 21
-      '          } else if (t >= w.open - 1e-9 && t + duration <= w.close + 1e-9) {',                // 22
-      '            inGate = true; break;',                                                           // 23
-      '          }',                                                                                 // 24
-      '        }',                                                                                   // 25
-      '        if (!inGate) return Infinity;',                                                       // 26
-      '      }',                                                                                     // 27
+      '          if (w.queue !== pktTC) continue;  // TC-specific gate',                             // 20
+      '          if (w.open > t + 1e-9) {',                                                          // 21
+      '            if (duration <= w.close - w.open + 1e-9) { t = w.open; inGate = true; break; }',  // 22
+      '          } else if (t >= w.open - 1e-9 && t + duration <= w.close + 1e-9) {',                // 23
+      '            inGate = true; break;',                                                           // 24
+      '          }',                                                                                 // 25
+      '        }',                                                                                   // 26
+      '        if (!inGate) return { t: Infinity, queue: -1 };',                                    // 27
       '  const order = pkts.map((pk, i) => i);',                                                     // 28
       '  order.sort((a, b) => {',                                                                    // 29
       '    const pa = pkts[a], pb = pkts[b];',                                                       // 30
@@ -103,27 +103,27 @@ export const SOURCE_CODE = {
       '  const schedHops = new Array(pkts.length);',                                                 // 36
       '  for (const pi of order) {',                                                                 // 37
       '    const pk = pkts[pi];',                                                                    // 38
-      '    let bestRoute = 0, bestEnd = Infinity, bestStarts = null;',                               // 39
+      '    let bestRoute = 0, bestEnd = Infinity, bestStarts = null, bestQueues = null;',            // 39
       '    for (let ri = 0; ri < pk.routes.length; ri++) {',                                         // 40
-      '      const rt = pk.routes[ri]; const starts = []; let t = pk.rel; let valid = true;',        // 41
+      '      const rt = pk.routes[ri]; const starts = [], queues = []; let t = pk.rel; let valid = true;', // 41
       '      for (let h = 0; h < rt.hops.length; h++) {',                                           // 42
       '        const hp = rt.hops[h];',                                                              // 43
-      '        // gate-aware: 게이트 윈도우 + 링크 점유 모두 확인',                                     // 44
-      '        const s = findEarliest(hp.lid, t, hp.tx);',                                           // 45
-      '        if (s === Infinity || s + hp.tx > model.cycle_time_us) { valid = false; break; }',    // 46
-      '        starts.push(s);',                                                                     // 47
-      '        t = s + hp.tx + hp.pd + model.processing_delay_us;',                                  // 48
+      '        // TC-aware: gate window + link occupancy check',                                     // 44
+      '        const res = findEarliest(hp.lid, t, hp.tx, pk.pri);',                                 // 45
+      '        if (res.t === Infinity || res.t + hp.tx > model.cycle_time_us) { valid = false; break; }', // 46
+      '        starts.push(res.t);',                                                                 // 47
+      '        t = res.t + hp.tx + hp.pd + model.processing_delay_us;',                              // 48
       '      }',                                                                                     // 49
       '      if (valid) {',                                                                          // 50
       '        const lastH = rt.hops.at(-1);',                                                       // 51
       '        const fin = starts.at(-1) + lastH.tx + lastH.pd;',                                   // 52
-      '        if (fin < bestEnd) { bestEnd = fin; bestRoute = ri; bestStarts = starts; }',          // 53
+      '        if (fin < bestEnd) { bestEnd = fin; bestRoute = ri; bestStarts = starts; bestQueues = queues; }', // 53
       '      }',                                                                                     // 54
       '    }',                                                                                       // 55
       '    if (!bestStarts) {',                                                                      // 56
       '      const rt = pk.routes[0];',                                                              // 57
-      '      bestStarts = []; let t = pk.rel;',                                                      // 58
-      '      for (const hp of rt.hops) { bestStarts.push(t); t += hp.tx + hp.pd + model.processing_delay_us; }', // 59
+      '      bestStarts = []; bestQueues = []; let t = pk.rel;',                                     // 58
+      '      for (const hp of rt.hops) { bestStarts.push(t); bestQueues.push(-1); t += hp.tx + hp.pd + model.processing_delay_us; }', // 59
       '      bestRoute = 0; fallbackCount++;',                                                       // 60
       '    }',                                                                                       // 61
       '    const rt = pk.routes[bestRoute];',                                                        // 62
@@ -134,10 +134,10 @@ export const SOURCE_CODE = {
       '    for (let h = 0; h < rt.hops.length; h++) {',                                             // 67
       '      linkOcc[rt.hops[h].lid].sort((a, b) => a[0] - b[0]);',                                 // 68
       '    }',                                                                                       // 69
-      '    schedHops[pi] = { route: bestRoute, starts: bestStarts };',                               // 70
+      '    schedHops[pi] = { route: bestRoute, starts: bestStarts, queues: bestQueues };',           // 70
       '  }',                                                                                         // 71
       '  const elapsed = round3(performance.now() - t0);',                                           // 72
-      '  return buildResult(model, pkts, schedHops, "Greedy (RR gate-aware scheduler)", {',          // 73
+      '  return buildResult(model, pkts, schedHops, "Greedy (802.1Qbv TAS scheduler)", {',           // 73
       '    constraints: 0, variables: 0, binaries: 0, status: "heuristic", runtime_ms: elapsed, fallback_packets: fallbackCount', // 74
       '  });',                                                                                       // 75
       '}',                                                                                           // 76
@@ -322,24 +322,24 @@ export const SOURCE_CODE = {
       '  for (const lnk of model.links) {',
       '    const linkGate = (gateSchedule[lnk.from] || {})[lnk.id];',
       '    if (linkGate) {',
-      '      const entries = [];',
-      '      for (let i = 0; i < linkGate.length; i++) {',
-      '        const gs = linkGate[i];',
-      '        const q = gs.queue;',
-      '        const mask = Array(8).fill(\'0\'); mask[7 - q] = \'1\';',
-      '        entries.push({ index: i, gate_mask: mask.join(\'\'), start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: `Q${q}` });',
+      '      // IEEE 802.1Qbv: TC windows + guard bands + packet bars',
+      '      const rows = linkRows[lnk.id].sort((a,b) => a.start_us - b.start_us);',
+      '      const entries = []; let idx = 0;',
+      '      for (const gs of linkGate) {',
+      '        if (gs.type === \'guard\') entries.push({ gate_mask: \'00000000\', ...gs, note: \'guard\' });',
+      '        else if (gs.type === \'be\') entries.push({ gate_mask: \'11111111\', ...gs, note: \'non-ST\' });',
+      '        else { /* TC window — place actual pkt bars inside */ }',
       '      }',
       '      gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries };',
       '    } else {',
-      '      gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries: [',
-      '        { index: 0, gate_mask: \'11111111\', start_us: 0, end_us: model.cycle_time_us, duration_us: model.cycle_time_us, note: \'all queues open\' }',
-      '      ]};',
+      '      // No gate schedule — packet bars + fill',
+      '      gcl.links[lnk.id] = { from, to, entries: [...pktBars, fillEntry] };',
       '    }',
       '  }',
       '',
       '  let worstUtil = 0;',
       '  for (const lnk of model.links) {',
-      '    let act = 0; for (const e of gcl.links[lnk.id].entries) if (!e.note.includes(\'non-ST\')) act += e.duration_us;',
+      '    let act = 0; for (const e of gcl.links[lnk.id].entries) if (!e.note.includes(\'non-ST\') && !e.note.includes(\'guard\')) act += e.duration_us;',
       '    worstUtil = Math.max(worstUtil, act / model.cycle_time_us * 100);',
       '  }',
       '',
