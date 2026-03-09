@@ -42,7 +42,7 @@ export function instrumentSolveGreedy(model) {
     for (let kk = 0; kk < reps; kk++) {
       const rel = kk * f.period_us;
       pkts.push({
-        pid: `${f.id}#${kk}`, fid: f.id, pri: f.PCP, tt: f.traffic_type,
+        pid: `${f.id}#${kk}`, fid: f.id, pri: f.PCP ?? f.priority, tt: f.traffic_type,
         rel, dl: f.deadline_us == null ? null : rel + f.deadline_us,
         tsn: true,
         routes: cp.map((pl, ri) => ({

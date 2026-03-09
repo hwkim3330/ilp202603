@@ -46,7 +46,7 @@ export function instrumentExpandPackets(model) {
   for (const f of model.flows) {
     steps.push({
       lineIdx: 5, desc: `Enter flow loop: ${f.id}`,
-      vars: { 'f.id': f.id, 'f.PCP': f.PCP, 'f.payload_bytes': f.payload_bytes, 'f.period_us': f.period_us, 'f.deadline_us': f.deadline_us, 'f.traffic_type': f.traffic_type, 'f.src': f.src, 'f.dst': f.dst }
+      vars: { 'f.id': f.id, 'f.PCP': f.PCP ?? f.priority, 'f.payload_bytes': f.payload_bytes, 'f.period_us': f.period_us, 'f.deadline_us': f.deadline_us, 'f.traffic_type': f.traffic_type, 'f.src': f.src, 'f.dst': f.dst }
     });
 
     steps.push({
@@ -133,7 +133,7 @@ export function instrumentExpandPackets(model) {
       });
 
       const pkt = {
-        pid: `${f.id}#${kk}`, fid: f.id, pri: f.PCP, tt: f.traffic_type,
+        pid: `${f.id}#${kk}`, fid: f.id, pri: f.PCP ?? f.priority, tt: f.traffic_type,
         rel, dl: f.deadline_us == null ? null : rel + f.deadline_us,
         tsn: isTsn(f.deadline_us),
         routes: cp.map((pl, ri) => ({

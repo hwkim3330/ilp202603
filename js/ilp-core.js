@@ -14,6 +14,9 @@ const FLOW_COLOR_MAP = {
   "f_radar_rlc": "#7c3aed",  // 보라
   "f_radar_rrc": "#171717",  // 검정
   "f_lidar_r":   "#6b7280",  // 회색
+  // Reconf 802.1CB replicated flows
+  "f_lidar_fc_rep": "#f59e0b",  // amber
+  "f_radar_f_rep":  "#a855f7",  // purple
 };
 
 export function flowColor(flowId) {
@@ -100,7 +103,7 @@ export function expandPackets(model) {
     for (let k = 0; k < reps; k++) {
       const rel = k * f.period_us;
       pkts.push({
-        pid: `${f.id}#${k}`, fid: f.id, pri: f.PCP, tt: f.traffic_type,
+        pid: `${f.id}#${k}`, fid: f.id, pri: f.PCP ?? f.priority, tt: f.traffic_type,
         rel, dl: f.deadline_us == null ? null : rel + f.deadline_us,
         tsn: isTsn(f.deadline_us),
         routes: cp.map((pl, ri) => ({ ri, hops: pl.map(lid => ({ lid, tx: txTimeUs(f.payload_bytes, lm.get(lid).rate_mbps), pd: lm.get(lid).prop_delay_us })) }))
@@ -560,7 +563,7 @@ export function renderTopology(model, result, opts = {}) {
     legendEl.innerHTML = "";
     model.flows.forEach(f => {
       const c = flowColor(f.id);
-      legendEl.innerHTML += `<div class="legend-item"><div class="legend-dot" style="background:${c}"></div>${f.id} (P${f.PCP ?? '?'})</div>`;
+      legendEl.innerHTML += `<div class="legend-item"><div class="legend-dot" style="background:${c}"></div>${f.id} (P${f.PCP ?? f.priority ?? '?'})</div>`;
     });
     if (!nodeColors) {
       legendEl.innerHTML += `<div class="legend-item"><div class="legend-dot" style="background:#6366f1"></div>switch</div>`;
@@ -765,7 +768,7 @@ export function renderGCL(model, result, opts = {}) {
   if (legendEl) {
     legendEl.innerHTML = model.flows.map(f => {
       const c = colorFn(f.id);
-      return `<div class="legend-item"><div class="legend-dot" style="background:${c}"></div>${f.id} (P${f.PCP ?? '?'})</div>`;
+      return `<div class="legend-item"><div class="legend-dot" style="background:${c}"></div>${f.id} (P${f.PCP ?? f.priority ?? '?'})</div>`;
     }).join("") +
       `<div class="legend-item"><div class="legend-dot" style="background:#f9a825;background-image:repeating-linear-gradient(45deg,transparent,transparent 2px,rgba(0,0,0,0.15) 2px,rgba(0,0,0,0.15) 4px)"></div>Guard Band</div>` +
       `<div class="legend-item"><div class="legend-dot" style="background:${beColor}"></div>Best-Effort</div>`;
