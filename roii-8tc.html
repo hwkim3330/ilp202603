@@ -210,8 +210,8 @@
         <h1>8-TC Dedicated PCP</h1>
       </div>
       <div class="sub">
-        All 8 traffic classes dedicated to sensor flows &mdash; no best-effort, no guard band.
-        파라미터를 수정하면 자동으로 재계산됩니다.
+        Frame-level 센서 스케줄링 &mdash; 개별 Ethernet 프레임 단위 모델링.<br>
+        No burst aggregation, no guard band, no best-effort. 파라미터를 수정하면 자동으로 재계산됩니다.
       </div>
     </div>
 
@@ -220,7 +220,7 @@
       <div class="card-title">Global Parameters</div>
       <div class="global-params">
         <label>Cycle Time (&micro;s)
-          <input type="number" id="paramCycle" value="10000" min="100" step="100">
+          <input type="number" id="paramCycle" value="1000" min="100" step="100">
         </label>
         <label>Guard Band (&micro;s)
           <input type="number" id="paramGuard" value="0" min="0" step="0.1">
@@ -235,15 +235,50 @@
       </div>
     </div>
 
+    <!-- Sensor Spec Reference -->
+    <div class="card">
+      <div class="card-title">Sensor H/W Specifications</div>
+      <table class="param-table">
+        <thead>
+          <tr><th>Sensor</th><th>Type</th><th>App Payload</th><th>Interface</th><th>Real Period</th><th>Frame Rate</th><th>Wire TX (1Gbps)</th><th>Note</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="pcp-dot" style="background:#10B981"></span><strong>AutoL G32</strong></td>
+            <td>LiDAR (solid-state)</td><td class="calc">1248 B</td>
+            <td>1000BASE-T1</td><td class="calc">167 &micro;s</td><td class="calc">6000 fps</td>
+            <td class="calc result">10.512 &micro;s</td>
+            <td style="font-size:0.7rem;">135&deg; FOV, (1248+66)&times;8/1000</td>
+          </tr>
+          <tr>
+            <td><span class="pcp-dot" style="background:#0D9488"></span><strong>Hesai Pandar 40P</strong></td>
+            <td>LiDAR (rotating)</td><td class="calc">1262 B</td>
+            <td>1000BASE-T</td><td class="calc">536 &micro;s</td><td class="calc">1866 fps</td>
+            <td class="calc result">10.624 &micro;s</td>
+            <td style="font-size:0.7rem;">360&deg; FOV, (1262+66)&times;8/1000</td>
+          </tr>
+          <tr>
+            <td><span class="pcp-dot" style="background:#952aff"></span><strong>Continental MRR-35</strong></td>
+            <td>Radar</td><td class="calc">64 B</td>
+            <td>CAN-FD (500k/5M)</td><td class="calc">166.6 &micro;s <span style="color:var(--text3)">(CAN-FD)</span></td><td class="calc">-</td>
+            <td class="calc result">0.816 &micro;s</td>
+            <td style="font-size:0.7rem;">CAN2ETH bridge, (64+38)&times;8/1000</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
     <!-- Flow Parameters (editable) -->
     <div class="card">
-      <div class="card-title">Flow Parameters &mdash; PCP &rarr; TC Assignment</div>
+      <div class="card-title">Flow Parameters &mdash; PCP &rarr; TC Assignment (Frame-Level)</div>
       <table class="param-table" id="flowTable">
         <thead>
           <tr>
             <th>PCP</th><th>TC</th><th>Flow ID</th><th>Sensor</th>
-            <th>Payload (B)</th><th>Period (&micro;s)</th><th>Deadline (&micro;s)</th>
-            <th>TX Time (&micro;s)</th><th>Pkts/Cycle</th>
+            <th>App (B)</th><th>ETH Payload (B)</th>
+            <th>Period (&micro;s)</th><th>Real (&micro;s)</th>
+            <th>Deadline (&micro;s)</th>
+            <th>TX (&micro;s)</th><th>Pkts/Cycle</th>
           </tr>
         </thead>
         <tbody id="flowTableBody"></tbody>
@@ -292,17 +327,26 @@
 
   initTooltip();
 
-  // ── Flow Definitions (editable) ──
+  // ── Flow Definitions (editable) — Frame-level sensor data ──
+  // Payload = sensor app payload + 28 B (20 IP + 8 UDP) for LiDAR
+  //         = raw CAN-FD payload for radar (no IP/UDP encap)
+  // Formula: TX = (payload + 38) × 8 / speed
+  //   38B = 7 preamble + 1 SFD + 14 ETH header + 4 FCS + 12 IFG
+  //   Total wire overhead: 38 (L2) + 28 (IP/UDP) = 66 B for LiDAR
   const FLOW_DEFS = [
-    { pcp: 7, id: 'f_lidar_fc',  sensor: 'AutoL G32',       payload: 131072, period: 10000, deadline: 5000, src: 'LIDAR_FC',  dst: 'ACU_IT', color: '#10B981' },
-    { pcp: 6, id: 'f_lidar_r',   sensor: 'AutoL G32',       payload: 131072, period: 10000, deadline: 5000, src: 'LIDAR_R',   dst: 'ACU_IT', color: '#10B981' },
-    { pcp: 5, id: 'f_lidar_fl',  sensor: 'Hesai Pandar 40P',payload: 32768,  period: 10000, deadline: 5000, src: 'LIDAR_FL',  dst: 'ACU_IT', color: '#0D9488' },
-    { pcp: 4, id: 'f_lidar_fr',  sensor: 'Hesai Pandar 40P',payload: 32768,  period: 10000, deadline: 5000, src: 'LIDAR_FR',  dst: 'ACU_IT', color: '#0D9488' },
-    { pcp: 3, id: 'f_radar_f',   sensor: 'MRR-35',          payload: 4096,   period: 5000,  deadline: 2000, src: 'RADAR_F',   dst: 'ACU_IT', color: '#952aff' },
-    { pcp: 2, id: 'f_radar_flc', sensor: 'MRR-35',          payload: 4096,   period: 5000,  deadline: 2000, src: 'RADAR_FLC', dst: 'ACU_IT', color: '#952aff' },
-    { pcp: 1, id: 'f_radar_frc', sensor: 'MRR-35',          payload: 4096,   period: 5000,  deadline: 2000, src: 'RADAR_FRC', dst: 'ACU_IT', color: '#952aff' },
-    { pcp: 0, id: 'f_radar_rlc', sensor: 'MRR-35 (shared)', payload: 4096,   period: 5000,  deadline: 2000, src: 'RADAR_RLC', dst: 'ACU_IT', color: '#952aff' },
-    { pcp: 0, id: 'f_radar_rrc', sensor: 'MRR-35 (shared)', payload: 4096,   period: 5000,  deadline: 2000, src: 'RADAR_RRC', dst: 'ACU_IT', color: '#952aff' },
+    // AutoL G32: 1248 B sensor + 28 B IP/UDP = 1276 B | TX = 10.512 µs | real period: 167 µs (6000 fps)
+    { pcp: 7, id: 'f_lidar_fc',  sensor: 'AutoL G32',       sensorPayload: 1248, payload: 1276, period: 200, deadline: 200, src: 'LIDAR_FC',  dst: 'ACU_IT', color: '#10B981', realPeriod: 167 },
+    { pcp: 6, id: 'f_lidar_r',   sensor: 'AutoL G32',       sensorPayload: 1248, payload: 1276, period: 200, deadline: 200, src: 'LIDAR_R',   dst: 'ACU_IT', color: '#10B981', realPeriod: 167 },
+    // Hesai Pandar 40P: 1262 B sensor + 28 B IP/UDP = 1290 B | TX = 10.624 µs | real period: 536 µs (1866 fps)
+    { pcp: 5, id: 'f_lidar_fl',  sensor: 'Hesai Pandar 40P',sensorPayload: 1262, payload: 1290, period: 500, deadline: 500, src: 'LIDAR_FL',  dst: 'ACU_IT', color: '#0D9488', realPeriod: 536 },
+    { pcp: 4, id: 'f_lidar_fr',  sensor: 'Hesai Pandar 40P',sensorPayload: 1262, payload: 1290, period: 500, deadline: 500, src: 'LIDAR_FR',  dst: 'ACU_IT', color: '#0D9488', realPeriod: 536 },
+    // Continental MRR-35: 64 B CAN-FD payload (raw, no IP/UDP) | TX = 0.816 µs
+    // CAN-FD bus: 166.6 µs/frame (500k/5M) — Ethernet: 0.816 µs/frame
+    { pcp: 3, id: 'f_radar_f',   sensor: 'MRR-35 (CAN-FD)', sensorPayload: 64,   payload: 64,   period: 500, deadline: 500, src: 'RADAR_F',   dst: 'ACU_IT', color: '#952aff', realPeriod: null },
+    { pcp: 2, id: 'f_radar_flc', sensor: 'MRR-35 (CAN-FD)', sensorPayload: 64,   payload: 64,   period: 500, deadline: 500, src: 'RADAR_FLC', dst: 'ACU_IT', color: '#952aff', realPeriod: null },
+    { pcp: 1, id: 'f_radar_frc', sensor: 'MRR-35 (CAN-FD)', sensorPayload: 64,   payload: 64,   period: 500, deadline: 500, src: 'RADAR_FRC', dst: 'ACU_IT', color: '#952aff', realPeriod: null },
+    { pcp: 0, id: 'f_radar_rlc', sensor: 'MRR-35 (shared)',  sensorPayload: 64,   payload: 64,   period: 500, deadline: 500, src: 'RADAR_RLC', dst: 'ACU_IT', color: '#952aff', realPeriod: null },
+    { pcp: 0, id: 'f_radar_rrc', sensor: 'MRR-35 (shared)',  sensorPayload: 64,   payload: 64,   period: 500, deadline: 500, src: 'RADAR_RRC', dst: 'ACU_IT', color: '#952aff', realPeriod: null },
   ];
 
   const round3 = v => Math.round(v * 1000) / 1000;
@@ -311,19 +355,22 @@
   // ── Render Flow Table ──
   function renderFlowTable() {
     const speed = parseFloat(document.getElementById('paramSpeed').value) || 1000;
-    const cycle = parseFloat(document.getElementById('paramCycle').value) || 10000;
+    const cycle = parseFloat(document.getElementById('paramCycle').value) || 1000;
     const tbody = document.getElementById('flowTableBody');
     tbody.innerHTML = FLOW_DEFS.map((f, i) => {
       const tx = txTime(f.payload, speed);
       const pkts = Math.round(cycle / f.period);
+      const realPd = f.realPeriod ? `<span style="color:var(--text3)">${f.realPeriod}</span>` : '<span style="color:var(--text3)">-</span>';
       return `<tr>
         <td><strong>${f.pcp}</strong></td>
         <td>TC${f.pcp}</td>
         <td><span class="pcp-dot" style="background:${f.color}"></span>${f.id}</td>
-        <td>${f.sensor}</td>
-        <td><input type="number" data-idx="${i}" data-field="payload" value="${f.payload}" min="64" step="64"></td>
-        <td><input type="number" data-idx="${i}" data-field="period" value="${f.period}" min="100" step="100"></td>
-        <td><input type="number" data-idx="${i}" data-field="deadline" value="${f.deadline}" min="100" step="100"></td>
+        <td style="font-size:0.72rem;">${f.sensor}</td>
+        <td class="calc">${f.sensorPayload}</td>
+        <td><input type="number" data-idx="${i}" data-field="payload" value="${f.payload}" min="64" step="1"></td>
+        <td><input type="number" data-idx="${i}" data-field="period" value="${f.period}" min="10" step="10"></td>
+        <td>${realPd}</td>
+        <td><input type="number" data-idx="${i}" data-field="deadline" value="${f.deadline}" min="10" step="10"></td>
         <td class="calc">${tx}</td>
         <td class="calc">${pkts}</td>
       </tr>`;
@@ -342,7 +389,7 @@
 
   // ── Build Model from Current Params ──
   function buildModel() {
-    const cycle = parseFloat(document.getElementById('paramCycle').value) || 10000;
+    const cycle = parseFloat(document.getElementById('paramCycle').value) || 1000;
     const guard = parseFloat(document.getElementById('paramGuard').value);
     const speed = parseFloat(document.getElementById('paramSpeed').value) || 1000;
     const procDelay = parseFloat(document.getElementById('paramProcDelay').value) || 3;
@@ -372,14 +419,33 @@
     const el = document.getElementById('calcDetail');
     let html = '';
 
+    // Overhead Breakdown
+    html += `<div class="calc-section"><h4>Ethernet Frame Overhead</h4>`;
+    html += `<table class="param-table" style="margin-top:4px;max-width:600px;"><thead><tr><th>Layer</th><th>Component</th><th>Size (B)</th></tr></thead><tbody>`;
+    html += `<tr><td rowspan="4">L2 (38 B)</td><td>Preamble + SFD</td><td class="calc">7 + 1 = 8</td></tr>`;
+    html += `<tr><td>Ethernet Header (DA+SA+Type)</td><td class="calc">14</td></tr>`;
+    html += `<tr><td>FCS (CRC-32)</td><td class="calc">4</td></tr>`;
+    html += `<tr><td>IFG (Inter-Frame Gap)</td><td class="calc">12</td></tr>`;
+    html += `<tr><td rowspan="2">L3/L4 (28 B)</td><td>IP Header</td><td class="calc">20</td></tr>`;
+    html += `<tr><td>UDP Header</td><td class="calc">8</td></tr>`;
+    html += `<tr style="font-weight:700;"><td>Total</td><td>LiDAR (L2+L3/L4)</td><td class="calc result">66 B</td></tr>`;
+    html += `<tr style="font-weight:700;"><td></td><td>Radar CAN-FD (L2 only)</td><td class="calc result">38 B</td></tr>`;
+    html += `</tbody></table></div>`;
+
     // TX Time Calculation
     html += `<div class="calc-section"><h4>TX Time Calculation</h4>`;
-    html += `<span class="formula">TX = (payload + 38) &times; 8 / speed</span> &nbsp; (38B = Ethernet overhead: 7 preamble + 1 SFD + 14 header + 4 FCS + 12 IFG)`;
-    html += `<table class="param-table" style="margin-top:6px;"><thead><tr><th>Flow</th><th>Payload</th><th>Calculation</th><th>TX Time</th></tr></thead><tbody>`;
+    html += `<span class="formula">TX = (ETH_payload + 38) &times; 8 / speed</span> &nbsp; where ETH_payload = sensor_data + IP(20) + UDP(8) for LiDAR, or raw CAN-FD for radar`;
+    html += `<table class="param-table" style="margin-top:6px;"><thead><tr><th>Flow</th><th>Sensor</th><th>App</th><th>+IP/UDP</th><th>ETH Payload</th><th>Wire Total</th><th>Calculation</th><th>TX Time</th></tr></thead><tbody>`;
     for (const f of FLOW_DEFS) {
       const tx = txTime(f.payload, speed);
-      html += `<tr><td>${f.id}</td><td>${f.payload} B</td>
-        <td class="calc">(${f.payload} + 38) &times; 8 / ${speed} = <span class="result">${tx} &micro;s</span></td>
+      const ipUdp = f.payload - f.sensorPayload;
+      const wireTotal = f.payload + 38;
+      html += `<tr><td>${f.id}</td><td style="font-size:0.7rem;">${f.sensor}</td>
+        <td class="calc">${f.sensorPayload} B</td>
+        <td class="calc">${ipUdp > 0 ? '+' + ipUdp : '-'}</td>
+        <td class="calc">${f.payload} B</td>
+        <td class="calc">${wireTotal} B</td>
+        <td class="calc">(${f.payload}+38)&times;8/${speed}</td>
         <td class="calc result">${tx} &micro;s</td></tr>`;
     }
     html += `</tbody></table></div>`;

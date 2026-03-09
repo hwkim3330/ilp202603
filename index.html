@@ -45,20 +45,20 @@
         </div>
       </a>
 
-      <!-- 8-TC Dedicated PCP -->
+      <!-- 8-TC Frame-Level -->
       <a class="landing-card" href="roii-8tc.html">
-        <h2>8-TC Dedicated PCP</h2>
+        <h2>8-TC Frame-Level</h2>
         <p>
-          All 8 traffic classes dedicated to sensor flows &mdash; no best-effort, no guard band.
-          Each LiDAR gets its own PCP (7&ndash;4), radars share remaining PCPs (3&ndash;0).
-          파라미터 수정 &amp; 실시간 재계산 가능.
-          Per-board GCL 설정 + 8-bit gate mask 시각화.
+          개별 Ethernet 프레임 단위 스케줄링. AutoL G32 (1248B, 10.51&micro;s),
+          Hesai Pandar 40P (1262B, 10.62&micro;s), MRR-35 CAN-FD (64B, 0.82&micro;s).
+          Cycle: 1ms, 24 pkts/cycle. 파라미터 수정 &amp; 실시간 재계산 가능.
+          Per-board GCL 설정 + 8-bit gate mask + overhead breakdown.
         </p>
         <div class="card-tags">
+          <span>Frame-Level</span>
           <span>8 TCs</span>
           <span>No Guard Band</span>
           <span>Interactive</span>
-          <span>Board GCL</span>
         </div>
       </a>
 

@@ -741,56 +741,62 @@ export const ROII_HW_3D_TILTS = {
    ═══════════════════════════════════════════════════ */
 
 export const ROII_REAL_8TC = {
-  cycle_time_us: 10000,
+  cycle_time_us: 1000,       // 1 ms — frame-level GCL cycle
   guard_band_us: 0,
   processing_delay_us: 3,
   no_be: true,
   nodes: JSON.parse(JSON.stringify(NODES)),
   links: JSON.parse(JSON.stringify(LINKS)),
   flows: [
-    // LiDAR flows — each gets dedicated PCP
-    { id: "f_lidar_fc", PCP: 7, payload_bytes: 131072, period_us: 10000, deadline_us: 5000,
+    // ── LiDAR flows — each gets dedicated PCP ──
+    // AutoL G32: 1248 B sensor payload + 28 B (IP+UDP) = 1276 B Ethernet payload
+    // TX = (1276+38)×8/1000 = 10.512 µs | Real period: 167 µs (6000 fps) → model: 200 µs
+    { id: "f_lidar_fc", PCP: 7, payload_bytes: 1276, period_us: 200, deadline_us: 200,
       traffic_type: "lidar", src: "LIDAR_FC", dst: "ACU_IT", k_paths: 2 },
-    { id: "f_lidar_r",  PCP: 6, payload_bytes: 131072, period_us: 10000, deadline_us: 5000,
+    { id: "f_lidar_r",  PCP: 6, payload_bytes: 1276, period_us: 200, deadline_us: 200,
       traffic_type: "lidar", src: "LIDAR_R",  dst: "ACU_IT", k_paths: 2 },
-    { id: "f_lidar_fl", PCP: 5, payload_bytes: 32768, period_us: 10000, deadline_us: 5000,
+    // Hesai Pandar 40P: 1262 B sensor payload + 28 B = 1290 B Ethernet payload
+    // TX = (1290+38)×8/1000 = 10.624 µs | Real period: 536 µs (1866 fps) → model: 500 µs
+    { id: "f_lidar_fl", PCP: 5, payload_bytes: 1290, period_us: 500, deadline_us: 500,
       traffic_type: "lidar", src: "LIDAR_FL", dst: "ACU_IT", k_paths: 2 },
-    { id: "f_lidar_fr", PCP: 4, payload_bytes: 32768, period_us: 10000, deadline_us: 5000,
+    { id: "f_lidar_fr", PCP: 4, payload_bytes: 1290, period_us: 500, deadline_us: 500,
       traffic_type: "lidar", src: "LIDAR_FR", dst: "ACU_IT", k_paths: 2 },
-    // Radar flows — remaining PCPs
-    { id: "f_radar_f",   PCP: 3, payload_bytes: 4096, period_us: 5000, deadline_us: 2000,
+    // ── Radar flows — remaining PCPs ──
+    // Continental MRR-35: 64 B CAN-FD payload (raw Ethernet, no IP/UDP)
+    // TX = (64+38)×8/1000 = 0.816 µs | Period: 500 µs (CAN-FD inter-frame interval)
+    { id: "f_radar_f",   PCP: 3, payload_bytes: 64, period_us: 500, deadline_us: 500,
       traffic_type: "radar", src: "RADAR_F",   dst: "ACU_IT", k_paths: 2 },
-    { id: "f_radar_flc", PCP: 2, payload_bytes: 4096, period_us: 5000, deadline_us: 2000,
+    { id: "f_radar_flc", PCP: 2, payload_bytes: 64, period_us: 500, deadline_us: 500,
       traffic_type: "radar", src: "RADAR_FLC", dst: "ACU_IT", k_paths: 2 },
-    { id: "f_radar_frc", PCP: 1, payload_bytes: 4096, period_us: 5000, deadline_us: 2000,
+    { id: "f_radar_frc", PCP: 1, payload_bytes: 64, period_us: 500, deadline_us: 500,
       traffic_type: "radar", src: "RADAR_FRC", dst: "ACU_IT", k_paths: 2 },
-    { id: "f_radar_rlc", PCP: 0, payload_bytes: 4096, period_us: 5000, deadline_us: 2000,
+    { id: "f_radar_rlc", PCP: 0, payload_bytes: 64, period_us: 500, deadline_us: 500,
       traffic_type: "radar", src: "RADAR_RLC", dst: "ACU_IT", k_paths: 2 },
-    { id: "f_radar_rrc", PCP: 0, payload_bytes: 4096, period_us: 5000, deadline_us: 2000,
+    { id: "f_radar_rrc", PCP: 0, payload_bytes: 64, period_us: 500, deadline_us: 500,
       traffic_type: "radar", src: "RADAR_RRC", dst: "ACU_IT", k_paths: 2 }
   ]
 };
 
 /* ── 8-TC Scenario Description ── */
 export const ROII_8TC_SCENARIO = {
-  title: "ROii 8-TC Dedicated PCP \u2014 No Best-Effort",
-  description: "All 8 traffic classes dedicated to sensor flows \u2014 <strong>no best-effort, no guard band</strong>. Each LiDAR gets its own PCP (7\u20134), radars share remaining PCPs (3\u20130). Per-board GCL configuration with 8-bit gate mask visualization. Interactive: edit payloads, periods, deadlines and recalculate. Same Standard topology: <strong>13 nodes, 16 links, 9 flows, 14 pkts/cycle</strong>.",
+  title: "ROii 8-TC Frame-Level \u2014 No Best-Effort",
+  description: "Frame-level sensor scheduling: each Ethernet frame modeled individually. <strong>No burst aggregation, no guard band, no best-effort</strong>. AutoL G32: 1248 B sensor + 28 B IP/UDP = 1276 B (10.512 \u00b5s TX). Hesai Pandar 40P: 1262 B + 28 B = 1290 B (10.624 \u00b5s TX). MRR-35: 64 B CAN-FD (0.816 \u00b5s TX). Cycle: 1000 \u00b5s (1 ms). <strong>9 flows, 24 pkts/cycle, ~15.6% bottleneck util</strong>.",
   flows: [
-    { name: "G32 FC \u2192 ACU-IT",      color: "#10B981", desc: "128KB, PCP 7 (TC7), 1Gbps (1048.9\u00b5s tx)" },
-    { name: "G32 Rear \u2192 ACU-IT",    color: "#10B981", desc: "128KB, PCP 6 (TC6), 1Gbps (1048.9\u00b5s tx)" },
-    { name: "Pandar FL \u2192 ACU-IT",   color: "#0D9488", desc: "32KB, PCP 5 (TC5), 1Gbps (262.4\u00b5s tx)" },
-    { name: "Pandar FR \u2192 ACU-IT",   color: "#0D9488", desc: "32KB, PCP 4 (TC4), 1Gbps (262.4\u00b5s tx)" },
-    { name: "MRR-35 F \u2192 ACU-IT",    color: "#952aff", desc: "4KB \u00d72pkts, PCP 3 (TC3), 50Hz (33.1\u00b5s tx)" },
-    { name: "MRR-35 FLC \u2192 ACU-IT",  color: "#952aff", desc: "4KB \u00d72pkts, PCP 2 (TC2), 50Hz (33.1\u00b5s tx)" },
-    { name: "MRR-35 FRC \u2192 ACU-IT",  color: "#952aff", desc: "4KB \u00d72pkts, PCP 1 (TC1), 50Hz (33.1\u00b5s tx)" },
-    { name: "MRR-35 RLC \u2192 ACU-IT",  color: "#952aff", desc: "4KB \u00d72pkts, PCP 0 (TC0), 50Hz (33.1\u00b5s tx)" },
-    { name: "MRR-35 RRC \u2192 ACU-IT",  color: "#952aff", desc: "4KB \u00d72pkts, PCP 0 (TC0), 50Hz (33.1\u00b5s tx)" }
+    { name: "G32 FC \u2192 ACU-IT",      color: "#10B981", desc: "1276B, PCP 7, 200\u00b5s period (10.512\u00b5s TX)" },
+    { name: "G32 Rear \u2192 ACU-IT",    color: "#10B981", desc: "1276B, PCP 6, 200\u00b5s period (10.512\u00b5s TX)" },
+    { name: "Pandar FL \u2192 ACU-IT",   color: "#0D9488", desc: "1290B, PCP 5, 500\u00b5s period (10.624\u00b5s TX)" },
+    { name: "Pandar FR \u2192 ACU-IT",   color: "#0D9488", desc: "1290B, PCP 4, 500\u00b5s period (10.624\u00b5s TX)" },
+    { name: "MRR-35 F \u2192 ACU-IT",    color: "#952aff", desc: "64B CAN-FD, PCP 3, 500\u00b5s (0.816\u00b5s TX)" },
+    { name: "MRR-35 FLC \u2192 ACU-IT",  color: "#952aff", desc: "64B CAN-FD, PCP 2, 500\u00b5s (0.816\u00b5s TX)" },
+    { name: "MRR-35 FRC \u2192 ACU-IT",  color: "#952aff", desc: "64B CAN-FD, PCP 1, 500\u00b5s (0.816\u00b5s TX)" },
+    { name: "MRR-35 RLC \u2192 ACU-IT",  color: "#952aff", desc: "64B CAN-FD, PCP 0, 500\u00b5s (0.816\u00b5s TX)" },
+    { name: "MRR-35 RRC \u2192 ACU-IT",  color: "#952aff", desc: "64B CAN-FD, PCP 0, 500\u00b5s (0.816\u00b5s TX)" }
   ],
   domains: [
-    { name: "LiDAR G32 (PCP 7/6)",    color: "#10B981" },
-    { name: "LiDAR Pandar (PCP 5/4)", color: "#0D9488" },
-    { name: "Radar MRR-35 (PCP 3\u20130)", color: "#952aff" },
-    { name: "LAN9692 Backbone",       color: "#3B82F6" },
-    { name: "ACU-IT Processing",      color: "#dc2626" }
+    { name: "AutoL G32 (PCP 7/6)",       color: "#10B981" },
+    { name: "Hesai Pandar 40P (PCP 5/4)", color: "#0D9488" },
+    { name: "MRR-35 CAN-FD (PCP 3\u20130)", color: "#952aff" },
+    { name: "LAN9692 Backbone",           color: "#3B82F6" },
+    { name: "ACU-IT Processing",          color: "#dc2626" }
   ]
 };
