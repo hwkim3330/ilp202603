@@ -171,6 +171,13 @@ export async function instrumentBuildResult(model, solver = 'greedy', glpk = nul
             vars: { type: 'guard', open: gs.open, close: gs.close },
             gantt: { type: 'guard', lid: lnk.id, s: gs.open, e: gs.close, dur: round3(gs.close - gs.open), before: 'TC transition' }
           });
+        } else if (gs.type === 'closed') {
+          entries.push({ index: idx++, gate_mask: '00000000', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'all-gates-closed' });
+          steps.push({
+            lineIdx: 24, desc: `GCL all-gates-closed [${gs.open}, ${gs.close}]`,
+            vars: { type: 'closed', open: gs.open, close: gs.close },
+            gantt: { type: 'guard', lid: lnk.id, s: gs.open, e: gs.close, dur: round3(gs.close - gs.open), before: 'No BE' }
+          });
         } else if (gs.type === 'be') {
           entries.push({ index: idx++, gate_mask: '11111111', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'non-ST' });
           steps.push({
@@ -250,7 +257,7 @@ export async function instrumentBuildResult(model, solver = 'greedy', glpk = nul
       vars: { lnk: deep(lnk), 'lnk.id': lnk.id, act: 0 }
     });
     for (const e of gcl.links[lnk.id].entries) {
-      if (!e.note.includes('non-ST') && !e.note.includes('guard')) {
+      if (!e.note.includes('non-ST') && !e.note.includes('guard') && !e.note.includes('all-gates-closed')) {
         act += e.duration_us;
         steps.push({
           lineIdx: 33, desc: `${lnk.id}: act += ${round3(e.duration_us)} → ${round3(act)}`,
@@ -323,10 +330,33 @@ export async function instrumentBuildResult(model, solver = 'greedy', glpk = nul
     packetRows: deep(pktRows)
   });
 
+  // ── Board Configurations (per-switch, per-egress-port GCL) ──
+  const boardConfigs = {};
+  for (const lnk of model.links) {
+    if (nodeType[lnk.from] !== 'switch') continue;
+    if (!boardConfigs[lnk.from]) boardConfigs[lnk.from] = { ports: {} };
+    const gclEntries = gcl.links[lnk.id]?.entries || [];
+    const pcpSet = new Set();
+    for (const e of gclEntries) {
+      if (e.gate_mask && e.gate_mask !== '00000000' && e.gate_mask !== '11111111') {
+        const q = e.gate_mask.split('').reverse().indexOf('1');
+        if (q >= 0) pcpSet.add(q);
+      }
+    }
+    boardConfigs[lnk.from].ports[lnk.id] = {
+      to: lnk.to,
+      cycle_time_us: model.cycle_time_us,
+      guard_band_us: model.guard_band_us,
+      num_entries: gclEntries.length,
+      pcp_queue_map: [...pcpSet].sort((a, b) => b - a).map(q => ({ pcp: q, queue: q })),
+      entries: gclEntries
+    };
+  }
+
   const activeLinks = model.links.filter(l => linkOcc[l.id] && linkOcc[l.id].length > 0);
 
   return {
-    steps, pkts, activeLinks, schedHops,
+    steps, pkts, activeLinks, schedHops, boardConfigs,
     depInfo: `${solver === 'ilp' ? 'solveILP' : 'solveGreedy'} silently ran first → ${pkts.length} packets scheduled, then buildResult constructs GCL`
   };
 }

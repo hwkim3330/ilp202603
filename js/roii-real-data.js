@@ -732,3 +732,65 @@ export const ROII_HW_3D_TILTS = {
   RADAR_RLC: { y:  Math.PI / 6 },
   RADAR_RRC: { y: -Math.PI / 6 }
 };
+
+/* ═══════════════════════════════════════════════════
+   8-TC DEDICATED PCP MODEL
+   All 8 traffic classes dedicated to sensor flows — no best-effort.
+   Each LiDAR gets its own PCP (7–4), radars share remaining PCPs (3–0).
+   Same Standard topology (13 nodes, 16 links, 9 flows).
+   ═══════════════════════════════════════════════════ */
+
+export const ROII_REAL_8TC = {
+  cycle_time_us: 10000,
+  guard_band_us: 12.304,
+  processing_delay_us: 3,
+  no_be: true,
+  nodes: JSON.parse(JSON.stringify(NODES)),
+  links: JSON.parse(JSON.stringify(LINKS)),
+  flows: [
+    // LiDAR flows — each gets dedicated PCP
+    { id: "f_lidar_fc", PCP: 7, payload_bytes: 131072, period_us: 10000, deadline_us: 5000,
+      traffic_type: "lidar", src: "LIDAR_FC", dst: "ACU_IT", k_paths: 2 },
+    { id: "f_lidar_r",  PCP: 6, payload_bytes: 131072, period_us: 10000, deadline_us: 5000,
+      traffic_type: "lidar", src: "LIDAR_R",  dst: "ACU_IT", k_paths: 2 },
+    { id: "f_lidar_fl", PCP: 5, payload_bytes: 32768, period_us: 10000, deadline_us: 5000,
+      traffic_type: "lidar", src: "LIDAR_FL", dst: "ACU_IT", k_paths: 2 },
+    { id: "f_lidar_fr", PCP: 4, payload_bytes: 32768, period_us: 10000, deadline_us: 5000,
+      traffic_type: "lidar", src: "LIDAR_FR", dst: "ACU_IT", k_paths: 2 },
+    // Radar flows — remaining PCPs
+    { id: "f_radar_f",   PCP: 3, payload_bytes: 4096, period_us: 5000, deadline_us: 2000,
+      traffic_type: "radar", src: "RADAR_F",   dst: "ACU_IT", k_paths: 2 },
+    { id: "f_radar_flc", PCP: 2, payload_bytes: 4096, period_us: 5000, deadline_us: 2000,
+      traffic_type: "radar", src: "RADAR_FLC", dst: "ACU_IT", k_paths: 2 },
+    { id: "f_radar_frc", PCP: 1, payload_bytes: 4096, period_us: 5000, deadline_us: 2000,
+      traffic_type: "radar", src: "RADAR_FRC", dst: "ACU_IT", k_paths: 2 },
+    { id: "f_radar_rlc", PCP: 0, payload_bytes: 4096, period_us: 5000, deadline_us: 2000,
+      traffic_type: "radar", src: "RADAR_RLC", dst: "ACU_IT", k_paths: 2 },
+    { id: "f_radar_rrc", PCP: 0, payload_bytes: 4096, period_us: 5000, deadline_us: 2000,
+      traffic_type: "radar", src: "RADAR_RRC", dst: "ACU_IT", k_paths: 2 }
+  ]
+};
+
+/* ── 8-TC Scenario Description ── */
+export const ROII_8TC_SCENARIO = {
+  title: "ROii 8-TC Dedicated PCP \u2014 No Best-Effort",
+  description: "All 8 traffic classes dedicated to sensor flows \u2014 <strong>no best-effort traffic</strong>. Each LiDAR gets its own PCP (7\u20134), radars share remaining PCPs (3\u20130). Per-board GCL configuration table with 8-bit gate mask visualization and PCP\u2192Queue mapping for LAN9692 switches. Same Standard topology: <strong>13 nodes, 16 links, 9 flows, 14 pkts/cycle</strong>.",
+  flows: [
+    { name: "G32 FC \u2192 ACU-IT",      color: "#10B981", desc: "128KB, PCP 7 (TC7), 1Gbps (1048.9\u00b5s tx)" },
+    { name: "G32 Rear \u2192 ACU-IT",    color: "#10B981", desc: "128KB, PCP 6 (TC6), 1Gbps (1048.9\u00b5s tx)" },
+    { name: "Pandar FL \u2192 ACU-IT",   color: "#0D9488", desc: "32KB, PCP 5 (TC5), 1Gbps (262.4\u00b5s tx)" },
+    { name: "Pandar FR \u2192 ACU-IT",   color: "#0D9488", desc: "32KB, PCP 4 (TC4), 1Gbps (262.4\u00b5s tx)" },
+    { name: "MRR-35 F \u2192 ACU-IT",    color: "#952aff", desc: "4KB \u00d72pkts, PCP 3 (TC3), 50Hz (33.1\u00b5s tx)" },
+    { name: "MRR-35 FLC \u2192 ACU-IT",  color: "#952aff", desc: "4KB \u00d72pkts, PCP 2 (TC2), 50Hz (33.1\u00b5s tx)" },
+    { name: "MRR-35 FRC \u2192 ACU-IT",  color: "#952aff", desc: "4KB \u00d72pkts, PCP 1 (TC1), 50Hz (33.1\u00b5s tx)" },
+    { name: "MRR-35 RLC \u2192 ACU-IT",  color: "#952aff", desc: "4KB \u00d72pkts, PCP 0 (TC0), 50Hz (33.1\u00b5s tx)" },
+    { name: "MRR-35 RRC \u2192 ACU-IT",  color: "#952aff", desc: "4KB \u00d72pkts, PCP 0 (TC0), 50Hz (33.1\u00b5s tx)" }
+  ],
+  domains: [
+    { name: "LiDAR G32 (PCP 7/6)",    color: "#10B981" },
+    { name: "LiDAR Pandar (PCP 5/4)", color: "#0D9488" },
+    { name: "Radar MRR-35 (PCP 3\u20130)", color: "#952aff" },
+    { name: "LAN9692 Backbone",       color: "#3B82F6" },
+    { name: "ACU-IT Processing",      color: "#dc2626" }
+  ]
+};

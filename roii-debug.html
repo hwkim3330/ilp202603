@@ -273,6 +273,57 @@
     .progress-bar .fill { height: 100%; background: linear-gradient(90deg, #3B82F6, #06B6D4); border-radius: 2px; transition: width 0.3s; }
 
     /* GLPK status */
+
+    /* ── Board Configuration Table ────────────────── */
+    .board-section {
+      margin-bottom: 20px; padding: 12px 16px;
+      border: 1px solid rgba(59,130,246,0.12); border-radius: 8px;
+      background: rgba(59,130,246,0.02);
+    }
+    .board-section h3 {
+      font-size: 0.88rem; font-weight: 700; color: var(--blue);
+      margin: 0 0 10px 0;
+    }
+    .board-port { margin-bottom: 14px; }
+    .board-port h4 {
+      font-size: 0.78rem; font-weight: 600; color: var(--text2);
+      margin: 0 0 6px 0;
+    }
+    .board-port .port-meta {
+      font-size: 0.7rem; color: var(--text3); margin-bottom: 6px;
+    }
+    .gcl-table {
+      width: 100%; border-collapse: collapse; font-size: 0.72rem;
+      font-family: 'Courier New', monospace;
+    }
+    .gcl-table th {
+      background: rgba(59,130,246,0.06); color: var(--text2);
+      padding: 4px 8px; text-align: left; font-weight: 700;
+      border-bottom: 1px solid rgba(59,130,246,0.15);
+    }
+    .gcl-table td {
+      padding: 3px 8px; border-bottom: 1px solid rgba(59,130,246,0.06);
+    }
+    .gcl-table tr:hover { background: rgba(59,130,246,0.04); }
+    .gate-bits {
+      display: inline-flex; gap: 1px;
+    }
+    .gate-bit {
+      display: inline-block; width: 10px; height: 14px;
+      border-radius: 2px; font-size: 7px; text-align: center;
+      line-height: 14px; font-weight: 700;
+    }
+    .gate-bit.open { background: rgba(59,130,246,0.3); color: #1e40af; }
+    .gate-bit.closed { background: rgba(100,116,139,0.15); color: #94a3b8; }
+    .gate-bit.guard { background: rgba(249,168,37,0.4); color: #92400e; }
+    .pcp-map {
+      display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;
+    }
+    .pcp-badge {
+      font-size: 0.68rem; padding: 2px 8px; border-radius: 4px;
+      background: rgba(59,130,246,0.08); color: var(--blue);
+      font-weight: 600;
+    }
   </style>
 </head>
 <body>
@@ -300,6 +351,7 @@
         <select id="modelSelect" class="btn btn-secondary" style="font-weight:600;font-size:0.82rem;">
           <option value="standard" selected>Standard (13N, 9F)</option>
           <option value="optimal">Optimal Tri-Star</option>
+          <option value="tc8">8-TC Dedicated (13N, 9F)</option>
         </select>
         <select id="flowSelect" class="btn btn-secondary" style="font-weight:600;font-size:0.82rem;display:none;"></select>
         <select id="solverSelect" class="btn btn-secondary" style="font-weight:600;font-size:0.82rem;display:none;">
@@ -363,6 +415,12 @@
       <div class="card-title">Schedule Timeline</div>
       <div class="svg-container gantt-wrap" id="ganttContainer"></div>
       <div id="ganttLegend" style="display:none;"></div>
+    </div>
+
+    <!-- Board Configuration (8-TC) -->
+    <div class="card" id="boardConfigCard" style="display:none;">
+      <div class="card-title">Board Configuration (LAN9692 GCL)</div>
+      <div id="boardConfigPanel"></div>
     </div>
   </div>
 

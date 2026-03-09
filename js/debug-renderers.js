@@ -387,3 +387,81 @@ export function renderTopoViz(container, model, modelKey) {
 
   return { svg: svg.node(), positions, linkLines, nodeData, queueData, queueG: queueG.node(), particleG: particleG.node() };
 }
+
+/* ═══════════════════════════════════════════════
+   BOARD CONFIGURATION RENDERER
+   Per-switch, per-egress-port GCL table
+   ═══════════════════════════════════════════════ */
+export function renderBoardConfig(container, boardConfigs, switches) {
+  container.innerHTML = '';
+  if (!boardConfigs || !Object.keys(boardConfigs).length) {
+    container.innerHTML = '<p style="color:var(--text3);font-size:0.82rem;">No board configuration available.</p>';
+    return;
+  }
+
+  for (const sw of switches) {
+    const cfg = boardConfigs[sw.id];
+    if (!cfg) continue;
+
+    const section = document.createElement('div');
+    section.className = 'board-section';
+
+    let html = `<h3>${sw.label || sw.id} (${sw.chip || 'LAN9692'})</h3>`;
+
+    for (const [portId, port] of Object.entries(cfg.ports)) {
+      html += `<div class="board-port">`;
+      html += `<h4>Egress Port: ${port.to} <span style="color:var(--text3);font-weight:400;">(${portId})</span></h4>`;
+      html += `<div class="port-meta">Cycle: ${port.cycle_time_us} \u00b5s | Guard: ${port.guard_band_us} \u00b5s | Entries: ${port.num_entries}</div>`;
+
+      // PCP→Queue mapping
+      if (port.pcp_queue_map.length) {
+        html += `<div class="pcp-map">`;
+        for (const m of port.pcp_queue_map) {
+          html += `<span class="pcp-badge">PCP ${m.pcp} \u2192 Q${m.queue}</span>`;
+        }
+        html += `</div>`;
+      }
+
+      // GCL table
+      html += `<table class="gcl-table"><thead><tr>
+        <th>#</th><th>Gate Mask</th><th>Start (\u00b5s)</th><th>End (\u00b5s)</th><th>Duration (\u00b5s)</th><th>TC</th><th>Note</th>
+      </tr></thead><tbody>`;
+
+      for (const e of port.entries) {
+        const bits = e.gate_mask.split('');
+        const isGuard = e.note === 'guard';
+        const isClosed = e.note === 'all-gates-closed';
+        let bitsHtml = '<span class="gate-bits">';
+        for (let b = 0; b < 8; b++) {
+          const cls = isGuard ? 'guard' : (bits[b] === '1' ? 'open' : 'closed');
+          bitsHtml += `<span class="gate-bit ${cls}">${7 - b}</span>`;
+        }
+        bitsHtml += '</span>';
+
+        let tc = '-';
+        if (isGuard) tc = 'Guard';
+        else if (isClosed) tc = 'Closed';
+        else if (e.gate_mask === '11111111') tc = 'BE';
+        else {
+          const q = e.gate_mask.split('').reverse().indexOf('1');
+          if (q >= 0) tc = `TC${q}`;
+        }
+
+        html += `<tr>
+          <td>${e.index}</td>
+          <td>${bitsHtml}</td>
+          <td>${e.start_us}</td>
+          <td>${e.end_us}</td>
+          <td>${e.duration_us}</td>
+          <td>${tc}</td>
+          <td>${e.note}</td>
+        </tr>`;
+      }
+
+      html += `</tbody></table></div>`;
+    }
+
+    section.innerHTML = html;
+    container.appendChild(section);
+  }
+}

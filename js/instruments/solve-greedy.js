@@ -3,6 +3,7 @@ import {
   round3, txTimeUs,
   fmtPkts, fmtLinkOcc, fmtSchedHops
 } from '../debug-utils.js';
+import { solveGreedy as solveGreedyCore } from '../ilp-core.js';
 import { generateKPaths, computeGateSchedule, flowColor } from '../ilp-core.js';
 
 export function instrumentSolveGreedy(model) {
@@ -483,8 +484,12 @@ export function instrumentSolveGreedy(model) {
 
   const activeLinks = model.links.filter(l => linkOcc[l.id] && linkOcc[l.id].length > 0);
 
+  // Generate boardConfigs via the real solver
+  const fullResult = solveGreedyCore(JSON.parse(JSON.stringify(model)));
+  const boardConfigs = fullResult.boardConfigs || null;
+
   return {
-    steps, pkts, activeLinks, schedHops,
+    steps, pkts, activeLinks, schedHops, boardConfigs,
     solverStats: { runtime_ms: elapsed, fallback_packets: fallbackCount },
     depInfo: `expandPackets silently produced ${pkts.length} packets from ${model.flows.length} flows`
   };

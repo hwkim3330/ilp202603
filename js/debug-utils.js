@@ -2,7 +2,7 @@
    debug-utils.js — Helpers, formatters, constants
    ═══════════════════════════════════════════════ */
 import {
-  ROII_REAL_STANDARD, ROII_OPTIMAL,
+  ROII_REAL_STANDARD, ROII_OPTIMAL, ROII_REAL_8TC,
   getRealPositions, getOptimalPositions,
   ROII_REAL_NODE_COLORS, ROII_OPTIMAL_NODE_COLORS,
   ROII_REAL_SWITCHES
@@ -64,6 +64,7 @@ export function pktColor(pi) { return PKT_COLORS[pi % PKT_COLORS.length]; }
 export const CONFIGS = {
   standard: { data: ROII_REAL_STANDARD, getPositions: getRealPositions,   nodeColors: ROII_REAL_NODE_COLORS,    switches: ROII_REAL_SWITCHES },
   optimal:  { data: ROII_OPTIMAL,       getPositions: getOptimalPositions, nodeColors: ROII_OPTIMAL_NODE_COLORS, switches: ROII_REAL_SWITCHES },
+  tc8:      { data: ROII_REAL_8TC,      getPositions: getRealPositions,   nodeColors: ROII_REAL_NODE_COLORS,    switches: ROII_REAL_SWITCHES },
 };
 
 /* ── Function UI Visibility ────────────────────── */

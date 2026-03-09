@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>8-TC Dedicated PCP &mdash; TSN/GCL Solver</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* ═══════════════════════════════════════════════
+       Light Theme Override
+       ═══════════════════════════════════════════════ */
+    :root {
+      --bg: #f8f9fa; --bg2: #f0f2f5;
+      --card: #ffffff; --card-hi: #f8fafc;
+      --border: rgba(59,130,246,0.2); --border-hi: rgba(59,130,246,0.4);
+      --text: #1e293b; --text2: #475569; --text3: #64748b;
+      --cyan: #0891b2; --blue: #3B82F6; --purple: #7c3aed;
+      --orange: #d97706; --red: #dc2626; --green: #059669; --pink: #db2777;
+      --flow-ctrl: #3B82F6; --flow-sensor: #059669; --flow-video: #db2777;
+      --guard: #d97706; --be: #e2e8f0;
+    }
+    body { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 50%, #dee2e6 100%); }
+    .bg-grid {
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59,130,246,0.06), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(6,182,212,0.04), transparent),
+        linear-gradient(rgba(59,130,246,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.06) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+    }
+    .card {
+      background: rgba(255,255,255,0.95);
+      border: 1px solid rgba(59,130,246,0.15);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    }
+    .card:hover { border-color: rgba(59,130,246,0.3); }
+    .card-title { color: var(--text2); }
+    .card-title::before { background: var(--blue); }
+    .tooltip {
+      background: rgba(255,255,255,0.97);
+      border: 1px solid rgba(59,130,246,0.25);
+      color: var(--text); box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
+    .tooltip .tt-title { color: var(--blue); }
+    .tooltip .tt-k { color: var(--text3); }
+    .btn-primary { background: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%); color: #fff; }
+    .btn-secondary { background: rgba(248,250,252,0.8); color: var(--text); border: 1px solid rgba(59,130,246,0.2); }
+    .btn-secondary:hover { border-color: var(--blue); background: #fff; }
+    .gcl-grid line { stroke: rgba(59,130,246,0.06); stroke-width: 1; }
+    .gcl-axis text { fill: var(--text2) !important; font-size: 11px; }
+    .gcl-axis path, .gcl-axis line { stroke: rgba(59,130,246,0.15); }
+    .gcl-label { fill: rgba(0,0,0,0.75); font-size: 11px; font-weight: 700; pointer-events: none; }
+    .scan-cursor { stroke: var(--blue); stroke-width: 2; opacity: 0; filter: drop-shadow(0 0 4px rgba(59,130,246,0.4)); }
+    .scan-cursor.active { opacity: 1; }
+
+    /* ── Header ── */
+    .keti-header {
+      display: flex; align-items: center; justify-content: center;
+      gap: 16px; margin-bottom: 8px;
+    }
+    .keti-header img { height: 40px; width: auto; }
+    .keti-header h1 {
+      font-size: 2rem; font-weight: 800; letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+
+    /* ── PCP Assignment Table ── */
+    .pcp-table {
+      width: 100%; border-collapse: collapse; font-size: 0.82rem;
+      margin-bottom: 16px;
+    }
+    .pcp-table th {
+      background: rgba(59,130,246,0.06); color: var(--text2);
+      padding: 6px 12px; text-align: left; font-weight: 700;
+      border-bottom: 2px solid rgba(59,130,246,0.15);
+    }
+    .pcp-table td {
+      padding: 5px 12px; border-bottom: 1px solid rgba(59,130,246,0.08);
+    }
+    .pcp-table tr:hover { background: rgba(59,130,246,0.04); }
+    .pcp-dot {
+      display: inline-block; width: 10px; height: 10px;
+      border-radius: 50%; margin-right: 6px; vertical-align: middle;
+    }
+
+    /* ── Board Configuration Table ── */
+    .board-section {
+      margin-bottom: 20px; padding: 12px 16px;
+      border: 1px solid rgba(59,130,246,0.12); border-radius: 8px;
+      background: rgba(59,130,246,0.02);
+    }
+    .board-section h3 {
+      font-size: 0.88rem; font-weight: 700; color: var(--blue);
+      margin: 0 0 10px 0;
+    }
+    .board-port { margin-bottom: 14px; }
+    .board-port h4 {
+      font-size: 0.78rem; font-weight: 600; color: var(--text2);
+      margin: 0 0 6px 0;
+    }
+    .board-port .port-meta {
+      font-size: 0.7rem; color: var(--text3); margin-bottom: 6px;
+    }
+    .gcl-table {
+      width: 100%; border-collapse: collapse; font-size: 0.72rem;
+      font-family: 'Courier New', monospace;
+    }
+    .gcl-table th {
+      background: rgba(59,130,246,0.06); color: var(--text2);
+      padding: 4px 8px; text-align: left; font-weight: 700;
+      border-bottom: 1px solid rgba(59,130,246,0.15);
+    }
+    .gcl-table td {
+      padding: 3px 8px; border-bottom: 1px solid rgba(59,130,246,0.06);
+    }
+    .gcl-table tr:hover { background: rgba(59,130,246,0.04); }
+    .gate-bits { display: inline-flex; gap: 1px; }
+    .gate-bit {
+      display: inline-block; width: 10px; height: 14px;
+      border-radius: 2px; font-size: 7px; text-align: center;
+      line-height: 14px; font-weight: 700;
+    }
+    .gate-bit.open { background: rgba(59,130,246,0.3); color: #1e40af; }
+    .gate-bit.closed { background: rgba(100,116,139,0.15); color: #94a3b8; }
+    .gate-bit.guard { background: rgba(249,168,37,0.4); color: #92400e; }
+    .pcp-map { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+    .pcp-badge {
+      font-size: 0.68rem; padding: 2px 8px; border-radius: 4px;
+      background: rgba(59,130,246,0.08); color: var(--blue); font-weight: 600;
+    }
+
+    /* ── Stats Grid ── */
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 10px; margin-bottom: 16px;
+    }
+    .stat-box {
+      padding: 10px 14px; border-radius: 8px;
+      background: rgba(59,130,246,0.04);
+      border: 1px solid rgba(59,130,246,0.1);
+    }
+    .stat-box .stat-label { font-size: 0.7rem; color: var(--text3); font-weight: 600; }
+    .stat-box .stat-value { font-size: 1.1rem; font-weight: 800; color: var(--blue); }
+
+    /* ── Gantt ── */
+    .gantt-wrap { min-height: 380px; position: relative; }
+    #ganttContainer { background: #ffffff; border-radius: 8px; }
+    #ganttLegend {
+      display: flex; flex-wrap: wrap; gap: 8px 16px;
+      padding: 10px 16px; border-top: 1px solid rgba(59,130,246,0.1);
+      background: #f8fafc; border-radius: 0 0 8px 8px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text2); }
+    .legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+
+    #statusText { font-size: 0.82rem; color: var(--text2); padding: 8px 0; }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="wrap">
+    <!-- Header -->
+    <div class="header">
+      <div class="keti-header">
+        <img src="keti.png" alt="KETI" onerror="this.style.display='none'">
+        <h1>8-TC Dedicated PCP</h1>
+      </div>
+      <div class="sub">
+        All 8 traffic classes dedicated to sensor flows &mdash; no best-effort.
+        Each LiDAR gets its own PCP, radars share remaining PCPs.
+        Per-board GCL configuration with 8-bit gate mask visualization.
+      </div>
+    </div>
+
+    <!-- PCP Assignment -->
+    <div class="card">
+      <div class="card-title">PCP &rarr; TC Assignment</div>
+      <table class="pcp-table">
+        <thead>
+          <tr><th>PCP</th><th>TC</th><th>Flow</th><th>Sensor</th><th>Payload</th><th>Period</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>7</td><td>TC7</td><td><span class="pcp-dot" style="background:#10B981"></span>f_lidar_fc</td><td>AutoL G32</td><td>128 KB</td><td>10 ms</td></tr>
+          <tr><td>6</td><td>TC6</td><td><span class="pcp-dot" style="background:#10B981"></span>f_lidar_r</td><td>AutoL G32</td><td>128 KB</td><td>10 ms</td></tr>
+          <tr><td>5</td><td>TC5</td><td><span class="pcp-dot" style="background:#0D9488"></span>f_lidar_fl</td><td>Hesai Pandar 40P</td><td>32 KB</td><td>10 ms</td></tr>
+          <tr><td>4</td><td>TC4</td><td><span class="pcp-dot" style="background:#0D9488"></span>f_lidar_fr</td><td>Hesai Pandar 40P</td><td>32 KB</td><td>10 ms</td></tr>
+          <tr><td>3</td><td>TC3</td><td><span class="pcp-dot" style="background:#952aff"></span>f_radar_f</td><td>MRR-35</td><td>4 KB</td><td>5 ms</td></tr>
+          <tr><td>2</td><td>TC2</td><td><span class="pcp-dot" style="background:#952aff"></span>f_radar_flc</td><td>MRR-35</td><td>4 KB</td><td>5 ms</td></tr>
+          <tr><td>1</td><td>TC1</td><td><span class="pcp-dot" style="background:#952aff"></span>f_radar_frc</td><td>MRR-35</td><td>4 KB</td><td>5 ms</td></tr>
+          <tr><td>0</td><td>TC0</td><td><span class="pcp-dot" style="background:#952aff"></span>f_radar_rlc + f_radar_rrc</td><td>MRR-35 &times;2</td><td>4 KB ea</td><td>5 ms</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Stats -->
+    <div class="card">
+      <div class="card-title">Solver Results</div>
+      <div id="statusText">Solving...</div>
+      <div class="stats-grid" id="statsGrid"></div>
+    </div>
+
+    <!-- Gantt Chart -->
+    <div class="card">
+      <div class="card-title">Schedule Timeline (Greedy)</div>
+      <div class="svg-container gantt-wrap" id="ganttContainer"></div>
+      <div id="ganttLegend"></div>
+    </div>
+
+    <!-- Board Configuration -->
+    <div class="card" id="boardConfigCard">
+      <div class="card-title">Board Configuration (LAN9692 GCL)</div>
+      <div id="boardConfigPanel"></div>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <script src="vendor/d3.min.js"></script>
+  <script type="module">
+  import { ROII_REAL_8TC, ROII_REAL_SWITCHES, ROII_REAL_NODE_COLORS } from './js/roii-real-data.js';
+  import { solveGreedy, initTooltip, flowColor } from './js/ilp-core.js';
+
+  initTooltip();
+
+  const model = JSON.parse(JSON.stringify(ROII_REAL_8TC));
+  const result = solveGreedy(model);
+
+  // Stats
+  const statsEl = document.getElementById('statsGrid');
+  const statusEl = document.getElementById('statusText');
+  const allOk = result.packetRows.every(p => p.status === 'OK');
+  statusEl.innerHTML = `<strong>${result.method}</strong> &mdash; ${allOk ? 'All packets meet deadline' : 'Some packets missed deadline'} &mdash; Objective: ${result.objective} &micro;s`;
+
+  const maxE2E = Math.max(...result.packetRows.filter(p => p.status !== 'NON-ST').map(p => p.e2e_delay_us));
+  statsEl.innerHTML = `
+    <div class="stat-box"><div class="stat-label">Worst E2E</div><div class="stat-value">${maxE2E} &micro;s</div></div>
+    <div class="stat-box"><div class="stat-label">Worst Util</div><div class="stat-value">${result.worst_util_percent}%</div></div>
+    <div class="stat-box"><div class="stat-label">Packets</div><div class="stat-value">${result.packetRows.length}</div></div>
+    <div class="stat-box"><div class="stat-label">Conflicts</div><div class="stat-value">${result.stats.overlap_conflicts}</div></div>
+  `;
+
+  // Gantt
+  const ganttContainer = document.getElementById('ganttContainer');
+  const activeLinks = model.links.filter(l => result.gcl.links[l.id]?.entries.some(e => !e.note.includes('non-ST') && !e.note.includes('all-gates-closed')));
+
+  const margin = { top: 28, right: 60, bottom: 40, left: 130 };
+  const rowH = 40;
+  const W = ganttContainer.clientWidth || 900;
+  const H = margin.top + activeLinks.length * rowH + margin.bottom;
+
+  const svg = d3.select(ganttContainer).append('svg')
+    .attr('viewBox', `0 0 ${W} ${H}`)
+    .attr('preserveAspectRatio', 'xMidYMid meet');
+
+  const defs = svg.append('defs');
+  const gp = defs.append('pattern').attr('id','guardHatch')
+    .attr('patternUnits','userSpaceOnUse').attr('width',6).attr('height',6)
+    .attr('patternTransform','rotate(45)');
+  gp.append('rect').attr('width',6).attr('height',6).attr('fill','#f9a825');
+  gp.append('line').attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',6)
+    .attr('stroke','rgba(0,0,0,0.2)').attr('stroke-width',2);
+
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  const innerW = W - margin.left - margin.right;
+  const innerH = activeLinks.length * rowH;
+
+  const x = d3.scaleLinear().domain([0, model.cycle_time_us]).range([0, innerW]);
+  const y = d3.scaleBand().domain(activeLinks.map(l => l.id)).range([0, innerH]).padding(0.15);
+
+  g.append('g').attr('class','gcl-grid')
+    .selectAll('line').data(x.ticks(10)).enter().append('line')
+    .attr('x1',d=>x(d)).attr('x2',d=>x(d)).attr('y1',0).attr('y2',innerH);
+
+  g.append('g').attr('class','gcl-axis').attr('transform',`translate(0,${innerH})`)
+    .call(d3.axisBottom(x).ticks(10).tickFormat(d => d + ' \u00b5s'));
+
+  g.append('g').attr('class','gcl-axis')
+    .call(d3.axisLeft(y).tickSize(0).tickPadding(6))
+    .selectAll('text').text(d => {
+      const lnk = model.links.find(l => l.id === d);
+      return lnk ? `${lnk.from} \u2192 ${lnk.to}` : d;
+    }).attr('font-size','9px');
+
+  g.selectAll('.rbg').data(activeLinks).enter().append('rect')
+    .attr('x',0).attr('y',d=>y(d.id))
+    .attr('width',innerW).attr('height',y.bandwidth())
+    .attr('fill',(_,i) => i%2===0 ? 'rgba(59,130,246,0.03)' : 'transparent').attr('rx',3);
+
+  const tooltip = document.getElementById('tooltip');
+  for (const lnk of activeLinks) {
+    const entries = result.gcl.links[lnk.id]?.entries || [];
+    for (const e of entries) {
+      const yPos = y(lnk.id);
+      if (yPos === undefined) continue;
+      const bw = y.bandwidth();
+
+      if (e.note === 'guard' || e.note === 'all-gates-closed') {
+        g.append('rect')
+          .attr('x', x(e.start_us)).attr('y', yPos)
+          .attr('width', Math.max(x(e.end_us) - x(e.start_us), 1))
+          .attr('height', bw)
+          .attr('fill', e.note === 'guard' ? 'url(#guardHatch)' : 'rgba(100,116,139,0.1)')
+          .attr('stroke', e.note === 'guard' ? '#e8a317' : 'rgba(100,116,139,0.2)')
+          .attr('stroke-width', 0.5).attr('rx', 2).attr('opacity', 0.7)
+          .style('cursor', 'pointer')
+          .on('mouseover', (evt) => {
+            tooltip.innerHTML = `<div class="tt-title" style="color:#e8a317">${e.note === 'guard' ? 'Guard Band' : 'All Gates Closed'}</div>`
+              + `<div class="tt-row"><span class="tt-k">Start</span><span class="tt-v">${e.start_us} \u00b5s</span></div>`
+              + `<div class="tt-row"><span class="tt-k">End</span><span class="tt-v">${e.end_us} \u00b5s</span></div>`
+              + `<div class="tt-row"><span class="tt-k">Duration</span><span class="tt-v">${e.duration_us} \u00b5s</span></div>`;
+            tooltip.classList.add('show');
+          })
+          .on('mousemove', (evt) => { tooltip.style.left = (evt.clientX + 12) + 'px'; tooltip.style.top = (evt.clientY - 10) + 'px'; })
+          .on('mouseout', () => tooltip.classList.remove('show'));
+      } else if (!e.note.includes('non-ST')) {
+        const color = flowColor(e.note.split('#')[0]) || '#3B82F6';
+        const r = g.append('rect')
+          .attr('x', x(e.start_us)).attr('y', yPos)
+          .attr('width', Math.max(x(e.end_us) - x(e.start_us), 3))
+          .attr('height', bw)
+          .attr('fill', color).attr('stroke', 'rgba(255,255,255,0.4)')
+          .attr('stroke-width', 0.8).attr('rx', 3).attr('opacity', 0.9)
+          .style('cursor', 'pointer')
+          .on('mouseover', (evt) => {
+            tooltip.innerHTML = `<div class="tt-title" style="color:${color}">${e.note}</div>`
+              + `<div class="tt-row"><span class="tt-k">Gate</span><span class="tt-v">${e.gate_mask}</span></div>`
+              + `<div class="tt-row"><span class="tt-k">Start</span><span class="tt-v">${e.start_us} \u00b5s</span></div>`
+              + `<div class="tt-row"><span class="tt-k">End</span><span class="tt-v">${e.end_us} \u00b5s</span></div>`
+              + `<div class="tt-row"><span class="tt-k">Duration</span><span class="tt-v">${e.duration_us} \u00b5s</span></div>`;
+            tooltip.classList.add('show');
+          })
+          .on('mousemove', (evt) => { tooltip.style.left = (evt.clientX + 12) + 'px'; tooltip.style.top = (evt.clientY - 10) + 'px'; })
+          .on('mouseout', () => tooltip.classList.remove('show'));
+
+        const pw = x(e.end_us) - x(e.start_us);
+        if (pw > 30) {
+          g.append('text').attr('class', 'gcl-label')
+            .attr('x', x(e.start_us) + pw / 2).attr('y', yPos + bw / 2)
+            .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+            .text(e.note.replace('#', '.'));
+        }
+      }
+    }
+
+    // Utilization label
+    let used = 0;
+    for (const e of (result.gcl.links[lnk.id]?.entries || [])) {
+      if (!e.note.includes('non-ST') && !e.note.includes('guard') && !e.note.includes('all-gates-closed')) used += e.duration_us;
+    }
+    g.append('text')
+      .attr('x', innerW + 8)
+      .attr('y', y(lnk.id) + y.bandwidth() / 2)
+      .attr('fill', 'var(--text2)').attr('font-size', '12px').attr('font-weight', '600')
+      .attr('dominant-baseline', 'central')
+      .text((used / model.cycle_time_us * 100).toFixed(1) + '%');
+  }
+
+  svg.append('text').attr('x', margin.left).attr('y', margin.top - 10)
+    .attr('fill','var(--text3)').attr('font-size','9px')
+    .text(`Cycle: ${model.cycle_time_us} \u00b5s | Guard: ${model.guard_band_us} \u00b5s | Active: ${activeLinks.length}/${model.links.length} links | No BE`);
+
+  // Legend
+  const legendEl = document.getElementById('ganttLegend');
+  const seenFlows = [];
+  for (const pr of result.packetRows) {
+    if (!seenFlows.includes(pr.flow_id)) seenFlows.push(pr.flow_id);
+  }
+  legendEl.innerHTML = seenFlows.map(fid =>
+    `<div class="legend-item"><span class="legend-swatch" style="background:${flowColor(fid)}"></span>${fid}</div>`
+  ).join('');
+
+  // Board Configuration
+  const boardPanel = document.getElementById('boardConfigPanel');
+  if (result.boardConfigs) {
+    const switches = ROII_REAL_SWITCHES;
+    let html = '';
+    for (const sw of switches) {
+      const cfg = result.boardConfigs[sw.id];
+      if (!cfg) continue;
+      html += `<div class="board-section"><h3>${sw.label || sw.id} (${sw.chip || 'LAN9692'})</h3>`;
+      for (const [portId, port] of Object.entries(cfg.ports)) {
+        html += `<div class="board-port">`;
+        html += `<h4>Egress Port: ${port.to} <span style="color:var(--text3);font-weight:400;">(${portId})</span></h4>`;
+        html += `<div class="port-meta">Cycle: ${port.cycle_time_us} \u00b5s | Guard: ${port.guard_band_us} \u00b5s | Entries: ${port.num_entries}</div>`;
+        if (port.pcp_queue_map.length) {
+          html += `<div class="pcp-map">`;
+          for (const m of port.pcp_queue_map) html += `<span class="pcp-badge">PCP ${m.pcp} \u2192 Q${m.queue}</span>`;
+          html += `</div>`;
+        }
+        html += `<table class="gcl-table"><thead><tr><th>#</th><th>Gate Mask</th><th>Start (\u00b5s)</th><th>End (\u00b5s)</th><th>Duration (\u00b5s)</th><th>TC</th><th>Note</th></tr></thead><tbody>`;
+        for (const e of port.entries) {
+          const bits = e.gate_mask.split('');
+          const isGuard = e.note === 'guard';
+          const isClosed = e.note === 'all-gates-closed';
+          let bitsHtml = '<span class="gate-bits">';
+          for (let b = 0; b < 8; b++) {
+            const cls = isGuard ? 'guard' : (bits[b] === '1' ? 'open' : 'closed');
+            bitsHtml += `<span class="gate-bit ${cls}">${7 - b}</span>`;
+          }
+          bitsHtml += '</span>';
+          let tc = '-';
+          if (isGuard) tc = 'Guard';
+          else if (isClosed) tc = 'Closed';
+          else if (e.gate_mask === '11111111') tc = 'BE';
+          else { const q = e.gate_mask.split('').reverse().indexOf('1'); if (q >= 0) tc = `TC${q}`; }
+          html += `<tr><td>${e.index}</td><td>${bitsHtml}</td><td>${e.start_us}</td><td>${e.end_us}</td><td>${e.duration_us}</td><td>${tc}</td><td>${e.note}</td></tr>`;
+        }
+        html += `</tbody></table></div>`;
+      }
+      html += `</div>`;
+    }
+    boardPanel.innerHTML = html;
+  }
+  </script>
+</body>
+</html>

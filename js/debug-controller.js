@@ -4,7 +4,8 @@
 import { round3, deep, pktColor, FN_UI, CONFIGS } from './debug-utils.js';
 import {
   highlightCodeLine, renderCodePanel, applyUIVisibility,
-  populateFlowSelect, renderAnimGantt, renderPktTimeline, renderTopoViz
+  populateFlowSelect, renderAnimGantt, renderPktTimeline, renderTopoViz,
+  renderBoardConfig
 } from './debug-renderers.js';
 import {
   instrumentGenerateKPaths, instrumentExpandPackets,
@@ -167,6 +168,7 @@ class DebugController {
     this.steps = result.steps || [];
     this.pkts = result.pkts || [];
     this.activeLinks = result.activeLinks || [];
+    this._boardConfigs = result.boardConfigs || null;
 
     const depEl = document.getElementById('depInfo');
     if (result.depInfo) {
@@ -229,6 +231,15 @@ class DebugController {
     } else {
       this.topoViz = null;
       document.getElementById('topoVizContainer').innerHTML = '';
+    }
+
+    // Board Configuration (8-TC mode)
+    const boardCard = document.getElementById('boardConfigCard');
+    if (this._boardConfigs && Object.keys(this._boardConfigs).length > 0) {
+      boardCard.style.display = '';
+      renderBoardConfig(document.getElementById('boardConfigPanel'), this._boardConfigs, cfg.switches);
+    } else {
+      boardCard.style.display = 'none';
     }
 
     this._updatePktPanel(null);

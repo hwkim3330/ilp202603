@@ -201,8 +201,12 @@ export function computeGateSchedule(model, pkts) {
       );
 
       if (activeTCs.length === 0) {
-        // No traffic in this sub-period — all BE
-        entries.push({ queue: 0, open: round3(cursor), close: round3(spEnd), type: 'be' });
+        // No traffic in this sub-period
+        if (model.no_be) {
+          entries.push({ queue: -1, open: round3(cursor), close: round3(spEnd), type: 'closed' });
+        } else {
+          entries.push({ queue: 0, open: round3(cursor), close: round3(spEnd), type: 'be' });
+        }
         cursor = spEnd;
         continue;
       }
@@ -251,9 +255,13 @@ export function computeGateSchedule(model, pkts) {
         cursor = gClose;
       }
 
-      // Remaining time in sub-period → BE
+      // Remaining time in sub-period
       if (cursor < spEnd - 0.001) {
-        entries.push({ queue: 0, open: round3(cursor), close: round3(spEnd), type: 'be' });
+        if (model.no_be) {
+          entries.push({ queue: -1, open: round3(cursor), close: round3(spEnd), type: 'closed' });
+        } else {
+          entries.push({ queue: 0, open: round3(cursor), close: round3(spEnd), type: 'be' });
+        }
         cursor = spEnd;
       }
     }
@@ -301,6 +309,9 @@ function buildResult(model, pkts, schedHops, method, stats) {
         if (gs.type === 'guard') {
           // Guard band — all gates closed
           entries.push({ index: idx++, gate_mask: '00000000', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'guard' });
+        } else if (gs.type === 'closed') {
+          // All gates closed (no-BE mode)
+          entries.push({ index: idx++, gate_mask: '00000000', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'all-gates-closed' });
         } else if (gs.type === 'be') {
           // Best-effort window
           entries.push({ index: idx++, gate_mask: '11111111', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'non-ST' });
@@ -348,7 +359,7 @@ function buildResult(model, pkts, schedHops, method, stats) {
   for (const lnk of model.links) {
     let act = 0;
     for (const e of gcl.links[lnk.id].entries) {
-      if (!e.note.includes('non-ST') && !e.note.includes('guard')) act += e.duration_us;
+      if (!e.note.includes('non-ST') && !e.note.includes('guard') && !e.note.includes('all-gates-closed')) act += e.duration_us;
     }
     worstUtil = Math.max(worstUtil, act / model.cycle_time_us * 100);
   }
@@ -363,10 +374,36 @@ function buildResult(model, pkts, schedHops, method, stats) {
   }
   const outStats = { ...(stats || {}), overlap_conflicts: overlapConflicts };
 
+  // ── Board Configurations (per-switch, per-egress-port GCL) ──
+  const boardConfigs = {};
+  const nodeType = Object.fromEntries(model.nodes.map(n => [n.id, n.type]));
+  for (const lnk of model.links) {
+    if (nodeType[lnk.from] !== 'switch') continue;
+    if (!boardConfigs[lnk.from]) boardConfigs[lnk.from] = { ports: {} };
+    const gclEntries = gcl.links[lnk.id]?.entries || [];
+    // PCP→Queue mapping: collect unique PCPs used on this port
+    const pcpSet = new Set();
+    for (const e of gclEntries) {
+      if (e.gate_mask && e.gate_mask !== '00000000' && e.gate_mask !== '11111111') {
+        const q = e.gate_mask.split('').reverse().indexOf('1');
+        if (q >= 0) pcpSet.add(q);
+      }
+    }
+    boardConfigs[lnk.from].ports[lnk.id] = {
+      to: lnk.to,
+      cycle_time_us: model.cycle_time_us,
+      guard_band_us: model.guard_band_us,
+      num_entries: gclEntries.length,
+      pcp_queue_map: [...pcpSet].sort((a, b) => b - a).map(q => ({ pcp: q, queue: q })),
+      entries: gclEntries
+    };
+  }
+
   return {
     method,
     objective: round3(pktRows.filter(p => p.status !== 'NON-ST').reduce((a, p) => a + p.e2e_delay_us, 0)),
-    worst_util_percent: round3(worstUtil), packetRows: pktRows, gcl, stats: outStats
+    worst_util_percent: round3(worstUtil), packetRows: pktRows, gcl, stats: outStats,
+    boardConfigs
   };
 }
 
