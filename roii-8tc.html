@@ -335,18 +335,18 @@
   //   Total wire overhead: 38 (L2) + 28 (IP/UDP) = 66 B for LiDAR
   const FLOW_DEFS = [
     // AutoL G32: 1248 B sensor + 28 B IP/UDP = 1276 B | TX = 10.512 µs | real period: 167 µs (6000 fps)
-    { pcp: 7, id: 'f_lidar_fc',  sensor: 'AutoL G32',       sensorPayload: 1248, payload: 1276, period: 200, deadline: 200, src: 'LIDAR_FC',  dst: 'ACU_IT', color: '#10B981', realPeriod: 167 },
-    { pcp: 6, id: 'f_lidar_r',   sensor: 'AutoL G32',       sensorPayload: 1248, payload: 1276, period: 200, deadline: 200, src: 'LIDAR_R',   dst: 'ACU_IT', color: '#10B981', realPeriod: 167 },
+    { pcp: 7, id: 'f_lidar_fc',  sensor: 'AutoL G32',       sensorPayload: 1248, payload: 1276, period: 200, deadline: 1000, src: 'LIDAR_FC',  dst: 'ACU_IT', color: '#10B981', realPeriod: 167 },
+    { pcp: 6, id: 'f_lidar_r',   sensor: 'AutoL G32',       sensorPayload: 1248, payload: 1276, period: 200, deadline: 1000, src: 'LIDAR_R',   dst: 'ACU_IT', color: '#10B981', realPeriod: 167 },
     // Hesai Pandar 40P: 1262 B sensor + 28 B IP/UDP = 1290 B | TX = 10.624 µs | real period: 536 µs (1866 fps)
-    { pcp: 5, id: 'f_lidar_fl',  sensor: 'Hesai Pandar 40P',sensorPayload: 1262, payload: 1290, period: 500, deadline: 500, src: 'LIDAR_FL',  dst: 'ACU_IT', color: '#0D9488', realPeriod: 536 },
-    { pcp: 4, id: 'f_lidar_fr',  sensor: 'Hesai Pandar 40P',sensorPayload: 1262, payload: 1290, period: 500, deadline: 500, src: 'LIDAR_FR',  dst: 'ACU_IT', color: '#0D9488', realPeriod: 536 },
+    { pcp: 5, id: 'f_lidar_fl',  sensor: 'Hesai Pandar 40P',sensorPayload: 1262, payload: 1290, period: 500, deadline: 1000, src: 'LIDAR_FL',  dst: 'ACU_IT', color: '#0D9488', realPeriod: 536 },
+    { pcp: 4, id: 'f_lidar_fr',  sensor: 'Hesai Pandar 40P',sensorPayload: 1262, payload: 1290, period: 500, deadline: 1000, src: 'LIDAR_FR',  dst: 'ACU_IT', color: '#0D9488', realPeriod: 536 },
     // Continental MRR-35: 64 B CAN-FD payload (raw, no IP/UDP) | TX = 0.816 µs
     // CAN-FD bus: 166.6 µs/frame (500k/5M) — Ethernet: 0.816 µs/frame
-    { pcp: 3, id: 'f_radar_f',   sensor: 'MRR-35 (CAN-FD)', sensorPayload: 64,   payload: 64,   period: 500, deadline: 500, src: 'RADAR_F',   dst: 'ACU_IT', color: '#952aff', realPeriod: null },
-    { pcp: 2, id: 'f_radar_flc', sensor: 'MRR-35 (CAN-FD)', sensorPayload: 64,   payload: 64,   period: 500, deadline: 500, src: 'RADAR_FLC', dst: 'ACU_IT', color: '#952aff', realPeriod: null },
-    { pcp: 1, id: 'f_radar_frc', sensor: 'MRR-35 (CAN-FD)', sensorPayload: 64,   payload: 64,   period: 500, deadline: 500, src: 'RADAR_FRC', dst: 'ACU_IT', color: '#952aff', realPeriod: null },
-    { pcp: 0, id: 'f_radar_rlc', sensor: 'MRR-35 (shared)',  sensorPayload: 64,   payload: 64,   period: 500, deadline: 500, src: 'RADAR_RLC', dst: 'ACU_IT', color: '#952aff', realPeriod: null },
-    { pcp: 0, id: 'f_radar_rrc', sensor: 'MRR-35 (shared)',  sensorPayload: 64,   payload: 64,   period: 500, deadline: 500, src: 'RADAR_RRC', dst: 'ACU_IT', color: '#952aff', realPeriod: null },
+    { pcp: 3, id: 'f_radar_f',   sensor: 'MRR-35 (CAN-FD)', sensorPayload: 64,   payload: 64,   period: 500, deadline: 1000, src: 'RADAR_F',   dst: 'ACU_IT', color: '#952aff', realPeriod: null },
+    { pcp: 2, id: 'f_radar_flc', sensor: 'MRR-35 (CAN-FD)', sensorPayload: 64,   payload: 64,   period: 500, deadline: 1000, src: 'RADAR_FLC', dst: 'ACU_IT', color: '#952aff', realPeriod: null },
+    { pcp: 1, id: 'f_radar_frc', sensor: 'MRR-35 (CAN-FD)', sensorPayload: 64,   payload: 64,   period: 500, deadline: 1000, src: 'RADAR_FRC', dst: 'ACU_IT', color: '#952aff', realPeriod: null },
+    { pcp: 0, id: 'f_radar_rlc', sensor: 'MRR-35 (shared)',  sensorPayload: 64,   payload: 64,   period: 500, deadline: 1000, src: 'RADAR_RLC', dst: 'ACU_IT', color: '#952aff', realPeriod: null },
+    { pcp: 0, id: 'f_radar_rrc', sensor: 'MRR-35 (shared)',  sensorPayload: 64,   payload: 64,   period: 500, deadline: 1000, src: 'RADAR_RRC', dst: 'ACU_IT', color: '#952aff', realPeriod: null },
   ];
 
   const round3 = v => Math.round(v * 1000) / 1000;
@@ -675,6 +675,48 @@
     panel.innerHTML = html;
   }
 
+  // ── Packet Detail Table ──
+  function renderPktDetail(model, result) {
+    const panel = document.getElementById('pktDetailPanel');
+    if (!result.packetRows || !result.packetRows.length) { panel.innerHTML = ''; return; }
+
+    let html = `<table class="param-table"><thead><tr>
+      <th>Packet</th><th>Flow</th><th>PCP</th><th>Release (&micro;s)</th>
+      <th>Route</th><th>Hops</th>
+      <th>E2E (&micro;s)</th><th>Deadline (&micro;s)</th><th>Slack (&micro;s)</th><th>Status</th>
+    </tr></thead><tbody>`;
+
+    for (const pr of result.packetRows) {
+      const route = pr.hops.map(h => {
+        const lnk = model.links.find(l => l.id === h.link_id);
+        return lnk ? lnk.from : h.link_id;
+      });
+      const lastHop = pr.hops[pr.hops.length - 1];
+      if (lastHop) {
+        const lastLnk = model.links.find(l => l.id === lastHop.link_id);
+        if (lastLnk) route.push(lastLnk.to);
+      }
+      const routeStr = route.join(' → ');
+      const color = flowColor(pr.flow_id);
+      const statusCls = pr.status === 'OK' ? 'color:var(--green)' : pr.status === 'MISS' ? 'color:var(--red)' : 'color:var(--text3)';
+
+      html += `<tr>
+        <td>${pr.packet_id}</td>
+        <td><span class="pcp-dot" style="background:${color}"></span>${pr.flow_id}</td>
+        <td><strong>${pr.priority}</strong></td>
+        <td class="calc">${pr.release_us != null ? pr.release_us : '-'}</td>
+        <td style="font-size:0.68rem;">${routeStr}</td>
+        <td class="calc">${pr.hops.length}</td>
+        <td class="calc result">${pr.e2e_delay_us}</td>
+        <td class="calc">${pr.deadline_abs_us != null ? pr.deadline_abs_us : '-'}</td>
+        <td class="calc">${pr.slack_us != null ? pr.slack_us : '-'}</td>
+        <td style="${statusCls};font-weight:700;">${pr.status}</td>
+      </tr>`;
+    }
+    html += `</tbody></table>`;
+    panel.innerHTML = html;
+  }
+
   // ── Solve ──
   function solve() {
     try {
@@ -697,6 +739,7 @@
       renderCalcDetail(model, result);
       renderGantt(model, result);
       renderBoardConfig(model, result);
+      renderPktDetail(model, result);
     } catch (e) {
       document.getElementById('statusText').innerHTML = `<span style="color:var(--red)">Error: ${e.message}</span>`;
       console.error(e);

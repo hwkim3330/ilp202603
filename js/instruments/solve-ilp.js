@@ -8,7 +8,7 @@ export async function instrumentSolveILP(model, glpk, opts = {}) {
     const origPD = model.processing_delay_us;
     const origGB = model.guard_band_us;
     if (!model.processing_delay_us) model.processing_delay_us = 3;
-    if (!model.guard_band_us) model.guard_band_us = 12.304;
+    if (model.guard_band_us == null) model.guard_band_us = 12.304;
 
     const steps = [];
 
@@ -20,7 +20,7 @@ export async function instrumentSolveILP(model, glpk, opts = {}) {
         'model.flows': model.flows.length, 'model.links': model.links.length,
         'model.cycle_time_us': model.cycle_time_us,
         'model.processing_delay_us': origPD || '(unset)',
-        'model.guard_band_us': origGB || '(unset)',
+        'model.guard_band_us': origGB != null ? origGB : '(unset)',
         'opts.tmlim': opts.tmlim || undefined
       }
     });

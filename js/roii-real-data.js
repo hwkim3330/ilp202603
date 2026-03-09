@@ -751,28 +751,28 @@ export const ROII_REAL_8TC = {
     // ── LiDAR flows — each gets dedicated PCP ──
     // AutoL G32: 1248 B sensor payload + 28 B (IP+UDP) = 1276 B Ethernet payload
     // TX = (1276+38)×8/1000 = 10.512 µs | Real period: 167 µs (6000 fps) → model: 200 µs
-    { id: "f_lidar_fc", PCP: 7, payload_bytes: 1276, period_us: 200, deadline_us: 200,
+    { id: "f_lidar_fc", PCP: 7, payload_bytes: 1276, period_us: 200, deadline_us: 1000,
       traffic_type: "lidar", src: "LIDAR_FC", dst: "ACU_IT", k_paths: 2 },
-    { id: "f_lidar_r",  PCP: 6, payload_bytes: 1276, period_us: 200, deadline_us: 200,
+    { id: "f_lidar_r",  PCP: 6, payload_bytes: 1276, period_us: 200, deadline_us: 1000,
       traffic_type: "lidar", src: "LIDAR_R",  dst: "ACU_IT", k_paths: 2 },
     // Hesai Pandar 40P: 1262 B sensor payload + 28 B = 1290 B Ethernet payload
     // TX = (1290+38)×8/1000 = 10.624 µs | Real period: 536 µs (1866 fps) → model: 500 µs
-    { id: "f_lidar_fl", PCP: 5, payload_bytes: 1290, period_us: 500, deadline_us: 500,
+    { id: "f_lidar_fl", PCP: 5, payload_bytes: 1290, period_us: 500, deadline_us: 1000,
       traffic_type: "lidar", src: "LIDAR_FL", dst: "ACU_IT", k_paths: 2 },
-    { id: "f_lidar_fr", PCP: 4, payload_bytes: 1290, period_us: 500, deadline_us: 500,
+    { id: "f_lidar_fr", PCP: 4, payload_bytes: 1290, period_us: 500, deadline_us: 1000,
       traffic_type: "lidar", src: "LIDAR_FR", dst: "ACU_IT", k_paths: 2 },
     // ── Radar flows — remaining PCPs ──
     // Continental MRR-35: 64 B CAN-FD payload (raw Ethernet, no IP/UDP)
     // TX = (64+38)×8/1000 = 0.816 µs | Period: 500 µs (CAN-FD inter-frame interval)
-    { id: "f_radar_f",   PCP: 3, payload_bytes: 64, period_us: 500, deadline_us: 500,
+    { id: "f_radar_f",   PCP: 3, payload_bytes: 64, period_us: 500, deadline_us: 1000,
       traffic_type: "radar", src: "RADAR_F",   dst: "ACU_IT", k_paths: 2 },
-    { id: "f_radar_flc", PCP: 2, payload_bytes: 64, period_us: 500, deadline_us: 500,
+    { id: "f_radar_flc", PCP: 2, payload_bytes: 64, period_us: 500, deadline_us: 1000,
       traffic_type: "radar", src: "RADAR_FLC", dst: "ACU_IT", k_paths: 2 },
-    { id: "f_radar_frc", PCP: 1, payload_bytes: 64, period_us: 500, deadline_us: 500,
+    { id: "f_radar_frc", PCP: 1, payload_bytes: 64, period_us: 500, deadline_us: 1000,
       traffic_type: "radar", src: "RADAR_FRC", dst: "ACU_IT", k_paths: 2 },
-    { id: "f_radar_rlc", PCP: 0, payload_bytes: 64, period_us: 500, deadline_us: 500,
+    { id: "f_radar_rlc", PCP: 0, payload_bytes: 64, period_us: 500, deadline_us: 1000,
       traffic_type: "radar", src: "RADAR_RLC", dst: "ACU_IT", k_paths: 2 },
-    { id: "f_radar_rrc", PCP: 0, payload_bytes: 64, period_us: 500, deadline_us: 500,
+    { id: "f_radar_rrc", PCP: 0, payload_bytes: 64, period_us: 500, deadline_us: 1000,
       traffic_type: "radar", src: "RADAR_RRC", dst: "ACU_IT", k_paths: 2 }
   ]
 };
