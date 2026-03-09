@@ -742,7 +742,7 @@ export const ROII_HW_3D_TILTS = {
 
 export const ROII_REAL_8TC = {
   cycle_time_us: 10000,
-  guard_band_us: 12.304,
+  guard_band_us: 0,
   processing_delay_us: 3,
   no_be: true,
   nodes: JSON.parse(JSON.stringify(NODES)),
@@ -774,7 +774,7 @@ export const ROII_REAL_8TC = {
 /* ── 8-TC Scenario Description ── */
 export const ROII_8TC_SCENARIO = {
   title: "ROii 8-TC Dedicated PCP \u2014 No Best-Effort",
-  description: "All 8 traffic classes dedicated to sensor flows \u2014 <strong>no best-effort traffic</strong>. Each LiDAR gets its own PCP (7\u20134), radars share remaining PCPs (3\u20130). Per-board GCL configuration table with 8-bit gate mask visualization and PCP\u2192Queue mapping for LAN9692 switches. Same Standard topology: <strong>13 nodes, 16 links, 9 flows, 14 pkts/cycle</strong>.",
+  description: "All 8 traffic classes dedicated to sensor flows \u2014 <strong>no best-effort, no guard band</strong>. Each LiDAR gets its own PCP (7\u20134), radars share remaining PCPs (3\u20130). Per-board GCL configuration with 8-bit gate mask visualization. Interactive: edit payloads, periods, deadlines and recalculate. Same Standard topology: <strong>13 nodes, 16 links, 9 flows, 14 pkts/cycle</strong>.",
   flows: [
     { name: "G32 FC \u2192 ACU-IT",      color: "#10B981", desc: "128KB, PCP 7 (TC7), 1Gbps (1048.9\u00b5s tx)" },
     { name: "G32 Rear \u2192 ACU-IT",    color: "#10B981", desc: "128KB, PCP 6 (TC6), 1Gbps (1048.9\u00b5s tx)" },

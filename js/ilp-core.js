@@ -112,7 +112,7 @@ export function expandPackets(model) {
 
 export function computeGateSchedule(model, pkts) {
   const nodeType = Object.fromEntries(model.nodes.map(n => [n.id, n.type]));
-  const guard_us = model.guard_band_us || 12.304;
+  const guard_us = model.guard_band_us != null ? model.guard_band_us : 12.304;
   const schedule = {};
 
   // GCD helper for sub-period computation
@@ -248,11 +248,13 @@ export function computeGateSchedule(model, pkts) {
         entries.push({ queue: tc, open, close, type: 'tc' });
         cursor = close;
 
-        // Guard band after TC window
-        const gOpen = round3(cursor);
-        const gClose = round3(Math.min(cursor + guard_us, spEnd));
-        entries.push({ queue: -1, open: gOpen, close: gClose, type: 'guard' });
-        cursor = gClose;
+        // Guard band after TC window (skip if guard_us == 0)
+        if (guard_us > 0) {
+          const gOpen = round3(cursor);
+          const gClose = round3(Math.min(cursor + guard_us, spEnd));
+          entries.push({ queue: -1, open: gOpen, close: gClose, type: 'guard' });
+          cursor = gClose;
+        }
       }
 
       // Remaining time in sub-period
