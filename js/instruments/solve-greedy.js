@@ -108,7 +108,7 @@ export function instrumentSolveGreedy(model) {
     const occ = linkOcc[lid];
     const gw = linkGateWindows[lid];
     let t = earliest;
-    let assignedQueue = -1;
+    let assignedQueue = gw ? -1 : pktTC;   // no gate → use pktTC directly
     const MAX_ITER = 10000;
 
     for (let iter = 0; iter < MAX_ITER; iter++) {

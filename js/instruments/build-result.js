@@ -85,7 +85,8 @@ export async function instrumentBuildResult(model, solver = 'greedy', glpk = nul
         vars: { hops: deep(hops) }
       });
 
-      linkRows[hp.lid].push({ type: 'flow', note: pk.pid, priority: pk.pri, tsn: pk.tsn, start_us: round3(s), end_us: e, duration_us: round3(hp.tx) });
+      const assignedQ = sh.queues ? sh.queues[h] : pk.pri;
+      linkRows[hp.lid].push({ type: 'flow', note: pk.pid, priority: pk.pri, queue: assignedQ, tsn: pk.tsn, start_us: round3(s), end_us: e, duration_us: round3(hp.tx) });
 
       const delta = { lid: hp.lid, interval: [round3(s), e] };
       linkOcc[hp.lid].push([round3(s), e]);
@@ -275,13 +276,6 @@ export async function instrumentBuildResult(model, solver = 'greedy', glpk = nul
         vars: { 'gcl.links': deep(gcl.links), 'gcl.links.size': Object.keys(gcl.links).length }
       });
     }
-  }
-
-    /* ── Line 28: gcl.links[lnk.id] assigned ── */
-    steps.push({
-      lineIdx: 28, desc: `gcl.links[${lnk.id}] = { ${gcl.links[lnk.id].entries.length} entries }`,
-      vars: { 'gcl.links': deep(gcl.links), 'gcl.links.size': Object.keys(gcl.links).length }
-    });
   }
 
   /* ── Line 31: worstUtil init ── */
