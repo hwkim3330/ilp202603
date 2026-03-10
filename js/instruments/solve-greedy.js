@@ -69,15 +69,17 @@ export function instrumentSolveGreedy(model) {
   });
 
   // ── IEEE 802.1Qbv gate schedule ──
-  const gateSchedule = computeGateSchedule(model, pkts);
+  const gateSchedule = model.no_be ? {} : computeGateSchedule(model, pkts);
   const linkGateWindows = {};
   let totalGateWindows = 0;
-  for (const lnk of model.links) {
-    const nodeGates = gateSchedule[lnk.from];
-    const entries = nodeGates && nodeGates[lnk.id];
-    if (entries) {
-      linkGateWindows[lnk.id] = entries.filter(e => e.type === 'tc' || e.type === 'be').sort((a, b) => a.open - b.open);
-      totalGateWindows += linkGateWindows[lnk.id].length;
+  if (!model.no_be) {
+    for (const lnk of model.links) {
+      const nodeGates = gateSchedule[lnk.from];
+      const entries = nodeGates && nodeGates[lnk.id];
+      if (entries) {
+        linkGateWindows[lnk.id] = entries.filter(e => e.type === 'tc' || e.type === 'be').sort((a, b) => a.open - b.open);
+        totalGateWindows += linkGateWindows[lnk.id].length;
+      }
     }
   }
 

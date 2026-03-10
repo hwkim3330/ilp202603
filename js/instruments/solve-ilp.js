@@ -145,13 +145,16 @@ export async function instrumentSolveILP(model, glpk, opts = {}) {
     const ac  = (pre, terms, bnd) => { sub.push({ name: `${pre}_${ci++}`, vars: terms, bnds: bnd }); };
 
     // ── IEEE 802.1Qbv gate schedule for ILP constraints ──
-    const gateSchedule = computeGateSchedule(model, pkts);
+    // Skip gate constraints for no-BE mode (8 dedicated TCs)
+    const gateSchedule = model.no_be ? {} : computeGateSchedule(model, pkts);
     const linkGateWindows = {};
-    for (const lnk of model.links) {
-      const nodeGates = gateSchedule[lnk.from];
-      const entries = nodeGates && nodeGates[lnk.id];
-      if (entries) {
-        linkGateWindows[lnk.id] = entries.filter(e => e.type === 'tc' || e.type === 'be').sort((a, b) => a.open - b.open);
+    if (!model.no_be) {
+      for (const lnk of model.links) {
+        const nodeGates = gateSchedule[lnk.from];
+        const entries = nodeGates && nodeGates[lnk.id];
+        if (entries) {
+          linkGateWindows[lnk.id] = entries.filter(e => e.type === 'tc' || e.type === 'be').sort((a, b) => a.open - b.open);
+        }
       }
     }
     const gateLinksCount = Object.keys(linkGateWindows).length;

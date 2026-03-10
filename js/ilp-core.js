@@ -295,65 +295,86 @@ function buildResult(model, pkts, schedHops, method, stats) {
   pktRows.sort((a, b) => a.end_us - b.end_us);
 
   const gcl = { cycle_time_us: model.cycle_time_us, base_time_us: 0, links: {} };
-  const gateSchedule = computeGateSchedule(model, pkts);
 
-  for (const lnk of model.links) {
-    const linkGate = (gateSchedule[lnk.from] || {})[lnk.id];
-
-    if (linkGate) {
-      // IEEE 802.1Qbv gate schedule — TC windows + guard bands
-      // Place actual packet transmissions within TC windows
+  if (model.no_be) {
+    // ── No-BE mode: build GCL from actual packet placements ──
+    // Each packet gets TC-specific gate mask, gaps → all-gates-closed
+    for (const lnk of model.links) {
       const rows = linkRows[lnk.id].slice().sort((a, b) => a.start_us - b.start_us);
       const entries = [];
-      let idx = 0;
+      let idx = 0, cursor = 0;
 
-      for (const gs of linkGate) {
-        if (gs.type === 'guard') {
-          // Guard band — all gates closed
-          entries.push({ index: idx++, gate_mask: '00000000', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'guard' });
-        } else if (gs.type === 'closed') {
-          // All gates closed (no-BE mode)
-          entries.push({ index: idx++, gate_mask: '00000000', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'all-gates-closed' });
-        } else if (gs.type === 'be') {
-          // Best-effort window
-          entries.push({ index: idx++, gate_mask: '11111111', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'non-ST' });
-        } else {
-          // TC window — insert actual packet bars
-          const tc = gs.queue;
-          const mask = Array(8).fill('0'); mask[7 - tc] = '1';
-          const gateMask = mask.join('');
+      for (const r of rows) {
+        // Gap → all-gates-closed
+        if (r.start_us > cursor + 0.001) {
+          entries.push({ index: idx++, gate_mask: '00000000', start_us: round3(cursor), end_us: r.start_us, duration_us: round3(r.start_us - cursor), note: 'all-gates-closed' });
+        }
+        // Packet → TC-specific gate mask
+        const tc = r.queue >= 0 ? r.queue : r.priority;
+        const mask = Array(8).fill('0'); mask[7 - tc] = '1';
+        entries.push({ index: idx++, gate_mask: mask.join(''), start_us: r.start_us, end_us: r.end_us, duration_us: r.duration_us, note: r.note });
+        cursor = r.end_us;
+      }
+      // Remaining → all-gates-closed
+      if (cursor < model.cycle_time_us - 0.001) {
+        entries.push({ index: idx++, gate_mask: '00000000', start_us: round3(cursor), end_us: model.cycle_time_us, duration_us: round3(model.cycle_time_us - cursor), note: 'all-gates-closed' });
+      }
+      if (entries.length === 0) {
+        entries.push({ index: 0, gate_mask: '00000000', start_us: 0, end_us: model.cycle_time_us, duration_us: model.cycle_time_us, note: 'all-gates-closed' });
+      }
+      gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries };
+    }
+  } else {
+    // ── Standard mode: pre-computed gate schedule ──
+    const gateSchedule = computeGateSchedule(model, pkts);
 
-          // Find packets scheduled in this window
-          const windowPkts = rows.filter(r => r.start_us >= gs.open - 1e-9 && r.end_us <= gs.close + 1e-9);
-          if (windowPkts.length > 0) {
-            for (const wp of windowPkts) {
-              entries.push({ index: idx++, gate_mask: gateMask, start_us: wp.start_us, end_us: wp.end_us, duration_us: wp.duration_us, note: wp.note });
-            }
+    for (const lnk of model.links) {
+      const linkGate = (gateSchedule[lnk.from] || {})[lnk.id];
+
+      if (linkGate) {
+        const rows = linkRows[lnk.id].slice().sort((a, b) => a.start_us - b.start_us);
+        const entries = [];
+        let idx = 0;
+
+        for (const gs of linkGate) {
+          if (gs.type === 'guard') {
+            entries.push({ index: idx++, gate_mask: '00000000', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'guard' });
+          } else if (gs.type === 'closed') {
+            entries.push({ index: idx++, gate_mask: '00000000', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'all-gates-closed' });
+          } else if (gs.type === 'be') {
+            entries.push({ index: idx++, gate_mask: '11111111', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'non-ST' });
           } else {
-            // Empty TC window — show the allocation
-            entries.push({ index: idx++, gate_mask: gateMask, start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'non-ST' });
+            const tc = gs.queue;
+            const mask = Array(8).fill('0'); mask[7 - tc] = '1';
+            const gateMask = mask.join('');
+            const windowPkts = rows.filter(r => r.start_us >= gs.open - 1e-9 && r.end_us <= gs.close + 1e-9);
+            if (windowPkts.length > 0) {
+              for (const wp of windowPkts) {
+                entries.push({ index: idx++, gate_mask: gateMask, start_us: wp.start_us, end_us: wp.end_us, duration_us: wp.duration_us, note: wp.note });
+              }
+            } else {
+              entries.push({ index: idx++, gate_mask: gateMask, start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'non-ST' });
+            }
           }
         }
-      }
-      gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries };
-    } else {
-      // No gate schedule — all queues open, place packet bars directly
-      const rows = linkRows[lnk.id].slice().sort((a, b) => a.start_us - b.start_us);
-      const entries = [];
-      let idx = 0;
-      if (rows.length > 0) {
-        for (const r of rows) {
-          entries.push({ index: idx++, gate_mask: '11111111', start_us: r.start_us, end_us: r.end_us, duration_us: r.duration_us, note: r.note });
-        }
-        // Fill remaining as non-ST
-        const lastEnd = rows.at(-1).end_us;
-        if (lastEnd < model.cycle_time_us - 1) {
-          entries.push({ index: idx++, gate_mask: '11111111', start_us: round3(lastEnd), end_us: model.cycle_time_us, duration_us: round3(model.cycle_time_us - lastEnd), note: 'non-ST' });
-        }
+        gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries };
       } else {
-        entries.push({ index: 0, gate_mask: '11111111', start_us: 0, end_us: model.cycle_time_us, duration_us: model.cycle_time_us, note: 'non-ST' });
+        const rows = linkRows[lnk.id].slice().sort((a, b) => a.start_us - b.start_us);
+        const entries = [];
+        let idx = 0;
+        if (rows.length > 0) {
+          for (const r of rows) {
+            entries.push({ index: idx++, gate_mask: '11111111', start_us: r.start_us, end_us: r.end_us, duration_us: r.duration_us, note: r.note });
+          }
+          const lastEnd = rows.at(-1).end_us;
+          if (lastEnd < model.cycle_time_us - 1) {
+            entries.push({ index: idx++, gate_mask: '11111111', start_us: round3(lastEnd), end_us: model.cycle_time_us, duration_us: round3(model.cycle_time_us - lastEnd), note: 'non-ST' });
+          }
+        } else {
+          entries.push({ index: 0, gate_mask: '11111111', start_us: 0, end_us: model.cycle_time_us, duration_us: model.cycle_time_us, note: 'non-ST' });
+        }
+        gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries };
       }
-      gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries };
     }
   }
 
@@ -422,12 +443,15 @@ export function solveGreedy(model) {
   // IEEE 802.1Qbv gate schedule — TC-based windows with guard bands
   const gateSchedule = computeGateSchedule(model, pkts);
   // Per-link gate windows filtered by TC (only TC-type entries, no guards)
+  // Skip gate constraints for no-BE mode (8 dedicated TCs → gate windows are counterproductive)
   const linkGateWindows = {};
-  for (const lnk of model.links) {
-    const nodeGates = gateSchedule[lnk.from];
-    const entries = nodeGates && nodeGates[lnk.id];
-    if (entries) {
-      linkGateWindows[lnk.id] = entries.filter(e => e.type === 'tc' || e.type === 'be').sort((a, b) => a.open - b.open);
+  if (!model.no_be) {
+    for (const lnk of model.links) {
+      const nodeGates = gateSchedule[lnk.from];
+      const entries = nodeGates && nodeGates[lnk.id];
+      if (entries) {
+        linkGateWindows[lnk.id] = entries.filter(e => e.type === 'tc' || e.type === 'be').sort((a, b) => a.open - b.open);
+      }
     }
   }
 
@@ -550,13 +574,16 @@ export async function solveILP(model, glpk, opts = {}) {
   const allSingleRoute = pkts.every(pk => pk.routes.length === 1);
 
   // IEEE 802.1Qbv gate schedule — constrain ILP to TC gate windows
-  const gateSchedule = computeGateSchedule(model, pkts);
+  // Skip gate constraints for no-BE mode (8 dedicated TCs)
+  const gateSchedule = model.no_be ? {} : computeGateSchedule(model, pkts);
   const linkGateWindows = {};
-  for (const lnk of model.links) {
-    const nodeGates = gateSchedule[lnk.from];
-    const entries = nodeGates && nodeGates[lnk.id];
-    if (entries) {
-      linkGateWindows[lnk.id] = entries.filter(e => e.type === 'tc' || e.type === 'be').sort((a, b) => a.open - b.open);
+  if (!model.no_be) {
+    for (const lnk of model.links) {
+      const nodeGates = gateSchedule[lnk.from];
+      const entries = nodeGates && nodeGates[lnk.id];
+      if (entries) {
+        linkGateWindows[lnk.id] = entries.filter(e => e.type === 'tc' || e.type === 'be').sort((a, b) => a.open - b.open);
+      }
     }
   }
 

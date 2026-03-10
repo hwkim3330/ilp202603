@@ -141,99 +141,141 @@ export async function instrumentBuildResult(model, solver = 'greedy', glpk = nul
     vars: { 'gcl.cycle_time_us': model.cycle_time_us, 'gcl.base_time_us': 0, 'gcl.links': deep(gcl.links), 'gcl.links.size': Object.keys(gcl.links).length }
   });
 
-  /* ── Lines 19-29: GCL building per link (802.1Qbv gate schedule) ── */
-  const gateSchedule = computeGateSchedule(model, pkts);
+  /* ── Lines 19-29: GCL building per link ── */
+  if (model.no_be) {
+    // No-BE mode: build GCL from actual packet placements
+    steps.push({ lineIdx: 19, desc: 'no_be mode: skip gate schedule, build GCL from packet placements', vars: { 'model.no_be': true } });
 
-  steps.push({
-    lineIdx: 19, desc: `computeGateSchedule → ${Object.keys(gateSchedule).length} node(s) with gate schedule`,
-    vars: { gateSchedule: deep(gateSchedule) }
-  });
-
-  for (const lnk of model.links) {
-    const linkGate = (gateSchedule[lnk.from] || {})[lnk.id];
-
-    steps.push({
-      lineIdx: 20, desc: `Link ${lnk.id}: ${linkGate ? linkGate.length + ' gate entries (802.1Qbv)' : 'no gate schedule (all open)'}`,
-      vars: { 'lnk.id': lnk.id, 'lnk.from': lnk.from, hasGate: !!linkGate }
-    });
-
-    if (linkGate) {
-      // IEEE 802.1Qbv gate schedule — TC windows + guard bands
+    for (const lnk of model.links) {
       const rows = linkRows[lnk.id].slice().sort((a, b) => a.start_us - b.start_us);
       const entries = [];
-      let idx = 0;
+      let idx = 0, cursor = 0;
 
-      for (const gs of linkGate) {
-        if (gs.type === 'guard') {
-          entries.push({ index: idx++, gate_mask: '00000000', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'guard' });
-          steps.push({
-            lineIdx: 24, desc: `GCL guard band [${gs.open}, ${gs.close}]`,
-            vars: { type: 'guard', open: gs.open, close: gs.close },
-            gantt: { type: 'guard', lid: lnk.id, s: gs.open, e: gs.close, dur: round3(gs.close - gs.open), before: 'TC transition' }
-          });
-        } else if (gs.type === 'closed') {
-          entries.push({ index: idx++, gate_mask: '00000000', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'all-gates-closed' });
-          steps.push({
-            lineIdx: 24, desc: `GCL all-gates-closed [${gs.open}, ${gs.close}]`,
-            vars: { type: 'closed', open: gs.open, close: gs.close },
-            gantt: { type: 'guard', lid: lnk.id, s: gs.open, e: gs.close, dur: round3(gs.close - gs.open), before: 'No BE' }
-          });
-        } else if (gs.type === 'be') {
-          entries.push({ index: idx++, gate_mask: '11111111', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'non-ST' });
-          steps.push({
-            lineIdx: 24, desc: `GCL BE window [${gs.open}, ${gs.close}]`,
-            vars: { type: 'be', open: gs.open, close: gs.close },
-            gantt: { type: 'flow', lid: lnk.id, s: gs.open, e: gs.close, dur: round3(gs.close - gs.open), pid: 'BE', color: '#555' }
-          });
-        } else {
-          // TC window — insert actual packet bars
-          const tc = gs.queue;
-          const mask = Array(8).fill('0'); mask[7 - tc] = '1';
-          const gateMask = mask.join('');
-          const windowPkts = rows.filter(r => r.start_us >= gs.open - 1e-9 && r.end_us <= gs.close + 1e-9);
-
-          if (windowPkts.length > 0) {
-            for (const wp of windowPkts) {
-              entries.push({ index: idx++, gate_mask: gateMask, start_us: wp.start_us, end_us: wp.end_us, duration_us: wp.duration_us, note: wp.note });
-              steps.push({
-                lineIdx: 24, desc: `GCL TC${tc} pkt ${wp.note} [${wp.start_us}, ${wp.end_us}]`,
-                vars: { type: 'tc', tc, mask: gateMask, pkt: wp.note, start: wp.start_us, end: wp.end_us },
-                gantt: { type: 'flow', lid: lnk.id, s: wp.start_us, e: wp.end_us, dur: wp.duration_us, pid: wp.note, color: flowColor(wp.note.split('#')[0]) || '#89b4fa' }
-              });
-            }
-          } else {
-            entries.push({ index: idx++, gate_mask: gateMask, start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'non-ST' });
-            steps.push({
-              lineIdx: 24, desc: `GCL TC${tc} empty window [${gs.open}, ${gs.close}]`,
-              vars: { type: 'tc', tc, mask: gateMask, open: gs.open, close: gs.close },
-              gantt: { type: 'flow', lid: lnk.id, s: gs.open, e: gs.close, dur: round3(gs.close - gs.open), pid: `TC${tc}`, color: '#444' }
-            });
-          }
+      for (const r of rows) {
+        if (r.start_us > cursor + 0.001) {
+          entries.push({ index: idx++, gate_mask: '00000000', start_us: round3(cursor), end_us: r.start_us, duration_us: round3(r.start_us - cursor), note: 'all-gates-closed' });
         }
+        const tc = r.queue >= 0 ? r.queue : r.priority;
+        const mask = Array(8).fill('0'); mask[7 - tc] = '1';
+        entries.push({ index: idx++, gate_mask: mask.join(''), start_us: r.start_us, end_us: r.end_us, duration_us: r.duration_us, note: r.note });
+        steps.push({
+          lineIdx: 24, desc: `GCL TC${tc} pkt ${r.note} [${r.start_us}, ${r.end_us}]`,
+          vars: { type: 'tc', tc, pkt: r.note },
+          gantt: { type: 'flow', lid: lnk.id, s: r.start_us, e: r.end_us, dur: r.duration_us, pid: r.note, color: flowColor(r.note.split('#')[0]) || '#89b4fa' }
+        });
+        cursor = r.end_us;
+      }
+      if (cursor < model.cycle_time_us - 0.001) {
+        entries.push({ index: idx++, gate_mask: '00000000', start_us: round3(cursor), end_us: model.cycle_time_us, duration_us: round3(model.cycle_time_us - cursor), note: 'all-gates-closed' });
+      }
+      if (entries.length === 0) {
+        entries.push({ index: 0, gate_mask: '00000000', start_us: 0, end_us: model.cycle_time_us, duration_us: model.cycle_time_us, note: 'all-gates-closed' });
       }
       gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries };
-    } else {
-      // No gate schedule — place packet bars directly
-      const rows = linkRows[lnk.id].slice().sort((a, b) => a.start_us - b.start_us);
-      const entries = [];
-      let idx = 0;
-      if (rows.length > 0) {
-        for (const r of rows) {
-          entries.push({ index: idx++, gate_mask: '11111111', start_us: r.start_us, end_us: r.end_us, duration_us: r.duration_us, note: r.note });
-        }
-        const lastEnd = rows.at(-1).end_us;
-        if (lastEnd < model.cycle_time_us - 1) {
-          entries.push({ index: idx++, gate_mask: '11111111', start_us: round3(lastEnd), end_us: model.cycle_time_us, duration_us: round3(model.cycle_time_us - lastEnd), note: 'non-ST' });
-        }
-      } else {
-        entries.push({ index: 0, gate_mask: '11111111', start_us: 0, end_us: model.cycle_time_us, duration_us: model.cycle_time_us, note: 'non-ST' });
-      }
-      gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries };
+
       steps.push({
-        lineIdx: 24, desc: `${lnk.id}: no gate schedule, ${rows.length} packet bars + fill`,
-        vars: { 'lnk.id': lnk.id, entries: deep(entries) }
+        lineIdx: 28, desc: `gcl.links[${lnk.id}] = { ${entries.length} entries }`,
+        vars: { 'gcl.links': deep(gcl.links), 'gcl.links.size': Object.keys(gcl.links).length }
       });
     }
+  } else {
+    // Standard mode: pre-computed gate schedule
+    const gateSchedule = computeGateSchedule(model, pkts);
+
+    steps.push({
+      lineIdx: 19, desc: `computeGateSchedule → ${Object.keys(gateSchedule).length} node(s) with gate schedule`,
+      vars: { gateSchedule: deep(gateSchedule) }
+    });
+
+    for (const lnk of model.links) {
+      const linkGate = (gateSchedule[lnk.from] || {})[lnk.id];
+
+      steps.push({
+        lineIdx: 20, desc: `Link ${lnk.id}: ${linkGate ? linkGate.length + ' gate entries (802.1Qbv)' : 'no gate schedule (all open)'}`,
+        vars: { 'lnk.id': lnk.id, 'lnk.from': lnk.from, hasGate: !!linkGate }
+      });
+
+      if (linkGate) {
+        const rows = linkRows[lnk.id].slice().sort((a, b) => a.start_us - b.start_us);
+        const entries = [];
+        let idx = 0;
+
+        for (const gs of linkGate) {
+          if (gs.type === 'guard') {
+            entries.push({ index: idx++, gate_mask: '00000000', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'guard' });
+            steps.push({
+              lineIdx: 24, desc: `GCL guard band [${gs.open}, ${gs.close}]`,
+              vars: { type: 'guard', open: gs.open, close: gs.close },
+              gantt: { type: 'guard', lid: lnk.id, s: gs.open, e: gs.close, dur: round3(gs.close - gs.open), before: 'TC transition' }
+            });
+          } else if (gs.type === 'closed') {
+            entries.push({ index: idx++, gate_mask: '00000000', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'all-gates-closed' });
+            steps.push({
+              lineIdx: 24, desc: `GCL all-gates-closed [${gs.open}, ${gs.close}]`,
+              vars: { type: 'closed', open: gs.open, close: gs.close },
+              gantt: { type: 'guard', lid: lnk.id, s: gs.open, e: gs.close, dur: round3(gs.close - gs.open), before: 'No BE' }
+            });
+          } else if (gs.type === 'be') {
+            entries.push({ index: idx++, gate_mask: '11111111', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'non-ST' });
+            steps.push({
+              lineIdx: 24, desc: `GCL BE window [${gs.open}, ${gs.close}]`,
+              vars: { type: 'be', open: gs.open, close: gs.close },
+              gantt: { type: 'flow', lid: lnk.id, s: gs.open, e: gs.close, dur: round3(gs.close - gs.open), pid: 'BE', color: '#555' }
+            });
+          } else {
+            const tc = gs.queue;
+            const mask = Array(8).fill('0'); mask[7 - tc] = '1';
+            const gateMask = mask.join('');
+            const windowPkts = rows.filter(r => r.start_us >= gs.open - 1e-9 && r.end_us <= gs.close + 1e-9);
+
+            if (windowPkts.length > 0) {
+              for (const wp of windowPkts) {
+                entries.push({ index: idx++, gate_mask: gateMask, start_us: wp.start_us, end_us: wp.end_us, duration_us: wp.duration_us, note: wp.note });
+                steps.push({
+                  lineIdx: 24, desc: `GCL TC${tc} pkt ${wp.note} [${wp.start_us}, ${wp.end_us}]`,
+                  vars: { type: 'tc', tc, mask: gateMask, pkt: wp.note, start: wp.start_us, end: wp.end_us },
+                  gantt: { type: 'flow', lid: lnk.id, s: wp.start_us, e: wp.end_us, dur: wp.duration_us, pid: wp.note, color: flowColor(wp.note.split('#')[0]) || '#89b4fa' }
+                });
+              }
+            } else {
+              entries.push({ index: idx++, gate_mask: gateMask, start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'non-ST' });
+              steps.push({
+                lineIdx: 24, desc: `GCL TC${tc} empty window [${gs.open}, ${gs.close}]`,
+                vars: { type: 'tc', tc, mask: gateMask, open: gs.open, close: gs.close },
+                gantt: { type: 'flow', lid: lnk.id, s: gs.open, e: gs.close, dur: round3(gs.close - gs.open), pid: `TC${tc}`, color: '#444' }
+              });
+            }
+          }
+        }
+        gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries };
+      } else {
+        const rows = linkRows[lnk.id].slice().sort((a, b) => a.start_us - b.start_us);
+        const entries = [];
+        let idx = 0;
+        if (rows.length > 0) {
+          for (const r of rows) {
+            entries.push({ index: idx++, gate_mask: '11111111', start_us: r.start_us, end_us: r.end_us, duration_us: r.duration_us, note: r.note });
+          }
+          const lastEnd = rows.at(-1).end_us;
+          if (lastEnd < model.cycle_time_us - 1) {
+            entries.push({ index: idx++, gate_mask: '11111111', start_us: round3(lastEnd), end_us: model.cycle_time_us, duration_us: round3(model.cycle_time_us - lastEnd), note: 'non-ST' });
+          }
+        } else {
+          entries.push({ index: 0, gate_mask: '11111111', start_us: 0, end_us: model.cycle_time_us, duration_us: model.cycle_time_us, note: 'non-ST' });
+        }
+        gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries };
+        steps.push({
+          lineIdx: 24, desc: `${lnk.id}: no gate schedule, ${rows.length} packet bars + fill`,
+          vars: { 'lnk.id': lnk.id, entries: deep(entries) }
+        });
+      }
+
+      steps.push({
+        lineIdx: 28, desc: `gcl.links[${lnk.id}] = { ${gcl.links[lnk.id].entries.length} entries }`,
+        vars: { 'gcl.links': deep(gcl.links), 'gcl.links.size': Object.keys(gcl.links).length }
+      });
+    }
+  }
 
     /* ── Line 28: gcl.links[lnk.id] assigned ── */
     steps.push({
