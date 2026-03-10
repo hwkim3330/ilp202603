@@ -481,10 +481,11 @@ export function solveGreedy(model) {
       }
 
       // 2) Link occupancy constraint: no overlap with already-scheduled packets
+      const margin = model.tx_margin_us || 0;
       let moved = false;
       for (const [s, e] of occ) {
-        if (t < e && t + duration > s) {
-          t = e; moved = true; break;
+        if (t < e + margin && t + duration + margin > s) {
+          t = e + margin; moved = true; break;
         }
       }
       if (!moved) return { t, queue: assignedQueue };

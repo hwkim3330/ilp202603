@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>8-TC Stable (TX Margin) &mdash; TSN/GCL Solver</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    :root {
+      --bg: #f8f9fa; --bg2: #f0f2f5;
+      --card: #ffffff; --card-hi: #f8fafc;
+      --border: rgba(59,130,246,0.2); --border-hi: rgba(59,130,246,0.4);
+      --text: #1e293b; --text2: #475569; --text3: #64748b;
+      --cyan: #0891b2; --blue: #3B82F6; --purple: #7c3aed;
+      --orange: #d97706; --red: #dc2626; --green: #059669; --pink: #db2777;
+      --guard: #d97706; --be: #e2e8f0;
+    }
+    body { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 50%, #dee2e6 100%); }
+    .bg-grid {
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59,130,246,0.06), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(6,182,212,0.04), transparent),
+        linear-gradient(rgba(59,130,246,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.06) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+    }
+    .card {
+      background: rgba(255,255,255,0.95);
+      border: 1px solid rgba(59,130,246,0.15);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    }
+    .card:hover { border-color: rgba(59,130,246,0.3); }
+    .card-title { color: var(--text2); }
+    .card-title::before { background: var(--blue); }
+    .tooltip {
+      background: rgba(255,255,255,0.97);
+      border: 1px solid rgba(59,130,246,0.25);
+      color: var(--text); box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
+    .tooltip .tt-title { color: var(--blue); }
+    .tooltip .tt-k { color: var(--text3); }
+    .btn-primary { background: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%); color: #fff; }
+    .btn-secondary { background: rgba(248,250,252,0.8); color: var(--text); border: 1px solid rgba(59,130,246,0.2); }
+    .btn-secondary:hover { border-color: var(--blue); background: #fff; }
+    .gcl-grid line { stroke: rgba(59,130,246,0.06); stroke-width: 1; }
+    .gcl-axis text { fill: var(--text2) !important; font-size: 11px; }
+    .gcl-axis path, .gcl-axis line { stroke: rgba(59,130,246,0.15); }
+    .gcl-label { fill: rgba(0,0,0,0.75); font-size: 11px; font-weight: 700; pointer-events: none; }
+
+    /* ── Header ── */
+    .keti-header {
+      display: flex; align-items: center; justify-content: center;
+      gap: 16px; margin-bottom: 8px;
+    }
+    .keti-header img { height: 40px; width: auto; }
+    .keti-header h1 {
+      font-size: 2rem; font-weight: 800; letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+
+    /* ── Editable Table ── */
+    .param-table {
+      width: 100%; border-collapse: collapse; font-size: 0.82rem;
+    }
+    .param-table th {
+      background: rgba(59,130,246,0.06); color: var(--text2);
+      padding: 6px 10px; text-align: left; font-weight: 700;
+      border-bottom: 2px solid rgba(59,130,246,0.15);
+      font-size: 0.75rem;
+    }
+    .param-table td {
+      padding: 4px 6px; border-bottom: 1px solid rgba(59,130,246,0.08);
+      vertical-align: middle;
+    }
+    .param-table tr:hover { background: rgba(59,130,246,0.04); }
+    .param-table input[type="number"] {
+      width: 80px; padding: 4px 6px; border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 4px; font-size: 0.8rem; font-family: 'Courier New', monospace;
+      background: #fff; text-align: right;
+    }
+    .param-table input[type="number"]:focus {
+      outline: none; border-color: var(--blue);
+      box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+    }
+    .param-table .calc {
+      color: var(--blue); font-family: 'Courier New', monospace;
+      font-weight: 600; font-size: 0.78rem;
+    }
+    .pcp-dot {
+      display: inline-block; width: 10px; height: 10px;
+      border-radius: 50%; margin-right: 6px; vertical-align: middle;
+    }
+
+    /* ── Global Params ── */
+    .global-params {
+      display: flex; gap: 16px; flex-wrap: wrap; align-items: center;
+      margin-bottom: 12px;
+    }
+    .global-params label {
+      font-size: 0.78rem; font-weight: 600; color: var(--text2);
+    }
+    .global-params input[type="number"] {
+      width: 90px; padding: 4px 8px; border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 4px; font-size: 0.82rem; font-family: 'Courier New', monospace;
+      text-align: right;
+    }
+    .global-params input[type="number"]:focus {
+      outline: none; border-color: var(--blue);
+      box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+    }
+    .global-params .margin-param {
+      border-left: 2px solid var(--blue); padding-left: 14px;
+    }
+    .global-params .margin-param label { color: var(--blue); }
+    .global-params .margin-param input { border-color: var(--blue); }
+
+    /* ── Stats Grid ── */
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 10px; margin-bottom: 12px;
+    }
+    .stat-box {
+      padding: 10px 14px; border-radius: 8px;
+      background: rgba(59,130,246,0.04);
+      border: 1px solid rgba(59,130,246,0.1);
+    }
+    .stat-box .stat-label { font-size: 0.68rem; color: var(--text3); font-weight: 600; }
+    .stat-box .stat-value { font-size: 1.1rem; font-weight: 800; color: var(--blue); }
+
+    /* ── Gantt ── */
+    .gantt-wrap { min-height: 300px; position: relative; }
+    #ganttContainer { background: #ffffff; border-radius: 8px; }
+    #ganttLegend {
+      display: flex; flex-wrap: wrap; gap: 8px 16px;
+      padding: 10px 16px; border-top: 1px solid rgba(59,130,246,0.1);
+      background: #f8fafc; border-radius: 0 0 8px 8px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text2); }
+    .legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+
+    /* ── Board Config ── */
+    .board-section {
+      margin-bottom: 20px; padding: 12px 16px;
+      border: 1px solid rgba(59,130,246,0.12); border-radius: 8px;
+      background: rgba(59,130,246,0.02);
+    }
+    .board-section h3 {
+      font-size: 0.88rem; font-weight: 700; color: var(--blue);
+      margin: 0 0 10px 0;
+    }
+    .board-port { margin-bottom: 14px; }
+    .board-port h4 {
+      font-size: 0.78rem; font-weight: 600; color: var(--text2);
+      margin: 0 0 6px 0;
+    }
+    .board-port .port-meta {
+      font-size: 0.7rem; color: var(--text3); margin-bottom: 6px;
+    }
+    .gcl-table {
+      width: 100%; border-collapse: collapse; font-size: 0.72rem;
+      font-family: 'Courier New', monospace;
+    }
+    .gcl-table th {
+      background: rgba(59,130,246,0.06); color: var(--text2);
+      padding: 4px 8px; text-align: left; font-weight: 700;
+      border-bottom: 1px solid rgba(59,130,246,0.15);
+    }
+    .gcl-table td {
+      padding: 3px 8px; border-bottom: 1px solid rgba(59,130,246,0.06);
+    }
+    .gcl-table tr:hover { background: rgba(59,130,246,0.04); }
+    .gate-bits { display: inline-flex; gap: 1px; }
+    .gate-bit {
+      display: inline-block; width: 12px; height: 16px;
+      border-radius: 2px; font-size: 8px; text-align: center;
+      line-height: 16px; font-weight: 700;
+    }
+    .gate-bit.open { background: rgba(59,130,246,0.35); color: #1e40af; }
+    .gate-bit.closed { background: rgba(100,116,139,0.12); color: #94a3b8; }
+    .gate-bit.guard { background: rgba(249,168,37,0.4); color: #92400e; }
+    .pcp-map { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+    .pcp-badge {
+      font-size: 0.7rem; padding: 2px 10px; border-radius: 4px;
+      background: rgba(59,130,246,0.08); color: var(--blue); font-weight: 600;
+    }
+
+    /* ── Calculation Detail ── */
+    .calc-detail {
+      font-size: 0.78rem; color: var(--text2); line-height: 1.7;
+      font-family: 'Courier New', monospace;
+    }
+    .calc-detail .formula {
+      background: rgba(59,130,246,0.05); padding: 3px 8px;
+      border-radius: 4px; display: inline-block; margin: 2px 0;
+    }
+    .calc-detail .result {
+      color: var(--blue); font-weight: 700;
+    }
+    .calc-section { margin-bottom: 12px; }
+    .calc-section h4 {
+      font-size: 0.75rem; font-weight: 700; color: var(--text3);
+      text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 4px 0;
+    }
+
+    /* ── Timing Budget Card ── */
+    .timing-card {
+      background: linear-gradient(135deg, rgba(59,130,246,0.04) 0%, rgba(6,182,212,0.04) 100%);
+      border: 1px solid rgba(59,130,246,0.2);
+      border-radius: var(--radius); padding: 20px 24px; margin-bottom: 16px;
+    }
+    .timing-card h3 {
+      font-size: 1rem; font-weight: 700; color: var(--blue);
+      margin: 0 0 12px 0;
+    }
+    .timing-card p { font-size: 0.82rem; color: var(--text2); margin: 0 0 8px 0; line-height: 1.6; }
+    .timing-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px; margin-top: 12px;
+    }
+    .timing-item {
+      background: rgba(255,255,255,0.8); border: 1px solid rgba(59,130,246,0.12);
+      border-radius: 8px; padding: 10px 14px;
+    }
+    .timing-item .ti-label { font-size: 0.68rem; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .timing-item .ti-val { font-size: 1.1rem; font-weight: 700; color: var(--blue); margin-top: 2px; }
+    .timing-item .ti-desc { font-size: 0.68rem; color: var(--text3); margin-top: 2px; }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="wrap">
+    <!-- Header -->
+    <div class="header">
+      <div class="keti-header">
+        <img src="keti.png" alt="KETI" onerror="this.style.display='none'">
+        <h1>8-TC Stable (TX Margin)</h1>
+      </div>
+      <div class="sub">
+        Hardware-safe 스케줄링 &mdash; TX Margin (패킷 간 최소 간격) 적용.<br>
+        PTP 동기 오차 + GCL 전환 지터를 흡수하는 안전 버퍼. 파라미터를 수정하면 자동으로 재계산됩니다.
+      </div>
+    </div>
+
+    <!-- Timing Budget Card -->
+    <div class="timing-card">
+      <h3>&#9201; Timing Budget &mdash; TX Margin</h3>
+      <p>
+        <strong>TX Margin</strong>은 같은 링크에서 연속 전송되는 패킷 사이에 강제하는 최소 간격입니다.
+        이 간격 없이 패킷이 밀착되면 이론적으로는 최적이지만 실제 하드웨어에서는 동작 불가합니다.
+      </p>
+      <p>
+        마진이 흡수하는 타이밍 불확실성:
+        <strong>PTP 시계 동기 오차</strong> (&plusmn;1&micro;s),
+        <strong>GCL 게이트 전환 지터</strong> (~0.5&micro;s),
+        <strong>Store-and-forward 처리 변동</strong>.
+        LAN9662 하드웨어 권장값: <strong>1&ndash;3 &micro;s</strong>.
+      </p>
+      <div class="timing-grid">
+        <div class="timing-item">
+          <div class="ti-label">PTP Sync Error</div>
+          <div class="ti-val">&plusmn;1 &micro;s</div>
+          <div class="ti-desc">IEEE 1588 grandmaster</div>
+        </div>
+        <div class="timing-item">
+          <div class="ti-label">GCL Transition</div>
+          <div class="ti-val">~0.5 &micro;s</div>
+          <div class="ti-desc">Gate open/close switching</div>
+        </div>
+        <div class="timing-item">
+          <div class="ti-label">Processing Jitter</div>
+          <div class="ti-val">&plusmn;0.5 &micro;s</div>
+          <div class="ti-desc">Store-and-forward variation</div>
+        </div>
+        <div class="timing-item">
+          <div class="ti-label">Safety Margin</div>
+          <div class="ti-val" id="marginDisplay">2 &micro;s</div>
+          <div class="ti-desc">Configured TX margin</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Global Params + Solve -->
+    <div class="card">
+      <div class="card-title">Global Parameters</div>
+      <div class="global-params">
+        <label>Cycle Time (&micro;s)
+          <input type="number" id="paramCycle" value="1000" min="100" step="100">
+        </label>
+        <label>Guard Band (&micro;s)
+          <input type="number" id="paramGuard" value="0" min="0" step="0.1">
+        </label>
+        <label>Link Speed (Mbps)
+          <input type="number" id="paramSpeed" value="1000" min="100" step="100">
+        </label>
+        <label>Processing Delay (&micro;s)
+          <input type="number" id="paramProcDelay" value="5" min="0" step="0.5">
+        </label>
+        <div class="margin-param">
+          <label style="color:var(--blue);">TX Margin (&micro;s)
+            <input type="number" id="paramMargin" value="2" min="0" max="20" step="0.5" style="border-color:var(--blue);">
+          </label>
+        </div>
+        <button class="btn btn-primary" id="btnSolve" style="padding:8px 24px;font-size:0.88rem;">&#9654; Solve</button>
+      </div>
+    </div>
+
+    <!-- Sensor Spec Reference -->
+    <div class="card">
+      <div class="card-title">Sensor H/W Specifications</div>
+      <table class="param-table">
+        <thead>
+          <tr><th>Sensor</th><th>Type</th><th>App Payload</th><th>Interface</th><th>Real Period</th><th>Frame Rate</th><th>Wire TX (1Gbps)</th><th>Note</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="pcp-dot" style="background:#10B981"></span><strong>AutoL G32</strong></td>
+            <td>LiDAR (solid-state)</td><td class="calc">1248 B</td>
+            <td>1000BASE-T1</td><td class="calc">167 &micro;s</td><td class="calc">6000 fps</td>
+            <td class="calc result">10.512 &micro;s</td>
+            <td style="font-size:0.7rem;">135&deg; FOV, (1248+66)&times;8/1000</td>
+          </tr>
+          <tr>
+            <td><span class="pcp-dot" style="background:#0D9488"></span><strong>Hesai Pandar 40P</strong></td>
+            <td>LiDAR (rotating)</td><td class="calc">1262 B</td>
+            <td>1000BASE-T</td><td class="calc">536 &micro;s</td><td class="calc">1866 fps</td>
+            <td class="calc result">10.624 &micro;s</td>
+            <td style="font-size:0.7rem;">360&deg; FOV, (1262+66)&times;8/1000</td>
+          </tr>
+          <tr>
+            <td><span class="pcp-dot" style="background:#952aff"></span><strong>Continental MRR-35</strong></td>
+            <td>Radar</td><td class="calc">64 B</td>
+            <td>CAN-FD (500k/5M)</td><td class="calc">166.6 &micro;s <span style="color:var(--text3)">(CAN-FD)</span></td><td class="calc">-</td>
+            <td class="calc result">0.816 &micro;s</td>
+            <td style="font-size:0.7rem;">CAN2ETH bridge, (64+38)&times;8/1000</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Flow Parameters (editable) -->
+    <div class="card">
+      <div class="card-title">Flow Parameters &mdash; PCP &rarr; TC Assignment (Frame-Level)</div>
+      <table class="param-table" id="flowTable">
+        <thead>
+          <tr>
+            <th>PCP</th><th>TC</th><th>Flow ID</th><th>Sensor</th>
+            <th>App (B)</th><th>ETH Payload (B)</th>
+            <th>Period (&micro;s)</th><th>Real (&micro;s)</th>
+            <th>Deadline (&micro;s)</th>
+            <th>TX (&micro;s)</th><th>Pkts/Cycle</th>
+          </tr>
+        </thead>
+        <tbody id="flowTableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Calculation Detail -->
+    <div class="card" id="calcCard">
+      <div class="card-title">Calculation Detail</div>
+      <div class="calc-detail" id="calcDetail"></div>
+    </div>
+
+    <!-- Stats -->
+    <div class="card">
+      <div class="card-title">Solver Results</div>
+      <div id="statusText" style="font-size:0.82rem;color:var(--text2);padding:4px 0;">Press Solve to start</div>
+      <div class="stats-grid" id="statsGrid"></div>
+    </div>
+
+    <!-- Gantt Chart -->
+    <div class="card">
+      <div class="card-title">Schedule Timeline</div>
+      <div class="svg-container gantt-wrap" id="ganttContainer"></div>
+      <div id="ganttLegend"></div>
+    </div>
+
+    <!-- Board Configuration -->
+    <div class="card" id="boardConfigCard">
+      <div class="card-title">Board Configuration (LAN9692 GCL)</div>
+      <div id="boardConfigPanel"></div>
+    </div>
+
+    <!-- Packet Detail -->
+    <div class="card" id="pktDetailCard">
+      <div class="card-title">Packet Schedule Detail</div>
+      <div style="overflow-x:auto;" id="pktDetailPanel"></div>
+    </div>
+
+    <!-- Nav -->
+    <div class="card" style="padding:12px 20px;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <a href="roii-8tc.html" class="btn btn-secondary" style="font-size:0.78rem;">Original 8-TC (no margin)</a>
+        <a href="roii-debug.html" class="btn btn-secondary" style="font-size:0.78rem;">Debugger</a>
+        <a href="index.html" class="btn btn-secondary" style="margin-left:auto;font-size:0.78rem;">Home</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <script src="vendor/d3.min.js"></script>
+  <script type="module">
+  import { ROII_REAL_8TC, ROII_REAL_SWITCHES } from './js/roii-real-data.js';
+  import { solveGreedy, initTooltip, flowColor } from './js/ilp-core.js';
+
+  initTooltip();
+
+  // ── Flow Definitions (editable) — Frame-level sensor data ──
+  const FLOW_DEFS = [
+    { pcp: 7, id: 'f_lidar_fc',  sensor: 'AutoL G32',       sensorPayload: 1248, payload: 1276, period: 200, deadline: 1000, src: 'LIDAR_FC',  dst: 'ACU_IT', color: '#10B981', realPeriod: 167 },
+    { pcp: 6, id: 'f_lidar_r',   sensor: 'AutoL G32',       sensorPayload: 1248, payload: 1276, period: 200, deadline: 1000, src: 'LIDAR_R',   dst: 'ACU_IT', color: '#10B981', realPeriod: 167 },
+    { pcp: 5, id: 'f_lidar_fl',  sensor: 'Hesai Pandar 40P',sensorPayload: 1262, payload: 1290, period: 500, deadline: 1000, src: 'LIDAR_FL',  dst: 'ACU_IT', color: '#0D9488', realPeriod: 536 },
+    { pcp: 4, id: 'f_lidar_fr',  sensor: 'Hesai Pandar 40P',sensorPayload: 1262, payload: 1290, period: 500, deadline: 1000, src: 'LIDAR_FR',  dst: 'ACU_IT', color: '#0D9488', realPeriod: 536 },
+    { pcp: 3, id: 'f_radar_f',   sensor: 'MRR-35 (CAN-FD)', sensorPayload: 64,   payload: 64,   period: 500, deadline: 1000, src: 'RADAR_F',   dst: 'ACU_IT', color: '#952aff', realPeriod: null },
+    { pcp: 2, id: 'f_radar_flc', sensor: 'MRR-35 (CAN-FD)', sensorPayload: 64,   payload: 64,   period: 500, deadline: 1000, src: 'RADAR_FLC', dst: 'ACU_IT', color: '#952aff', realPeriod: null },
+    { pcp: 1, id: 'f_radar_frc', sensor: 'MRR-35 (CAN-FD)', sensorPayload: 64,   payload: 64,   period: 500, deadline: 1000, src: 'RADAR_FRC', dst: 'ACU_IT', color: '#952aff', realPeriod: null },
+    { pcp: 0, id: 'f_radar_rlc', sensor: 'MRR-35 (shared)',  sensorPayload: 64,   payload: 64,   period: 500, deadline: 1000, src: 'RADAR_RLC', dst: 'ACU_IT', color: '#952aff', realPeriod: null },
+    { pcp: 0, id: 'f_radar_rrc', sensor: 'MRR-35 (shared)',  sensorPayload: 64,   payload: 64,   period: 500, deadline: 1000, src: 'RADAR_RRC', dst: 'ACU_IT', color: '#952aff', realPeriod: null },
+  ];
+
+  const round3 = v => Math.round(v * 1000) / 1000;
+  const txTime = (bytes, mbps) => round3(((bytes + 38) * 8) / mbps);
+
+  // ── Render Flow Table ──
+  function renderFlowTable() {
+    const speed = parseFloat(document.getElementById('paramSpeed').value) || 1000;
+    const cycle = parseFloat(document.getElementById('paramCycle').value) || 1000;
+    const tbody = document.getElementById('flowTableBody');
+    tbody.innerHTML = FLOW_DEFS.map((f, i) => {
+      const tx = txTime(f.payload, speed);
+      const pkts = Math.round(cycle / f.period);
+      const realPd = f.realPeriod ? `<span style="color:var(--text3)">${f.realPeriod}</span>` : '<span style="color:var(--text3)">-</span>';
+      return `<tr>
+        <td><strong>${f.pcp}</strong></td>
+        <td>TC${f.pcp}</td>
+        <td><span class="pcp-dot" style="background:${f.color}"></span>${f.id}</td>
+        <td style="font-size:0.72rem;">${f.sensor}</td>
+        <td class="calc">${f.sensorPayload}</td>
+        <td><input type="number" data-idx="${i}" data-field="payload" value="${f.payload}" min="64" step="1"></td>
+        <td><input type="number" data-idx="${i}" data-field="period" value="${f.period}" min="10" step="10"></td>
+        <td>${realPd}</td>
+        <td><input type="number" data-idx="${i}" data-field="deadline" value="${f.deadline}" min="10" step="10"></td>
+        <td class="calc">${tx}</td>
+        <td class="calc">${pkts}</td>
+      </tr>`;
+    }).join('');
+
+    tbody.querySelectorAll('input[type="number"]').forEach(inp => {
+      inp.addEventListener('change', () => {
+        const idx = parseInt(inp.dataset.idx);
+        const field = inp.dataset.field;
+        FLOW_DEFS[idx][field] = parseFloat(inp.value);
+        renderFlowTable();
+      });
+    });
+  }
+
+  // ── Build Model from Current Params ──
+  function buildModel() {
+    const cycle = parseFloat(document.getElementById('paramCycle').value) || 1000;
+    const guard = parseFloat(document.getElementById('paramGuard').value);
+    const speed = parseFloat(document.getElementById('paramSpeed').value) || 1000;
+    const procDelay = parseFloat(document.getElementById('paramProcDelay').value) || 5;
+    const margin = parseFloat(document.getElementById('paramMargin').value) || 0;
+
+    const base = JSON.parse(JSON.stringify(ROII_REAL_8TC));
+    base.cycle_time_us = cycle;
+    base.guard_band_us = guard;
+    base.processing_delay_us = procDelay;
+    base.tx_margin_us = margin;
+
+    for (const lnk of base.links) lnk.rate_mbps = speed;
+
+    base.flows = FLOW_DEFS.map(f => ({
+      id: f.id, PCP: f.pcp, payload_bytes: f.payload,
+      period_us: f.period, deadline_us: f.deadline,
+      traffic_type: f.id.includes('lidar') ? 'lidar' : 'radar',
+      src: f.src, dst: f.dst, k_paths: 2
+    }));
+
+    // Update margin display
+    document.getElementById('marginDisplay').innerHTML = margin + ' &micro;s';
+
+    return base;
+  }
+
+  // ── Calculation Detail ──
+  function renderCalcDetail(model, result) {
+    const speed = parseFloat(document.getElementById('paramSpeed').value) || 1000;
+    const margin = model.tx_margin_us || 0;
+    const el = document.getElementById('calcDetail');
+    let html = '';
+
+    // Overhead Breakdown
+    html += `<div class="calc-section"><h4>Ethernet Frame Overhead</h4>`;
+    html += `<table class="param-table" style="margin-top:4px;max-width:600px;"><thead><tr><th>Layer</th><th>Component</th><th>Size (B)</th></tr></thead><tbody>`;
+    html += `<tr><td rowspan="4">L2 (38 B)</td><td>Preamble + SFD</td><td class="calc">7 + 1 = 8</td></tr>`;
+    html += `<tr><td>Ethernet Header (DA+SA+Type)</td><td class="calc">14</td></tr>`;
+    html += `<tr><td>FCS (CRC-32)</td><td class="calc">4</td></tr>`;
+    html += `<tr><td>IFG (Inter-Frame Gap)</td><td class="calc">12</td></tr>`;
+    html += `<tr><td rowspan="2">L3/L4 (28 B)</td><td>IP Header</td><td class="calc">20</td></tr>`;
+    html += `<tr><td>UDP Header</td><td class="calc">8</td></tr>`;
+    html += `<tr style="font-weight:700;"><td>Total</td><td>LiDAR (L2+L3/L4)</td><td class="calc result">66 B</td></tr>`;
+    html += `<tr style="font-weight:700;"><td></td><td>Radar CAN-FD (L2 only)</td><td class="calc result">38 B</td></tr>`;
+    html += `</tbody></table></div>`;
+
+    // TX Time Calculation
+    html += `<div class="calc-section"><h4>TX Time Calculation</h4>`;
+    html += `<span class="formula">TX = (ETH_payload + 38) &times; 8 / speed</span>`;
+    html += `<table class="param-table" style="margin-top:6px;"><thead><tr><th>Flow</th><th>Sensor</th><th>App</th><th>+IP/UDP</th><th>ETH Payload</th><th>Wire Total</th><th>Calculation</th><th>TX Time</th></tr></thead><tbody>`;
+    for (const f of FLOW_DEFS) {
+      const tx = txTime(f.payload, speed);
+      const ipUdp = f.payload - f.sensorPayload;
+      const wireTotal = f.payload + 38;
+      html += `<tr><td>${f.id}</td><td style="font-size:0.7rem;">${f.sensor}</td>
+        <td class="calc">${f.sensorPayload} B</td>
+        <td class="calc">${ipUdp > 0 ? '+' + ipUdp : '-'}</td>
+        <td class="calc">${f.payload} B</td>
+        <td class="calc">${wireTotal} B</td>
+        <td class="calc">(${f.payload}+38)&times;8/${speed}</td>
+        <td class="calc result">${tx} &micro;s</td></tr>`;
+    }
+    html += `</tbody></table></div>`;
+
+    // TX Margin Detail
+    if (margin > 0) {
+      html += `<div class="calc-section"><h4>TX Margin Analysis</h4>`;
+      // Compute actual min gap
+      let minGap = Infinity, totalMarginTime = 0, gapCount = 0;
+      for (const lnk of model.links) {
+        const entries = result.gcl.links[lnk.id]?.entries || [];
+        const flowEntries = entries.filter(e =>
+          !e.note.includes('non-ST') && !e.note.includes('all-gates-closed') && !e.note.includes('guard')
+        ).sort((a, b) => a.start_us - b.start_us);
+        for (let i = 1; i < flowEntries.length; i++) {
+          const gap = flowEntries[i].start_us - flowEntries[i - 1].end_us;
+          if (gap < minGap) minGap = gap;
+          if (gap > 0) { totalMarginTime += gap; gapCount++; }
+        }
+      }
+      if (minGap === Infinity) minGap = 0;
+      let totalFlowTime = 0;
+      for (const lnk of model.links) {
+        const entries = result.gcl.links[lnk.id]?.entries || [];
+        for (const e of entries) {
+          if (!e.note.includes('non-ST') && !e.note.includes('all-gates-closed') && !e.note.includes('guard')) totalFlowTime += e.duration_us;
+        }
+      }
+      const overheadPct = totalFlowTime > 0 ? ((totalMarginTime / (totalFlowTime + totalMarginTime)) * 100).toFixed(1) : '0.0';
+      const avgGap = gapCount > 0 ? (totalMarginTime / gapCount).toFixed(3) : '-';
+
+      html += `<table class="param-table" style="margin-top:6px;max-width:500px;"><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>`;
+      html += `<tr><td>Configured Margin</td><td class="calc result">${margin} &micro;s</td></tr>`;
+      html += `<tr><td>Actual Min Gap</td><td class="calc result">${minGap.toFixed(3)} &micro;s</td></tr>`;
+      html += `<tr><td>Avg Gap</td><td class="calc">${avgGap} &micro;s</td></tr>`;
+      html += `<tr><td>Gap Count</td><td class="calc">${gapCount}</td></tr>`;
+      html += `<tr><td>Margin Overhead</td><td class="calc result">${overheadPct}%</td></tr>`;
+      html += `</tbody></table></div>`;
+    }
+
+    // Link Utilization
+    html += `<div class="calc-section"><h4>Bottleneck Link Utilization</h4>`;
+    html += `<span class="formula">Util = &Sigma;(pkts &times; TX) / cycle_time &times; 100%</span>`;
+    const linkUtils = {};
+    for (const pr of result.packetRows) {
+      for (const h of pr.hops) {
+        linkUtils[h.link_id] = (linkUtils[h.link_id] || 0) + h.duration_us;
+      }
+    }
+    const sortedLinks = Object.entries(linkUtils).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    html += `<table class="param-table" style="margin-top:6px;"><thead><tr><th>Link</th><th>Total TX</th><th>Utilization</th></tr></thead><tbody>`;
+    for (const [lid, totalTx] of sortedLinks) {
+      const lnk = model.links.find(l => l.id === lid);
+      const util = round3(totalTx / model.cycle_time_us * 100);
+      html += `<tr><td>${lnk ? lnk.from + ' &rarr; ' + lnk.to : lid}</td>
+        <td class="calc">${round3(totalTx)} &micro;s</td>
+        <td class="calc result">${util}%</td></tr>`;
+    }
+    html += `</tbody></table></div>`;
+
+    // E2E Delay
+    html += `<div class="calc-section"><h4>End-to-End Delay</h4>`;
+    html += `<span class="formula">E2E = &Sigma;(wait + TX + prop_delay) per hop</span>`;
+    html += `<table class="param-table" style="margin-top:6px;"><thead><tr><th>Packet</th><th>Flow</th><th>Route</th><th>E2E (&micro;s)</th><th>Deadline</th><th>Status</th></tr></thead><tbody>`;
+    for (const pr of result.packetRows) {
+      const route = pr.hops.map(h => {
+        const lnk = model.links.find(l => l.id === h.link_id);
+        return lnk ? lnk.to : h.link_id;
+      }).join(' &rarr; ');
+      const statusCls = pr.status === 'OK' ? 'color:var(--green)' : pr.status === 'MISS' ? 'color:var(--red)' : 'color:var(--text3)';
+      html += `<tr>
+        <td>${pr.packet_id}</td><td>${pr.flow_id}</td>
+        <td style="font-size:0.7rem;">${route}</td>
+        <td class="calc result">${pr.e2e_delay_us} &micro;s</td>
+        <td class="calc">${pr.deadline_abs_us != null ? pr.deadline_abs_us + ' &micro;s' : '-'}</td>
+        <td style="${statusCls};font-weight:700;">${pr.status}${pr.slack_us != null ? ' (slack: ' + pr.slack_us + ')' : ''}</td>
+      </tr>`;
+    }
+    html += `</tbody></table></div>`;
+
+    el.innerHTML = html;
+  }
+
+  // ── Render Gantt ──
+  function renderGantt(model, result) {
+    const container = document.getElementById('ganttContainer');
+    container.innerHTML = '';
+    const activeLinks = model.links.filter(l =>
+      result.gcl.links[l.id]?.entries.some(e =>
+        !e.note.includes('non-ST') && !e.note.includes('all-gates-closed')
+      )
+    );
+    if (!activeLinks.length) return;
+
+    const mgn = { top: 28, right: 60, bottom: 40, left: 130 };
+    const rowH = 38;
+    const W = container.clientWidth || 900;
+    const H = mgn.top + activeLinks.length * rowH + mgn.bottom;
+
+    const svg = d3.select(container).append('svg')
+      .attr('viewBox', `0 0 ${W} ${H}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet');
+
+    const defs = svg.append('defs');
+    const gp = defs.append('pattern').attr('id','guardHatch')
+      .attr('patternUnits','userSpaceOnUse').attr('width',6).attr('height',6)
+      .attr('patternTransform','rotate(45)');
+    gp.append('rect').attr('width',6).attr('height',6).attr('fill','#f9a825');
+    gp.append('line').attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',6)
+      .attr('stroke','rgba(0,0,0,0.2)').attr('stroke-width',2);
+
+    // Margin gap pattern
+    const mp = defs.append('pattern').attr('id','marginHatch')
+      .attr('patternUnits','userSpaceOnUse').attr('width',4).attr('height',4)
+      .attr('patternTransform','rotate(135)');
+    mp.append('rect').attr('width',4).attr('height',4).attr('fill','rgba(59,130,246,0.08)');
+    mp.append('line').attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',4)
+      .attr('stroke','rgba(59,130,246,0.2)').attr('stroke-width',1);
+
+    const g = svg.append('g').attr('transform', `translate(${mgn.left},${mgn.top})`);
+    const innerW = W - mgn.left - mgn.right;
+    const innerH = activeLinks.length * rowH;
+
+    const x = d3.scaleLinear().domain([0, model.cycle_time_us]).range([0, innerW]);
+    const y = d3.scaleBand().domain(activeLinks.map(l => l.id)).range([0, innerH]).padding(0.15);
+
+    g.append('g').attr('class','gcl-grid')
+      .selectAll('line').data(x.ticks(10)).enter().append('line')
+      .attr('x1',d=>x(d)).attr('x2',d=>x(d)).attr('y1',0).attr('y2',innerH);
+
+    g.append('g').attr('class','gcl-axis').attr('transform',`translate(0,${innerH})`)
+      .call(d3.axisBottom(x).ticks(10).tickFormat(d => d + ' \u00b5s'));
+
+    g.append('g').attr('class','gcl-axis')
+      .call(d3.axisLeft(y).tickSize(0).tickPadding(6))
+      .selectAll('text').text(d => {
+        const lnk = model.links.find(l => l.id === d);
+        return lnk ? `${lnk.from} \u2192 ${lnk.to}` : d;
+      }).attr('font-size','9px');
+
+    g.selectAll('.rbg').data(activeLinks).enter().append('rect')
+      .attr('x',0).attr('y',d=>y(d.id))
+      .attr('width',innerW).attr('height',y.bandwidth())
+      .attr('fill',(_,i) => i%2===0 ? 'rgba(59,130,246,0.03)' : 'transparent').attr('rx',3);
+
+    const tooltip = document.getElementById('tooltip');
+    const txMargin = model.tx_margin_us || 0;
+
+    for (const lnk of activeLinks) {
+      const entries = result.gcl.links[lnk.id]?.entries || [];
+      for (const e of entries) {
+        const yPos = y(lnk.id);
+        if (yPos === undefined) continue;
+        const bw = y.bandwidth();
+
+        if (e.note === 'guard') {
+          g.append('rect')
+            .attr('x', x(e.start_us)).attr('y', yPos)
+            .attr('width', Math.max(x(e.end_us) - x(e.start_us), 1))
+            .attr('height', bw)
+            .attr('fill', 'url(#guardHatch)')
+            .attr('stroke', '#e8a317').attr('stroke-width', 0.5)
+            .attr('rx', 2).attr('opacity', 0.7);
+        } else if (e.note === 'all-gates-closed') {
+          // Check if this gap is approximately the margin size (margin gap vs idle gap)
+          const isMarginGap = txMargin > 0 && e.duration_us <= txMargin + 0.01 && e.duration_us >= txMargin - 0.01;
+          g.append('rect')
+            .attr('x', x(e.start_us)).attr('y', yPos)
+            .attr('width', Math.max(x(e.end_us) - x(e.start_us), 1))
+            .attr('height', bw)
+            .attr('fill', isMarginGap ? 'url(#marginHatch)' : 'rgba(100,116,139,0.08)')
+            .attr('stroke', isMarginGap ? 'rgba(59,130,246,0.3)' : 'rgba(100,116,139,0.15)')
+            .attr('stroke-width', 0.5).attr('rx', 2);
+        } else if (!e.note.includes('non-ST')) {
+          const color = flowColor(e.note.split('#')[0]) || '#3B82F6';
+          g.append('rect')
+            .attr('x', x(e.start_us)).attr('y', yPos)
+            .attr('width', Math.max(x(e.end_us) - x(e.start_us), 3))
+            .attr('height', bw)
+            .attr('fill', color).attr('stroke', 'rgba(255,255,255,0.4)')
+            .attr('stroke-width', 0.8).attr('rx', 3).attr('opacity', 0.9)
+            .style('cursor', 'pointer')
+            .on('mouseover', (evt) => {
+              tooltip.innerHTML = `<div class="tt-title" style="color:${color}">${e.note}</div>`
+                + `<div class="tt-row"><span class="tt-k">Gate</span><span class="tt-v">${e.gate_mask}</span></div>`
+                + `<div class="tt-row"><span class="tt-k">Start</span><span class="tt-v">${e.start_us} \u00b5s</span></div>`
+                + `<div class="tt-row"><span class="tt-k">End</span><span class="tt-v">${e.end_us} \u00b5s</span></div>`
+                + `<div class="tt-row"><span class="tt-k">Duration</span><span class="tt-v">${e.duration_us} \u00b5s</span></div>`;
+              tooltip.classList.add('show');
+            })
+            .on('mousemove', (evt) => { tooltip.style.left = (evt.clientX+12)+'px'; tooltip.style.top = (evt.clientY-10)+'px'; })
+            .on('mouseout', () => tooltip.classList.remove('show'));
+
+          const pw = x(e.end_us) - x(e.start_us);
+          if (pw > 25) {
+            g.append('text').attr('class', 'gcl-label')
+              .attr('x', x(e.start_us) + pw/2).attr('y', yPos + bw/2)
+              .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+              .text(e.note.replace('#', '.'));
+          }
+        }
+      }
+
+      // Utilization label
+      let used = 0;
+      for (const e of (result.gcl.links[lnk.id]?.entries || [])) {
+        if (!e.note.includes('non-ST') && !e.note.includes('guard') && !e.note.includes('all-gates-closed')) used += e.duration_us;
+      }
+      g.append('text')
+        .attr('x', innerW + 8).attr('y', y(lnk.id) + y.bandwidth()/2)
+        .attr('fill', 'var(--text2)').attr('font-size', '11px').attr('font-weight', '600')
+        .attr('dominant-baseline', 'central')
+        .text((used / model.cycle_time_us * 100).toFixed(1) + '%');
+    }
+
+    const marginLabel = txMargin > 0 ? ` | TX Margin: ${txMargin} \u00b5s` : '';
+    svg.append('text').attr('x', mgn.left).attr('y', mgn.top - 10)
+      .attr('fill','var(--text3)').attr('font-size','9px')
+      .text(`Cycle: ${model.cycle_time_us} \u00b5s | Guard: ${model.guard_band_us} \u00b5s | Active: ${activeLinks.length}/${model.links.length} links | No BE${marginLabel}`);
+
+    // Legend
+    const legendEl = document.getElementById('ganttLegend');
+    const seenFlows = [];
+    for (const pr of result.packetRows) {
+      if (!seenFlows.includes(pr.flow_id)) seenFlows.push(pr.flow_id);
+    }
+    let legendHtml = seenFlows.map(fid =>
+      `<div class="legend-item"><span class="legend-swatch" style="background:${flowColor(fid)}"></span>${fid}</div>`
+    ).join('');
+    if (txMargin > 0) {
+      legendHtml += `<div class="legend-item"><span class="legend-swatch" style="background:url(#marginHatch);border:1px solid rgba(59,130,246,0.3);background-color:rgba(59,130,246,0.08);"></span>TX Margin Gap</div>`;
+    }
+    legendEl.innerHTML = legendHtml;
+  }
+
+  // ── Render Board Config ──
+  function renderBoardConfig(model, result) {
+    const panel = document.getElementById('boardConfigPanel');
+    if (!result.boardConfigs) { panel.innerHTML = ''; return; }
+
+    const switches = ROII_REAL_SWITCHES;
+    let html = '';
+    for (const sw of switches) {
+      const cfg = result.boardConfigs[sw.id];
+      if (!cfg) continue;
+      html += `<div class="board-section"><h3>${sw.label} (${sw.chip})</h3>`;
+      for (const [portId, port] of Object.entries(cfg.ports)) {
+        html += `<div class="board-port">`;
+        html += `<h4>Egress &rarr; ${port.to} <span style="color:var(--text3);font-weight:400;">(${portId})</span></h4>`;
+        html += `<div class="port-meta">Cycle: ${port.cycle_time_us} &micro;s | Guard: ${port.guard_band_us} &micro;s | Entries: ${port.num_entries}</div>`;
+        if (port.pcp_queue_map.length) {
+          html += `<div class="pcp-map">`;
+          for (const m of port.pcp_queue_map) html += `<span class="pcp-badge">PCP ${m.pcp} &rarr; Q${m.queue}</span>`;
+          html += `</div>`;
+        }
+        html += `<table class="gcl-table"><thead><tr><th>#</th><th>Gate Mask</th><th>Start (&micro;s)</th><th>End (&micro;s)</th><th>Duration (&micro;s)</th><th>TC</th><th>Note</th></tr></thead><tbody>`;
+        for (const e of port.entries) {
+          const bits = e.gate_mask.split('');
+          const isGuard = e.note === 'guard';
+          const isClosed = e.note === 'all-gates-closed';
+          let bitsHtml = '<span class="gate-bits">';
+          for (let b = 0; b < 8; b++) {
+            const cls = isGuard ? 'guard' : (bits[b] === '1' ? 'open' : 'closed');
+            bitsHtml += `<span class="gate-bit ${cls}">${7-b}</span>`;
+          }
+          bitsHtml += '</span>';
+          let tc = '-';
+          if (isGuard) tc = 'Guard';
+          else if (isClosed) tc = 'Closed';
+          else if (e.gate_mask === '11111111') tc = 'BE';
+          else { const q = e.gate_mask.split('').reverse().indexOf('1'); if (q >= 0) tc = `TC${q}`; }
+          html += `<tr><td>${e.index}</td><td>${bitsHtml}</td><td>${e.start_us}</td><td>${e.end_us}</td><td>${e.duration_us}</td><td>${tc}</td><td>${e.note}</td></tr>`;
+        }
+        html += `</tbody></table></div>`;
+      }
+      html += `</div>`;
+    }
+    panel.innerHTML = html;
+  }
+
+  // ── Packet Detail Table ──
+  function renderPktDetail(model, result) {
+    const panel = document.getElementById('pktDetailPanel');
+    if (!result.packetRows || !result.packetRows.length) { panel.innerHTML = ''; return; }
+
+    let html = `<table class="param-table"><thead><tr>
+      <th>Packet</th><th>Flow</th><th>PCP</th><th>Release (&micro;s)</th>
+      <th>Route</th><th>Hops</th>
+      <th>E2E (&micro;s)</th><th>Deadline (&micro;s)</th><th>Slack (&micro;s)</th><th>Status</th>
+    </tr></thead><tbody>`;
+
+    for (const pr of result.packetRows) {
+      const route = pr.hops.map(h => {
+        const lnk = model.links.find(l => l.id === h.link_id);
+        return lnk ? lnk.from : h.link_id;
+      });
+      const lastHop = pr.hops[pr.hops.length - 1];
+      if (lastHop) {
+        const lastLnk = model.links.find(l => l.id === lastHop.link_id);
+        if (lastLnk) route.push(lastLnk.to);
+      }
+      const routeStr = route.join(' \u2192 ');
+      const color = flowColor(pr.flow_id);
+      const statusCls = pr.status === 'OK' ? 'color:var(--green)' : pr.status === 'MISS' ? 'color:var(--red)' : 'color:var(--text3)';
+
+      html += `<tr>
+        <td>${pr.packet_id}</td>
+        <td><span class="pcp-dot" style="background:${color}"></span>${pr.flow_id}</td>
+        <td><strong>${pr.priority}</strong></td>
+        <td class="calc">${pr.release_us != null ? pr.release_us : '-'}</td>
+        <td style="font-size:0.68rem;">${routeStr}</td>
+        <td class="calc">${pr.hops.length}</td>
+        <td class="calc result">${pr.e2e_delay_us}</td>
+        <td class="calc">${pr.deadline_abs_us != null ? pr.deadline_abs_us : '-'}</td>
+        <td class="calc">${pr.slack_us != null ? pr.slack_us : '-'}</td>
+        <td style="${statusCls};font-weight:700;">${pr.status}</td>
+      </tr>`;
+    }
+    html += `</tbody></table>`;
+    panel.innerHTML = html;
+  }
+
+  // ── Solve ──
+  function solve() {
+    try {
+      const model = buildModel();
+      const result = solveGreedy(model);
+
+      const allOk = result.packetRows.every(p => p.status === 'OK');
+      const maxE2E = Math.max(...result.packetRows.filter(p => p.status !== 'NON-ST').map(p => p.e2e_delay_us));
+      const marginLabel = model.tx_margin_us > 0 ? ` | TX Margin: ${model.tx_margin_us}\u00b5s` : '';
+      document.getElementById('statusText').innerHTML =
+        `<strong>${result.method}</strong> &mdash; ${allOk ? '<span style="color:var(--green)">All packets meet deadline</span>' : '<span style="color:var(--red)">Deadline miss detected</span>'} &mdash; Objective: ${result.objective} \u00b5s${marginLabel}`;
+      document.getElementById('statsGrid').innerHTML = `
+        <div class="stat-box"><div class="stat-label">Worst E2E</div><div class="stat-value">${maxE2E} \u00b5s</div></div>
+        <div class="stat-box"><div class="stat-label">Worst Util</div><div class="stat-value">${result.worst_util_percent}%</div></div>
+        <div class="stat-box"><div class="stat-label">Packets</div><div class="stat-value">${result.packetRows.length}</div></div>
+        <div class="stat-box"><div class="stat-label">Conflicts</div><div class="stat-value">${result.stats.overlap_conflicts}</div></div>
+        <div class="stat-box"><div class="stat-label">Guard Band</div><div class="stat-value">${model.guard_band_us} \u00b5s</div></div>
+        <div class="stat-box"><div class="stat-label">TX Margin</div><div class="stat-value">${model.tx_margin_us || 0} \u00b5s</div></div>
+      `;
+
+      renderCalcDetail(model, result);
+      renderGantt(model, result);
+      renderBoardConfig(model, result);
+      renderPktDetail(model, result);
+    } catch (e) {
+      document.getElementById('statusText').innerHTML = `<span style="color:var(--red)">Error: ${e.message}</span>`;
+      console.error(e);
+    }
+  }
+
+  // ── Init ──
+  renderFlowTable();
+  document.getElementById('btnSolve').addEventListener('click', solve);
+
+  ['paramCycle', 'paramSpeed'].forEach(id => {
+    document.getElementById(id).addEventListener('change', renderFlowTable);
+  });
+
+  // Auto-solve on load
+  solve();
+  </script>
+</body>
+</html>
