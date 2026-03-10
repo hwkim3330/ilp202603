@@ -441,9 +441,8 @@ export function solveGreedy(model) {
   let fallbackCount = 0;
 
   // IEEE 802.1Qbv gate schedule — TC-based windows with guard bands
-  const gateSchedule = computeGateSchedule(model, pkts);
-  // Per-link gate windows filtered by TC (only TC-type entries, no guards)
   // Skip gate constraints for no-BE mode (8 dedicated TCs → gate windows are counterproductive)
+  const gateSchedule = model.no_be ? {} : computeGateSchedule(model, pkts);
   const linkGateWindows = {};
   if (!model.no_be) {
     for (const lnk of model.links) {

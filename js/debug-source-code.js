@@ -70,9 +70,9 @@ export const SOURCE_CODE = {
       '  const pkts = expandPackets(model);',                                                        // 3
       '  let fallbackCount = 0;',                                                                    // 4
       '',                                                                                            // 5
-      '  const gateSchedule = computeGateSchedule(model, pkts);',                                   // 6
-      '  const linkGateWindows = {};  // TC-based gate windows',                                     // 7
-      '  for (const lnk of model.links) { ... }',                                                   // 8
+      '  const gateSchedule = model.no_be ? {} : computeGateSchedule(model, pkts);',                 // 6
+      '  const linkGateWindows = {};  // TC-based gate windows (skip for no_be)',                    // 7
+      '  if (!model.no_be) { for (const lnk of model.links) { ... } }',                             // 8
       '  const linkOcc = Object.fromEntries(model.links.map(l => [l.id, []]));',                    // 9
       '',                                                                                            // 10
       '  function findEarliest(lid, earliest, duration, pktTC) {',                                   // 11
@@ -149,7 +149,7 @@ export const SOURCE_CODE = {
       'export async function solveILP(model, glpk, opts = {}) {',
       '  if (!glpk) throw new Error(\'GLPK not ready\');',
       '  if (!model.processing_delay_us) model.processing_delay_us = 3;',
-      '  if (!model.guard_band_us) model.guard_band_us = 12.304;',
+      '  if (model.guard_band_us == null) model.guard_band_us = 12.304;',
       '  const tmlim = opts.tmlim || 30;',
       '',
       '  const pkts = expandPackets(model);',
@@ -157,13 +157,13 @@ export const SOURCE_CODE = {
       '',
       '  const allSingleRoute = pkts.every(pk => pk.routes.length === 1);',
       '',
-      '  // IEEE 802.1Qbv gate schedule — constrain ILP to TC gate windows',
-      '  const gateSchedule = computeGateSchedule(model, pkts);',
+      '  // IEEE 802.1Qbv gate schedule — skip for no_be mode',
+      '  const gateSchedule = model.no_be ? {} : computeGateSchedule(model, pkts);',
       '  const linkGateWindows = {};',
-      '  for (const lnk of model.links) {',
+      '  if (!model.no_be) { for (const lnk of model.links) {',
       '    const entries = (gateSchedule[lnk.from] || {})[lnk.id];',
       '    if (entries) linkGateWindows[lnk.id] = entries.filter(e => e.type === \'tc\' || e.type === \'be\');',
-      '  }',
+      '  } }',
       '',
       '  const vars = new Set(), sub = [], bins = [], obj = [];',
       '  /* ... sv, yv, av, ac helpers ... */',
@@ -236,22 +236,24 @@ export const SOURCE_CODE = {
       '  pktRows.sort((a, b) => a.end_us - b.end_us);',
       '',
       '  const gcl = { cycle_time_us: model.cycle_time_us, base_time_us: 0, links: {} };',
-      '  const gateSchedule = computeGateSchedule(model, pkts);',
-      '  for (const lnk of model.links) {',
-      '    const linkGate = (gateSchedule[lnk.from] || {})[lnk.id];',
-      '    if (linkGate) {',
-      '      // IEEE 802.1Qbv: TC windows + guard bands + packet bars',
+      '  if (model.no_be) {',
+      '    // No-BE: build GCL from actual packet placements (TC-specific masks)',
+      '    for (const lnk of model.links) {',
       '      const rows = linkRows[lnk.id].sort((a,b) => a.start_us - b.start_us);',
-      '      const entries = []; let idx = 0;',
-      '      for (const gs of linkGate) {',
-      '        if (gs.type === \'guard\') entries.push({ gate_mask: \'00000000\', ...gs, note: \'guard\' });',
-      '        else if (gs.type === \'be\') entries.push({ gate_mask: \'11111111\', ...gs, note: \'non-ST\' });',
-      '        else { /* TC window — place actual pkt bars inside */ }',
-      '      }',
+      '      // gaps → all-gates-closed, packets → single-TC-open',
       '      gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries };',
-      '    } else {',
-      '      // No gate schedule — packet bars + fill',
-      '      gcl.links[lnk.id] = { from, to, entries: [...pktBars, fillEntry] };',
+      '    }',
+      '  } else {',
+      '    const gateSchedule = computeGateSchedule(model, pkts);',
+      '    for (const lnk of model.links) {',
+      '      const linkGate = (gateSchedule[lnk.from] || {})[lnk.id];',
+      '      if (linkGate) {',
+      '        // IEEE 802.1Qbv: TC windows + guard bands + packet bars',
+      '        for (const gs of linkGate) { /* guard/be/tc entries */ }',
+      '        gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries };',
+      '      } else {',
+      '        gcl.links[lnk.id] = { from, to, entries: [...pktBars, fillEntry] };',
+      '      }',
       '    }',
       '  }',
       '',
