@@ -438,6 +438,18 @@ export function solveGreedy(model) {
   if (!model.processing_delay_us) model.processing_delay_us = 3;
   const t0 = performance.now();
   const pkts = expandPackets(model);
+
+  // TX Inflate: stretch transmission duration by percentage (wider gate windows)
+  const inflatePct = model.tx_inflate_pct || 0;
+  if (inflatePct > 0) {
+    const scale = 1 + inflatePct / 100;
+    for (const pk of pkts) {
+      for (const rt of pk.routes) {
+        for (const hp of rt.hops) hp.tx = round3(hp.tx * scale);
+      }
+    }
+  }
+
   let fallbackCount = 0;
 
   // IEEE 802.1Qbv gate schedule — TC-based windows with guard bands
