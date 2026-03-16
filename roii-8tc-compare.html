@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>8-TC Compare &mdash; TSN/GCL Solver</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    :root {
+      --bg: #f8f9fa; --bg2: #f0f2f5;
+      --card: #ffffff; --card-hi: #f8fafc;
+      --border: rgba(59,130,246,0.2); --border-hi: rgba(59,130,246,0.4);
+      --text: #1e293b; --text2: #475569; --text3: #64748b;
+      --cyan: #0891b2; --blue: #3B82F6; --purple: #7c3aed;
+      --orange: #d97706; --red: #dc2626; --green: #059669; --pink: #db2777;
+      --guard: #d97706; --be: #e2e8f0;
+    }
+    body { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 50%, #dee2e6 100%); }
+    .bg-grid {
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59,130,246,0.06), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(6,182,212,0.04), transparent),
+        linear-gradient(rgba(59,130,246,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.06) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+    }
+    .card {
+      background: rgba(255,255,255,0.95);
+      border: 1px solid rgba(59,130,246,0.15);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    }
+    .card:hover { border-color: rgba(59,130,246,0.3); }
+    .card-title { color: var(--text2); }
+    .card-title::before { background: var(--blue); }
+    .tooltip {
+      background: rgba(255,255,255,0.97);
+      border: 1px solid rgba(59,130,246,0.25);
+      color: var(--text); box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
+    .tooltip .tt-title { color: var(--blue); }
+    .tooltip .tt-k { color: var(--text3); }
+    .btn-primary { background: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%); color: #fff; }
+    .btn-secondary { background: rgba(248,250,252,0.8); color: var(--text); border: 1px solid rgba(59,130,246,0.2); }
+    .btn-secondary:hover { border-color: var(--blue); background: #fff; }
+
+    /* Header */
+    .keti-header {
+      display: flex; align-items: center; justify-content: center;
+      gap: 16px; margin-bottom: 8px;
+    }
+    .keti-header img { height: 40px; width: auto; }
+    .keti-header h1 {
+      font-size: 2rem; font-weight: 800; letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+
+    /* Global Params */
+    .global-params {
+      display: flex; gap: 16px; flex-wrap: wrap; align-items: center;
+      margin-bottom: 12px;
+    }
+    .global-params label {
+      font-size: 0.78rem; font-weight: 600; color: var(--text2);
+    }
+    .global-params input[type="number"] {
+      width: 90px; padding: 4px 8px; border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 4px; font-size: 0.82rem; font-family: 'Courier New', monospace;
+      text-align: right;
+    }
+    .global-params input[type="number"]:focus {
+      outline: none; border-color: var(--blue);
+      box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+    }
+    .global-params .margin-param {
+      border-left: 2px solid var(--blue); padding-left: 14px;
+    }
+    .global-params .margin-param label { color: var(--blue); }
+    .global-params .margin-param input { border-color: var(--blue); }
+    .global-params .inflate-param {
+      border-left: 2px solid var(--orange); padding-left: 14px;
+    }
+    .global-params .inflate-param label { color: var(--orange); }
+    .global-params .inflate-param input { border-color: var(--orange); }
+
+    /* Param Table */
+    .param-table {
+      width: 100%; border-collapse: collapse; font-size: 0.82rem;
+    }
+    .param-table th {
+      background: rgba(59,130,246,0.06); color: var(--text2);
+      padding: 6px 10px; text-align: left; font-weight: 700;
+      border-bottom: 2px solid rgba(59,130,246,0.15);
+      font-size: 0.75rem;
+    }
+    .param-table td {
+      padding: 4px 6px; border-bottom: 1px solid rgba(59,130,246,0.08);
+      vertical-align: middle;
+    }
+    .param-table tr:hover { background: rgba(59,130,246,0.04); }
+    .param-table .calc {
+      color: var(--blue); font-family: 'Courier New', monospace;
+      font-weight: 600; font-size: 0.78rem;
+    }
+    .pcp-dot {
+      display: inline-block; width: 10px; height: 10px;
+      border-radius: 50%; margin-right: 6px; vertical-align: middle;
+    }
+
+    /* Comparison Table */
+    .compare-table {
+      width: 100%; border-collapse: collapse; font-size: 0.82rem;
+    }
+    .compare-table th {
+      background: rgba(59,130,246,0.06); color: var(--text2);
+      padding: 8px 12px; text-align: center; font-weight: 700;
+      border-bottom: 2px solid rgba(59,130,246,0.15);
+      font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .compare-table th:first-child { text-align: left; }
+    .compare-table td {
+      padding: 8px 12px; border-bottom: 1px solid rgba(59,130,246,0.08);
+      text-align: center; font-variant-numeric: tabular-nums;
+      font-family: 'Courier New', monospace; font-size: 0.82rem;
+    }
+    .compare-table td:first-child {
+      text-align: left; font-family: inherit; font-weight: 600; color: var(--text2);
+    }
+    .compare-table tr:hover { background: rgba(59,130,246,0.04); }
+    .compare-table .winner {
+      color: var(--green); font-weight: 800;
+      background: rgba(5,150,105,0.06);
+    }
+    .compare-table .col-original { color: var(--text3); }
+    .compare-table .col-margin { color: var(--blue); }
+    .compare-table .col-inflate { color: var(--orange); }
+
+    /* Chart containers */
+    .chart-container {
+      position: relative; overflow: hidden;
+      border-radius: 8px; background: #ffffff;
+      min-height: 320px;
+    }
+
+    /* D3 chart styles */
+    .bar-label {
+      font-size: 10px; fill: var(--text2); font-weight: 600;
+      text-anchor: middle; font-variant-numeric: tabular-nums;
+    }
+    .axis text { fill: var(--text2); font-size: 11px; }
+    .axis path, .axis line { stroke: rgba(59,130,246,0.15); }
+    .grid-line { stroke: rgba(59,130,246,0.06); stroke-width: 1; }
+    .chart-legend {
+      display: flex; justify-content: center; gap: 20px; padding: 10px 16px;
+      border-top: 1px solid rgba(59,130,246,0.1);
+      background: #f8fafc; border-radius: 0 0 8px 8px;
+    }
+    .chart-legend-item {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.78rem; color: var(--text2);
+    }
+    .chart-legend-swatch {
+      width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0;
+    }
+
+    /* Flow table (read-only) */
+    .flow-table {
+      width: 100%; border-collapse: collapse; font-size: 0.78rem;
+    }
+    .flow-table th {
+      background: rgba(59,130,246,0.06); color: var(--text2);
+      padding: 5px 8px; text-align: left; font-weight: 700;
+      border-bottom: 2px solid rgba(59,130,246,0.15);
+      font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .flow-table td {
+      padding: 4px 8px; border-bottom: 1px solid rgba(59,130,246,0.08);
+    }
+    .flow-table tr:hover { background: rgba(59,130,246,0.04); }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="wrap">
+    <!-- Header -->
+    <div class="header">
+      <div class="keti-header">
+        <img src="keti.png" alt="KETI" onerror="this.style.display='none'">
+        <h1>8-TC Compare</h1>
+      </div>
+      <div class="sub">
+        TSN 스케줄링 접근법 3가지를 나란히 비교 &mdash; Original vs TX Margin vs TX Inflate.<br>
+        동일한 플로우/네트워크에서 파라미터만 다르게 적용한 결과를 정량 비교합니다.
+      </div>
+    </div>
+
+    <!-- Global Params -->
+    <div class="card">
+      <div class="card-title">Global Parameters</div>
+      <div class="global-params">
+        <label>Cycle Time (&micro;s)
+          <input type="number" id="paramCycle" value="1000" min="100" step="100">
+        </label>
+        <label>Guard Band (&micro;s)
+          <input type="number" id="paramGuard" value="0" min="0" step="0.1">
+        </label>
+        <label>Link Speed (Mbps)
+          <input type="number" id="paramSpeed" value="1000" min="100" step="100">
+        </label>
+        <label>Processing Delay (&micro;s)
+          <input type="number" id="paramProcDelay" value="5" min="0" step="0.5">
+        </label>
+        <div class="margin-param">
+          <label>TX Margin (&micro;s)
+            <input type="number" id="paramMargin" value="2" min="0" max="20" step="0.5">
+          </label>
+        </div>
+        <div class="inflate-param">
+          <label>TX Inflate (%)
+            <input type="number" id="paramInflate" value="20" min="0" max="200" step="5">
+          </label>
+        </div>
+        <button class="btn btn-primary" id="btnCompare" style="padding:8px 24px;font-size:0.88rem;">&#9654; Compare</button>
+      </div>
+    </div>
+
+    <!-- Flow Definitions (read-only) -->
+    <div class="card">
+      <div class="card-title">Flow Definitions</div>
+      <table class="flow-table" id="flowDefTable">
+        <thead>
+          <tr>
+            <th>PCP</th><th>TC</th><th>Flow ID</th><th>Sensor</th>
+            <th>Payload (B)</th><th>Period (&micro;s)</th>
+            <th>Deadline (&micro;s)</th><th>Src</th><th>Dst</th>
+          </tr>
+        </thead>
+        <tbody id="flowDefBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Comparison Summary Table -->
+    <div class="card">
+      <div class="card-title">Comparison Summary</div>
+      <div id="statusText" style="font-size:0.82rem;color:var(--text2);padding:4px 0;">Press Compare to start</div>
+      <div style="overflow-x:auto;">
+        <table class="compare-table" id="compareTable">
+          <thead>
+            <tr>
+              <th style="min-width:160px;">Metric</th>
+              <th style="min-width:130px;">Original</th>
+              <th style="min-width:130px;">TX Margin</th>
+              <th style="min-width:130px;">TX Inflate</th>
+            </tr>
+          </thead>
+          <tbody id="compareBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Per-Flow E2E Delay Chart -->
+    <div class="card">
+      <div class="card-title">Per-Flow E2E Delay Comparison</div>
+      <div class="chart-container" id="delayChartContainer"></div>
+      <div class="chart-legend" id="delayChartLegend"></div>
+    </div>
+
+    <!-- Worst Utilization per Link Chart -->
+    <div class="card">
+      <div class="card-title">Worst Utilization per Link (Top 5)</div>
+      <div class="chart-container" id="utilChartContainer"></div>
+      <div class="chart-legend" id="utilChartLegend"></div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="card" style="padding:12px 20px;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <a href="roii-8tc.html" class="btn btn-secondary" style="font-size:0.78rem;">Original 8-TC</a>
+        <a href="roii-8tc-stable.html" class="btn btn-secondary" style="font-size:0.78rem;">TX Margin</a>
+        <a href="roii-8tc-inflate.html" class="btn btn-secondary" style="font-size:0.78rem;">TX Inflate</a>
+        <a href="index.html" class="btn btn-secondary" style="margin-left:auto;font-size:0.78rem;">Home</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <script src="vendor/d3.min.js"></script>
+  <script type="module">
+  import { ROII_REAL_8TC, ROII_REAL_SWITCHES } from './js/roii-real-data.js';
+  import { solveGreedy, initTooltip, flowColor } from './js/ilp-core.js';
+
+  initTooltip();
+
+  // ── Flow Definitions ──
+  const FLOW_DEFS = [
+    { pcp: 7, id: 'f_lidar_fc',  sensor: 'AutoL G32',        sensorPayload: 1248, payload: 1276, period: 200, deadline: 1000, src: 'LIDAR_FC',  dst: 'ACU_IT', color: '#10B981', realPeriod: 167 },
+    { pcp: 6, id: 'f_lidar_r',   sensor: 'AutoL G32',        sensorPayload: 1248, payload: 1276, period: 200, deadline: 1000, src: 'LIDAR_R',   dst: 'ACU_IT', color: '#10B981', realPeriod: 167 },
+    { pcp: 5, id: 'f_lidar_fl',  sensor: 'Hesai Pandar 40P', sensorPayload: 1262, payload: 1290, period: 500, deadline: 1000, src: 'LIDAR_FL',  dst: 'ACU_IT', color: '#0D9488', realPeriod: 536 },
+    { pcp: 4, id: 'f_lidar_fr',  sensor: 'Hesai Pandar 40P', sensorPayload: 1262, payload: 1290, period: 500, deadline: 1000, src: 'LIDAR_FR',  dst: 'ACU_IT', color: '#0D9488', realPeriod: 536 },
+    { pcp: 3, id: 'f_radar_f',   sensor: 'MRR-35',           sensorPayload: 64,   payload: 64,   period: 500, deadline: 1000, src: 'RADAR_F',   dst: 'ACU_IT', color: '#952aff', realPeriod: null },
+    { pcp: 2, id: 'f_radar_flc', sensor: 'MRR-35',           sensorPayload: 64,   payload: 64,   period: 500, deadline: 1000, src: 'RADAR_FLC', dst: 'ACU_IT', color: '#952aff', realPeriod: null },
+    { pcp: 1, id: 'f_radar_frc', sensor: 'MRR-35',           sensorPayload: 64,   payload: 64,   period: 500, deadline: 1000, src: 'RADAR_FRC', dst: 'ACU_IT', color: '#952aff', realPeriod: null },
+    { pcp: 0, id: 'f_radar_rlc', sensor: 'MRR-35 (shared)',  sensorPayload: 64,   payload: 64,   period: 500, deadline: 1000, src: 'RADAR_RLC', dst: 'ACU_IT', color: '#952aff', realPeriod: null },
+    { pcp: 0, id: 'f_radar_rrc', sensor: 'MRR-35 (shared)',  sensorPayload: 64,   payload: 64,   period: 500, deadline: 1000, src: 'RADAR_RRC', dst: 'ACU_IT', color: '#952aff', realPeriod: null },
+  ];
+
+  const round3 = v => Math.round(v * 1000) / 1000;
+
+  // Color scheme for the three approaches
+  const COLOR_ORIGINAL = '#94a3b8';  // gray
+  const COLOR_MARGIN   = '#3B82F6';  // blue
+  const COLOR_INFLATE  = '#d97706';  // orange
+
+  // ── Render Flow Definition Table ──
+  function renderFlowDefTable() {
+    const tbody = document.getElementById('flowDefBody');
+    tbody.innerHTML = FLOW_DEFS.map(f => `<tr>
+      <td><strong>${f.pcp}</strong></td>
+      <td>TC${f.pcp}</td>
+      <td><span class="pcp-dot" style="background:${f.color}"></span>${f.id}</td>
+      <td style="font-size:0.72rem;">${f.sensor}</td>
+      <td class="calc">${f.payload}</td>
+      <td class="calc">${f.period}</td>
+      <td class="calc">${f.deadline}</td>
+      <td style="font-size:0.72rem;">${f.src}</td>
+      <td style="font-size:0.72rem;">${f.dst}</td>
+    </tr>`).join('');
+  }
+
+  // ── Build Model ──
+  function buildModel(marginUs, inflatePct) {
+    const cycle = parseFloat(document.getElementById('paramCycle').value) || 1000;
+    const guard = parseFloat(document.getElementById('paramGuard').value);
+    const speed = parseFloat(document.getElementById('paramSpeed').value) || 1000;
+    const procDelay = parseFloat(document.getElementById('paramProcDelay').value) || 5;
+
+    const base = JSON.parse(JSON.stringify(ROII_REAL_8TC));
+    base.cycle_time_us = cycle;
+    base.guard_band_us = guard;
+    base.processing_delay_us = procDelay;
+    base.tx_margin_us = marginUs;
+    base.tx_inflate_pct = inflatePct;
+
+    for (const lnk of base.links) lnk.rate_mbps = speed;
+
+    base.flows = FLOW_DEFS.map(f => ({
+      id: f.id, PCP: f.pcp, payload_bytes: f.payload,
+      period_us: f.period, deadline_us: f.deadline,
+      traffic_type: f.id.includes('lidar') ? 'lidar' : 'radar',
+      src: f.src, dst: f.dst, k_paths: 2
+    }));
+
+    return base;
+  }
+
+  // ── Extract per-flow worst E2E delay ──
+  function getPerFlowWorstE2E(result) {
+    const map = {};
+    for (const pr of result.packetRows) {
+      if (pr.status === 'NON-ST') continue;
+      if (!map[pr.flow_id] || pr.e2e_delay_us > map[pr.flow_id]) {
+        map[pr.flow_id] = pr.e2e_delay_us;
+      }
+    }
+    return map;
+  }
+
+  // ── Extract per-link utilization ──
+  function getLinkUtils(model, result) {
+    const linkTx = {};
+    for (const pr of result.packetRows) {
+      for (const h of pr.hops) {
+        linkTx[h.link_id] = (linkTx[h.link_id] || 0) + h.duration_us;
+      }
+    }
+    const out = {};
+    for (const [lid, totalTx] of Object.entries(linkTx)) {
+      const lnk = model.links.find(l => l.id === lid);
+      const label = lnk ? `${lnk.from} \u2192 ${lnk.to}` : lid;
+      out[lid] = { label, util: round3(totalTx / model.cycle_time_us * 100) };
+    }
+    return out;
+  }
+
+  // ── Render Comparison Summary Table ──
+  function renderCompareTable(r1, r2, r3) {
+    const stRows = (r) => r.packetRows.filter(p => p.status !== 'NON-ST');
+    const worstE2E = (r) => Math.max(...stRows(r).map(p => p.e2e_delay_us));
+    const avgE2E = (r) => {
+      const rows = stRows(r);
+      return rows.length ? round3(rows.reduce((s, p) => s + p.e2e_delay_us, 0) / rows.length) : 0;
+    };
+    const allOk = (r) => r.packetRows.every(p => p.status === 'OK');
+
+    const metrics = [
+      { label: 'Worst E2E Delay (\u00b5s)', vals: [worstE2E(r1), worstE2E(r2), worstE2E(r3)], lower: true },
+      { label: 'Avg E2E Delay (\u00b5s)',    vals: [avgE2E(r1), avgE2E(r2), avgE2E(r3)], lower: true },
+      { label: 'Objective (\u00b5s)',         vals: [r1.objective, r2.objective, r3.objective], lower: true },
+      { label: 'Worst Utilization (%)',       vals: [r1.worst_util_percent, r2.worst_util_percent, r3.worst_util_percent], lower: true },
+      { label: 'Packet Count',               vals: [r1.packetRows.length, r2.packetRows.length, r3.packetRows.length], lower: false },
+      { label: 'Overlap Conflicts',           vals: [r1.stats.overlap_conflicts, r2.stats.overlap_conflicts, r3.stats.overlap_conflicts], lower: true },
+      { label: 'All Deadlines Met',           vals: [allOk(r1), allOk(r2), allOk(r3)], bool: true },
+    ];
+
+    const tbody = document.getElementById('compareBody');
+    tbody.innerHTML = metrics.map(m => {
+      if (m.bool) {
+        return `<tr>
+          <td>${m.label}</td>
+          ${m.vals.map(v => `<td style="color:${v ? 'var(--green)' : 'var(--red)'};font-weight:700;">${v ? 'OK' : 'MISS'}</td>`).join('')}
+        </tr>`;
+      }
+
+      // Find winner index (lowest for lower=true, highest otherwise)
+      const numVals = m.vals.map(Number);
+      let winIdx;
+      if (m.lower) {
+        const minVal = Math.min(...numVals);
+        winIdx = numVals.indexOf(minVal);
+      } else {
+        winIdx = -1; // no highlighting for non-lower
+      }
+
+      const colClasses = ['col-original', 'col-margin', 'col-inflate'];
+      return `<tr>
+        <td>${m.label}</td>
+        ${numVals.map((v, i) => {
+          const isWin = (i === winIdx);
+          return `<td class="${isWin ? 'winner' : colClasses[i]}">${v}</td>`;
+        }).join('')}
+      </tr>`;
+    }).join('');
+  }
+
+  // ── D3 Grouped Bar Chart: Per-Flow E2E Delay ──
+  function renderDelayChart(r1, r2, r3) {
+    const container = document.getElementById('delayChartContainer');
+    container.innerHTML = '';
+
+    const e2e1 = getPerFlowWorstE2E(r1);
+    const e2e2 = getPerFlowWorstE2E(r2);
+    const e2e3 = getPerFlowWorstE2E(r3);
+
+    const flowIds = FLOW_DEFS.map(f => f.id).filter(fid =>
+      e2e1[fid] !== undefined || e2e2[fid] !== undefined || e2e3[fid] !== undefined
+    );
+
+    const data = flowIds.map(fid => ({
+      flow: fid,
+      original: e2e1[fid] || 0,
+      margin: e2e2[fid] || 0,
+      inflate: e2e3[fid] || 0,
+    }));
+
+    const margin = { top: 24, right: 30, bottom: 60, left: 60 };
+    const W = container.clientWidth || 900;
+    const H = 340;
+    const innerW = W - margin.left - margin.right;
+    const innerH = H - margin.top - margin.bottom;
+
+    const svg = d3.select(container).append('svg')
+      .attr('viewBox', `0 0 ${W} ${H}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet');
+
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+    const x0 = d3.scaleBand().domain(flowIds).range([0, innerW]).padding(0.2);
+    const x1 = d3.scaleBand().domain(['original', 'margin', 'inflate']).range([0, x0.bandwidth()]).padding(0.08);
+
+    const maxVal = d3.max(data, d => Math.max(d.original, d.margin, d.inflate)) || 100;
+    const y = d3.scaleLinear().domain([0, maxVal * 1.15]).range([innerH, 0]);
+
+    const colorMap = { original: COLOR_ORIGINAL, margin: COLOR_MARGIN, inflate: COLOR_INFLATE };
+
+    // Grid lines
+    g.append('g').selectAll('line').data(y.ticks(6)).enter().append('line')
+      .attr('class', 'grid-line')
+      .attr('x1', 0).attr('x2', innerW)
+      .attr('y1', d => y(d)).attr('y2', d => y(d));
+
+    // X axis
+    g.append('g').attr('class', 'axis').attr('transform', `translate(0,${innerH})`)
+      .call(d3.axisBottom(x0).tickSize(0).tickPadding(8))
+      .selectAll('text')
+      .attr('transform', 'rotate(-30)')
+      .attr('text-anchor', 'end')
+      .attr('font-size', '9px');
+
+    // Y axis
+    g.append('g').attr('class', 'axis')
+      .call(d3.axisLeft(y).ticks(6).tickFormat(d => d + ' \u00b5s'));
+
+    const tooltip = document.getElementById('tooltip');
+
+    // Bars
+    const groups = g.selectAll('.flow-group').data(data).enter().append('g')
+      .attr('transform', d => `translate(${x0(d.flow)},0)`);
+
+    ['original', 'margin', 'inflate'].forEach(key => {
+      groups.append('rect')
+        .attr('x', x1(key))
+        .attr('y', d => y(d[key]))
+        .attr('width', x1.bandwidth())
+        .attr('height', d => innerH - y(d[key]))
+        .attr('fill', colorMap[key])
+        .attr('rx', 3)
+        .attr('opacity', 0.85)
+        .style('cursor', 'pointer')
+        .on('mouseover', function(evt, d) {
+          d3.select(this).attr('opacity', 1);
+          const labels = { original: 'Original', margin: 'TX Margin', inflate: 'TX Inflate' };
+          tooltip.innerHTML = `<div class="tt-title">${d.flow}</div>`
+            + `<div class="tt-row"><span class="tt-k">${labels[key]}</span><span class="tt-v">${d[key]} \u00b5s</span></div>`;
+          tooltip.classList.add('show');
+        })
+        .on('mousemove', function(evt) {
+          tooltip.style.left = (evt.clientX + 12) + 'px';
+          tooltip.style.top = (evt.clientY - 10) + 'px';
+        })
+        .on('mouseout', function() {
+          d3.select(this).attr('opacity', 0.85);
+          tooltip.classList.remove('show');
+        });
+
+      // Value labels on top of bars
+      groups.append('text')
+        .attr('class', 'bar-label')
+        .attr('x', x1(key) + x1.bandwidth() / 2)
+        .attr('y', d => y(d[key]) - 4)
+        .text(d => d[key] > 0 ? d[key] : '');
+    });
+
+    // Legend
+    const legendEl = document.getElementById('delayChartLegend');
+    legendEl.innerHTML = [
+      { label: 'Original (no safety)', color: COLOR_ORIGINAL },
+      { label: 'TX Margin', color: COLOR_MARGIN },
+      { label: 'TX Inflate', color: COLOR_INFLATE },
+    ].map(item => `<div class="chart-legend-item">
+      <span class="chart-legend-swatch" style="background:${item.color}"></span>${item.label}
+    </div>`).join('');
+  }
+
+  // ── D3 Grouped Bar Chart: Utilization per Link (Top 5) ──
+  function renderUtilChart(m1, r1, m2, r2, m3, r3) {
+    const container = document.getElementById('utilChartContainer');
+    container.innerHTML = '';
+
+    const u1 = getLinkUtils(m1, r1);
+    const u2 = getLinkUtils(m2, r2);
+    const u3 = getLinkUtils(m3, r3);
+
+    // Merge all link IDs, sort by max util across all 3
+    const allLinkIds = new Set([...Object.keys(u1), ...Object.keys(u2), ...Object.keys(u3)]);
+    const linkData = [...allLinkIds].map(lid => ({
+      lid,
+      label: (u1[lid] || u2[lid] || u3[lid]).label,
+      original: u1[lid] ? u1[lid].util : 0,
+      margin: u2[lid] ? u2[lid].util : 0,
+      inflate: u3[lid] ? u3[lid].util : 0,
+    }));
+    linkData.sort((a, b) => Math.max(b.original, b.margin, b.inflate) - Math.max(a.original, a.margin, a.inflate));
+    const top5 = linkData.slice(0, 5);
+
+    const margin = { top: 24, right: 30, bottom: 60, left: 60 };
+    const W = container.clientWidth || 900;
+    const H = 340;
+    const innerW = W - margin.left - margin.right;
+    const innerH = H - margin.top - margin.bottom;
+
+    const svg = d3.select(container).append('svg')
+      .attr('viewBox', `0 0 ${W} ${H}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet');
+
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+    const labels = top5.map(d => d.label);
+    const x0 = d3.scaleBand().domain(labels).range([0, innerW]).padding(0.25);
+    const x1 = d3.scaleBand().domain(['original', 'margin', 'inflate']).range([0, x0.bandwidth()]).padding(0.08);
+
+    const maxVal = d3.max(top5, d => Math.max(d.original, d.margin, d.inflate)) || 10;
+    const y = d3.scaleLinear().domain([0, Math.min(maxVal * 1.2, 100)]).range([innerH, 0]);
+
+    const colorMap = { original: COLOR_ORIGINAL, margin: COLOR_MARGIN, inflate: COLOR_INFLATE };
+
+    // Grid lines
+    g.append('g').selectAll('line').data(y.ticks(6)).enter().append('line')
+      .attr('class', 'grid-line')
+      .attr('x1', 0).attr('x2', innerW)
+      .attr('y1', d => y(d)).attr('y2', d => y(d));
+
+    // X axis
+    g.append('g').attr('class', 'axis').attr('transform', `translate(0,${innerH})`)
+      .call(d3.axisBottom(x0).tickSize(0).tickPadding(8))
+      .selectAll('text')
+      .attr('transform', 'rotate(-20)')
+      .attr('text-anchor', 'end')
+      .attr('font-size', '9px');
+
+    // Y axis
+    g.append('g').attr('class', 'axis')
+      .call(d3.axisLeft(y).ticks(6).tickFormat(d => d + '%'));
+
+    const tooltip = document.getElementById('tooltip');
+
+    const groups = g.selectAll('.link-group').data(top5).enter().append('g')
+      .attr('transform', d => `translate(${x0(d.label)},0)`);
+
+    ['original', 'margin', 'inflate'].forEach(key => {
+      groups.append('rect')
+        .attr('x', x1(key))
+        .attr('y', d => y(d[key]))
+        .attr('width', x1.bandwidth())
+        .attr('height', d => innerH - y(d[key]))
+        .attr('fill', colorMap[key])
+        .attr('rx', 3)
+        .attr('opacity', 0.85)
+        .style('cursor', 'pointer')
+        .on('mouseover', function(evt, d) {
+          d3.select(this).attr('opacity', 1);
+          const labels = { original: 'Original', margin: 'TX Margin', inflate: 'TX Inflate' };
+          tooltip.innerHTML = `<div class="tt-title">${d.label}</div>`
+            + `<div class="tt-row"><span class="tt-k">${labels[key]}</span><span class="tt-v">${d[key]}%</span></div>`;
+          tooltip.classList.add('show');
+        })
+        .on('mousemove', function(evt) {
+          tooltip.style.left = (evt.clientX + 12) + 'px';
+          tooltip.style.top = (evt.clientY - 10) + 'px';
+        })
+        .on('mouseout', function() {
+          d3.select(this).attr('opacity', 0.85);
+          tooltip.classList.remove('show');
+        });
+
+      // Value labels
+      groups.append('text')
+        .attr('class', 'bar-label')
+        .attr('x', x1(key) + x1.bandwidth() / 2)
+        .attr('y', d => y(d[key]) - 4)
+        .text(d => d[key] > 0 ? d[key] + '%' : '');
+    });
+
+    // Legend
+    const legendEl = document.getElementById('utilChartLegend');
+    legendEl.innerHTML = [
+      { label: 'Original', color: COLOR_ORIGINAL },
+      { label: 'TX Margin', color: COLOR_MARGIN },
+      { label: 'TX Inflate', color: COLOR_INFLATE },
+    ].map(item => `<div class="chart-legend-item">
+      <span class="chart-legend-swatch" style="background:${item.color}"></span>${item.label}
+    </div>`).join('');
+  }
+
+  // ── Compare (main) ──
+  function compare() {
+    try {
+      const margin = parseFloat(document.getElementById('paramMargin').value) || 0;
+      const inflate = parseFloat(document.getElementById('paramInflate').value) || 0;
+
+      const m1 = buildModel(0, 0);
+      const m2 = buildModel(margin, 0);
+      const m3 = buildModel(0, inflate);
+
+      const r1 = solveGreedy(m1);
+      const r2 = solveGreedy(m2);
+      const r3 = solveGreedy(m3);
+
+      // Status
+      const allOk1 = r1.packetRows.every(p => p.status === 'OK');
+      const allOk2 = r2.packetRows.every(p => p.status === 'OK');
+      const allOk3 = r3.packetRows.every(p => p.status === 'OK');
+      document.getElementById('statusText').innerHTML =
+        `<strong>Greedy Solver</strong> &mdash; `
+        + `Original: ${allOk1 ? '<span style="color:var(--green)">OK</span>' : '<span style="color:var(--red)">MISS</span>'} | `
+        + `Margin (${margin}\u00b5s): ${allOk2 ? '<span style="color:var(--green)">OK</span>' : '<span style="color:var(--red)">MISS</span>'} | `
+        + `Inflate (+${inflate}%): ${allOk3 ? '<span style="color:var(--green)">OK</span>' : '<span style="color:var(--red)">MISS</span>'}`;
+
+      renderCompareTable(r1, r2, r3);
+      renderDelayChart(r1, r2, r3);
+      renderUtilChart(m1, r1, m2, r2, m3, r3);
+    } catch (e) {
+      document.getElementById('statusText').innerHTML = `<span style="color:var(--red)">Error: ${e.message}</span>`;
+      console.error(e);
+    }
+  }
+
+  // ── Init ──
+  renderFlowDefTable();
+  document.getElementById('btnCompare').addEventListener('click', compare);
+
+  // Auto-compare on load
+  compare();
+  </script>
+</body>
+</html>

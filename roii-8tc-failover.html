@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>8-TC Failover &mdash; Link Failure Simulation</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    :root {
+      --bg: #f8f9fa; --bg2: #f0f2f5;
+      --card: #ffffff; --card-hi: #f8fafc;
+      --border: rgba(59,130,246,0.2); --border-hi: rgba(59,130,246,0.4);
+      --text: #1e293b; --text2: #475569; --text3: #64748b;
+      --cyan: #0891b2; --blue: #3B82F6; --purple: #7c3aed;
+      --orange: #d97706; --red: #dc2626; --green: #059669; --pink: #db2777;
+      --guard: #d97706; --be: #e2e8f0;
+    }
+    body { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 50%, #dee2e6 100%); }
+    .bg-grid {
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59,130,246,0.06), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(6,182,212,0.04), transparent),
+        linear-gradient(rgba(59,130,246,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.06) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+    }
+    .card {
+      background: rgba(255,255,255,0.95);
+      border: 1px solid rgba(59,130,246,0.15);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    }
+    .card:hover { border-color: rgba(59,130,246,0.3); }
+    .card-title { color: var(--text2); }
+    .card-title::before { background: var(--blue); }
+    .tooltip {
+      background: rgba(255,255,255,0.97);
+      border: 1px solid rgba(59,130,246,0.25);
+      color: var(--text); box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
+    .tooltip .tt-title { color: var(--blue); }
+    .tooltip .tt-k { color: var(--text3); }
+    .btn-primary { background: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%); color: #fff; }
+    .btn-secondary { background: rgba(248,250,252,0.8); color: var(--text); border: 1px solid rgba(59,130,246,0.2); }
+    .btn-secondary:hover { border-color: var(--blue); background: #fff; }
+    .btn-danger { background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); color: #fff; }
+    .btn-danger:hover { filter: brightness(1.1); }
+    .gcl-grid line { stroke: rgba(59,130,246,0.06); stroke-width: 1; }
+    .gcl-axis text { fill: var(--text2) !important; font-size: 11px; }
+    .gcl-axis path, .gcl-axis line { stroke: rgba(59,130,246,0.15); }
+    .gcl-label { fill: rgba(0,0,0,0.75); font-size: 11px; font-weight: 700; pointer-events: none; }
+
+    /* Header */
+    .keti-header {
+      display: flex; align-items: center; justify-content: center;
+      gap: 16px; margin-bottom: 8px;
+    }
+    .keti-header img { height: 40px; width: auto; }
+    .keti-header h1 {
+      font-size: 2rem; font-weight: 800; letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #dc2626 0%, #3B82F6 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+
+    /* Global Params */
+    .global-params {
+      display: flex; gap: 16px; flex-wrap: wrap; align-items: center;
+      margin-bottom: 12px;
+    }
+    .global-params label {
+      font-size: 0.78rem; font-weight: 600; color: var(--text2);
+    }
+    .global-params input[type="number"] {
+      width: 90px; padding: 4px 8px; border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 4px; font-size: 0.82rem; font-family: 'Courier New', monospace;
+      text-align: right;
+    }
+    .global-params input[type="number"]:focus {
+      outline: none; border-color: var(--blue);
+      box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+    }
+    .global-params select {
+      padding: 4px 8px; border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 4px; font-size: 0.82rem; background: #fff;
+      color: var(--text);
+    }
+    .global-params select:focus {
+      outline: none; border-color: var(--blue);
+      box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+    }
+
+    /* Topology */
+    .topo-svg-container {
+      position: relative; overflow: hidden; border-radius: 10px;
+      background: rgba(248,250,252,0.8); min-height: 400px;
+    }
+    .topo-link-active { stroke: rgba(59,130,246,0.35); stroke-width: 2; cursor: default; }
+    .topo-link-backbone { stroke: rgba(59,130,246,0.6); stroke-width: 3; cursor: pointer; }
+    .topo-link-backbone:hover { stroke: rgba(59,130,246,0.9); stroke-width: 4; }
+    .topo-link-failed { stroke: var(--red); stroke-width: 3; stroke-dasharray: 8,5; cursor: pointer; opacity: 0.8; }
+    .topo-link-failed:hover { opacity: 1; stroke-width: 4; }
+    .topo-link-gateway { stroke: rgba(6,182,212,0.6); stroke-width: 3; cursor: pointer; }
+    .topo-link-gateway:hover { stroke: rgba(6,182,212,0.9); stroke-width: 4; }
+    .topo-link-gateway-failed { stroke: var(--red); stroke-width: 3; stroke-dasharray: 8,5; cursor: pointer; opacity: 0.8; }
+    .topo-link-gateway-failed:hover { opacity: 1; stroke-width: 4; }
+
+    /* Topology Legend */
+    .topo-legend {
+      display: flex; gap: 16px; flex-wrap: wrap; padding: 8px 16px;
+      border-top: 1px solid rgba(59,130,246,0.1);
+      background: rgba(248,250,252,0.5); border-radius: 0 0 10px 10px;
+      font-size: 0.72rem; color: var(--text3);
+    }
+    .topo-legend-item { display: flex; align-items: center; gap: 6px; }
+    .topo-legend-line {
+      width: 24px; height: 3px; border-radius: 2px;
+    }
+    .topo-legend-line.active { background: rgba(59,130,246,0.6); }
+    .topo-legend-line.failed { background: var(--red); border-top: 3px dashed var(--red); height: 0; }
+    .topo-legend-line.sensor { background: rgba(59,130,246,0.35); }
+    .topo-legend-line.gateway { background: rgba(6,182,212,0.6); }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 10px; margin-bottom: 12px;
+    }
+    .stat-box {
+      padding: 10px 14px; border-radius: 8px;
+      background: rgba(59,130,246,0.04);
+      border: 1px solid rgba(59,130,246,0.1);
+    }
+    .stat-box .stat-label { font-size: 0.68rem; color: var(--text3); font-weight: 600; }
+    .stat-box .stat-value { font-size: 1.1rem; font-weight: 800; color: var(--blue); }
+    .stat-box.warn .stat-value { color: var(--orange); }
+    .stat-box.bad .stat-value { color: var(--red); }
+    .stat-box.good .stat-value { color: var(--green); }
+
+    /* Before/After Comparison */
+    .compare-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    @media (max-width: 700px) { .compare-grid { grid-template-columns: 1fr; } }
+    .compare-col {
+      border: 1px solid rgba(59,130,246,0.12); border-radius: 8px;
+      padding: 14px; background: rgba(248,250,252,0.5);
+    }
+    .compare-col h3 {
+      font-size: 0.85rem; font-weight: 700; margin: 0 0 10px 0;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .compare-col h3 .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .compare-col .stat-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 5px 0; border-bottom: 1px solid rgba(59,130,246,0.06);
+      font-size: 0.8rem;
+    }
+    .compare-col .stat-row .sk { color: var(--text3); font-weight: 500; }
+    .compare-col .stat-row .sv { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .delta-better { color: var(--green); font-size: 0.72rem; font-weight: 600; }
+    .delta-worse { color: var(--red); font-size: 0.72rem; font-weight: 600; }
+    .delta-same { color: var(--text3); font-size: 0.72rem; }
+    .status-ok { color: var(--green); font-weight: 800; }
+    .status-miss { color: var(--red); font-weight: 800; }
+
+    /* Affected Flows Table */
+    .param-table {
+      width: 100%; border-collapse: collapse; font-size: 0.82rem;
+    }
+    .param-table th {
+      background: rgba(59,130,246,0.06); color: var(--text2);
+      padding: 6px 10px; text-align: left; font-weight: 700;
+      border-bottom: 2px solid rgba(59,130,246,0.15);
+      font-size: 0.75rem;
+    }
+    .param-table td {
+      padding: 4px 6px; border-bottom: 1px solid rgba(59,130,246,0.08);
+      vertical-align: middle;
+    }
+    .param-table tr:hover { background: rgba(59,130,246,0.04); }
+    .calc {
+      color: var(--blue); font-family: 'Courier New', monospace;
+      font-weight: 600; font-size: 0.78rem;
+    }
+    .pcp-dot {
+      display: inline-block; width: 10px; height: 10px;
+      border-radius: 50%; margin-right: 6px; vertical-align: middle;
+    }
+    .route-changed { background: rgba(217,119,6,0.08); }
+    .route-path {
+      font-size: 0.7rem; font-family: 'Courier New', monospace;
+      color: var(--text2); word-break: break-all;
+    }
+    .route-path.changed { color: var(--orange); font-weight: 700; }
+
+    /* Failed link tags */
+    .failed-tags {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
+    }
+    .failed-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 0.72rem; padding: 3px 10px; border-radius: 6px;
+      background: rgba(220,38,38,0.08); color: var(--red);
+      border: 1px solid rgba(220,38,38,0.2); font-weight: 600;
+    }
+    .failed-tag .x { cursor: pointer; font-weight: 800; margin-left: 4px; }
+    .failed-tag .x:hover { color: #000; }
+
+    /* Error banner */
+    .error-banner {
+      background: rgba(220,38,38,0.06); border: 1px solid rgba(220,38,38,0.2);
+      border-radius: 8px; padding: 12px 16px; margin-bottom: 12px;
+      color: var(--red); font-size: 0.82rem;
+    }
+    .error-banner strong { font-size: 0.85rem; }
+
+    /* Gantt */
+    .gantt-wrap { min-height: 300px; position: relative; }
+    #ganttContainer { background: #ffffff; border-radius: 8px; }
+    #ganttLegend {
+      display: flex; flex-wrap: wrap; gap: 8px 16px;
+      padding: 10px 16px; border-top: 1px solid rgba(59,130,246,0.1);
+      background: #f8fafc; border-radius: 0 0 8px 8px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text2); }
+    .legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="wrap">
+    <!-- Header -->
+    <div class="header">
+      <div class="keti-header">
+        <img src="keti.png" alt="KETI" onerror="this.style.display='none'">
+        <h1>8-TC Failover</h1>
+      </div>
+      <div class="sub">
+        링크 장애 시뮬레이션 &mdash; backbone 링크를 클릭하여 장애를 토글하고, 자동 경로 재구성 결과를 확인합니다.<br>
+        Triangle backbone (SW_FL &harr; SW_FR &harr; SW_REAR) + Gateway (SW_REAR &rarr; ACU_IT) 링크를 개별 제어할 수 있습니다.
+      </div>
+    </div>
+
+    <!-- Topology SVG -->
+    <div class="card">
+      <div class="card-title">Network Topology &mdash; Click backbone links to toggle failure</div>
+      <div class="topo-svg-container" id="topoContainer"></div>
+      <div class="topo-legend">
+        <div class="topo-legend-item"><div class="topo-legend-line sensor"></div> Sensor Link</div>
+        <div class="topo-legend-item"><div class="topo-legend-line active"></div> Backbone (Active)</div>
+        <div class="topo-legend-item"><div class="topo-legend-line gateway"></div> Gateway (Active)</div>
+        <div class="topo-legend-item"><div class="topo-legend-line failed"></div> Failed Link</div>
+      </div>
+      <div id="failedTagsArea" class="failed-tags" style="padding: 8px 16px;"></div>
+    </div>
+
+    <!-- Control Bar -->
+    <div class="card">
+      <div class="card-title">Parameters &amp; Controls</div>
+      <div class="global-params">
+        <label>Cycle (&micro;s)
+          <input type="number" id="paramCycle" value="1000" min="100" step="100">
+        </label>
+        <label>Guard (&micro;s)
+          <input type="number" id="paramGuard" value="0" min="0" step="0.1">
+        </label>
+        <label>Speed (Mbps)
+          <input type="number" id="paramSpeed" value="1000" min="100" step="100">
+        </label>
+        <label>Proc Delay (&micro;s)
+          <input type="number" id="paramProcDelay" value="5" min="0" step="0.5">
+        </label>
+        <label>Mode
+          <select id="paramMode">
+            <option value="original">Original</option>
+            <option value="margin">TX Margin (2&micro;s)</option>
+            <option value="inflate">TX Inflate (20%)</option>
+          </select>
+        </label>
+        <button class="btn btn-primary" id="btnResolve" style="padding:8px 24px;font-size:0.88rem;">&#9654; Resolve</button>
+        <button class="btn btn-danger" id="btnReset" style="padding:8px 20px;font-size:0.82rem;">Reset All Links</button>
+      </div>
+    </div>
+
+    <!-- Error Banner (hidden by default) -->
+    <div class="error-banner" id="errorBanner" style="display:none;"></div>
+
+    <!-- Before / After Comparison -->
+    <div class="card">
+      <div class="card-title">Normal vs Failover Comparison</div>
+      <div class="compare-grid">
+        <div class="compare-col" id="normalCol">
+          <h3><span class="dot" style="background:var(--green);"></span> Normal (No Failures)</h3>
+          <div id="normalStats"></div>
+        </div>
+        <div class="compare-col" id="failoverCol">
+          <h3><span class="dot" style="background:var(--red);"></span> Failover (With Failures)</h3>
+          <div id="failoverStats"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Affected Flows Table -->
+    <div class="card" id="affectedCard">
+      <div class="card-title">Affected Flows</div>
+      <div style="overflow-x:auto;" id="affectedPanel"></div>
+    </div>
+
+    <!-- Failover Gantt -->
+    <div class="card">
+      <div class="card-title">Failover Schedule Timeline</div>
+      <div class="svg-container gantt-wrap" id="ganttContainer"></div>
+      <div id="ganttLegend"></div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="card" style="padding:12px 20px;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <a href="roii-8tc.html" class="btn btn-secondary" style="font-size:0.78rem;">Original 8-TC</a>
+        <a href="roii-8tc-stable.html" class="btn btn-secondary" style="font-size:0.78rem;">TX Margin</a>
+        <a href="roii-8tc-inflate.html" class="btn btn-secondary" style="font-size:0.78rem;">TX Inflate</a>
+        <a href="roii-debug.html" class="btn btn-secondary" style="font-size:0.78rem;">Debugger</a>
+        <a href="index.html" class="btn btn-secondary" style="margin-left:auto;font-size:0.78rem;">Home</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <script src="vendor/d3.min.js"></script>
+  <script type="module">
+  import { ROII_REAL_8TC, ROII_REAL_SWITCHES, getRealPositions, ROII_REAL_NODE_COLORS } from './js/roii-real-data.js';
+  import { solveGreedy, initTooltip, flowColor } from './js/ilp-core.js';
+
+  initTooltip();
+
+  /* ════════════════════════════════════════════
+     Flow Definitions
+     ════════════════════════════════════════════ */
+  const FLOW_DEFS = [
+    { pcp: 7, id: 'f_lidar_fc',  sensor: 'AutoL G32',        sensorPayload: 1248, payload: 1276, period: 200, deadline: 1000, src: 'LIDAR_FC',  dst: 'ACU_IT', color: '#10B981' },
+    { pcp: 6, id: 'f_lidar_r',   sensor: 'AutoL G32',        sensorPayload: 1248, payload: 1276, period: 200, deadline: 1000, src: 'LIDAR_R',   dst: 'ACU_IT', color: '#10B981' },
+    { pcp: 5, id: 'f_lidar_fl',  sensor: 'Hesai Pandar 40P', sensorPayload: 1262, payload: 1290, period: 500, deadline: 1000, src: 'LIDAR_FL',  dst: 'ACU_IT', color: '#0D9488' },
+    { pcp: 4, id: 'f_lidar_fr',  sensor: 'Hesai Pandar 40P', sensorPayload: 1262, payload: 1290, period: 500, deadline: 1000, src: 'LIDAR_FR',  dst: 'ACU_IT', color: '#0D9488' },
+    { pcp: 3, id: 'f_radar_f',   sensor: 'MRR-35',           sensorPayload: 64,   payload: 64,   period: 500, deadline: 1000, src: 'RADAR_F',   dst: 'ACU_IT', color: '#952aff' },
+    { pcp: 2, id: 'f_radar_flc', sensor: 'MRR-35',           sensorPayload: 64,   payload: 64,   period: 500, deadline: 1000, src: 'RADAR_FLC', dst: 'ACU_IT', color: '#952aff' },
+    { pcp: 1, id: 'f_radar_frc', sensor: 'MRR-35',           sensorPayload: 64,   payload: 64,   period: 500, deadline: 1000, src: 'RADAR_FRC', dst: 'ACU_IT', color: '#952aff' },
+    { pcp: 0, id: 'f_radar_rlc', sensor: 'MRR-35 (shared)',  sensorPayload: 64,   payload: 64,   period: 500, deadline: 1000, src: 'RADAR_RLC', dst: 'ACU_IT', color: '#952aff' },
+    { pcp: 0, id: 'f_radar_rrc', sensor: 'MRR-35 (shared)',  sensorPayload: 64,   payload: 64,   period: 500, deadline: 1000, src: 'RADAR_RRC', dst: 'ACU_IT', color: '#952aff' },
+  ];
+
+  /* ════════════════════════════════════════════
+     Physical Link Pairs (bidirectional cables)
+     ════════════════════════════════════════════ */
+  const LINK_PAIRS = {
+    'SW_FL \u2194 SW_FR':     { ids: ['l_swfl_swfr', 'l_swfr_swfl'],       type: 'backbone' },
+    'SW_FL \u2194 SW_REAR':   { ids: ['l_swfl_swrear', 'l_swrear_swfl'],   type: 'backbone' },
+    'SW_FR \u2194 SW_REAR':   { ids: ['l_swfr_swrear', 'l_swrear_swfr'],   type: 'backbone' },
+    'SW_REAR \u2192 ACU_IT':  { ids: ['l_swrear_acu'],                     type: 'gateway'  },
+  };
+
+  // Reverse map: link_id -> pair name
+  const linkToPair = {};
+  for (const [name, pair] of Object.entries(LINK_PAIRS)) {
+    for (const lid of pair.ids) linkToPair[lid] = name;
+  }
+
+  let failedPairs = new Set();
+
+  const round3 = v => Math.round(v * 1000) / 1000;
+
+  /* ════════════════════════════════════════════
+     Model Builder
+     ════════════════════════════════════════════ */
+  function getFailedLinkIds() {
+    const ids = new Set();
+    for (const pairName of failedPairs) {
+      for (const lid of LINK_PAIRS[pairName].ids) ids.add(lid);
+    }
+    return ids;
+  }
+
+  function buildModel(failedLinkIds) {
+    const cycle = parseFloat(document.getElementById('paramCycle').value) || 1000;
+    const guard = parseFloat(document.getElementById('paramGuard').value);
+    const speed = parseFloat(document.getElementById('paramSpeed').value) || 1000;
+    const procDelay = parseFloat(document.getElementById('paramProcDelay').value) || 5;
+    const mode = document.getElementById('paramMode').value;
+
+    const base = JSON.parse(JSON.stringify(ROII_REAL_8TC));
+    base.cycle_time_us = cycle;
+    base.guard_band_us = guard;
+    base.processing_delay_us = procDelay;
+
+    if (mode === 'margin') base.tx_margin_us = 2;
+    else if (mode === 'inflate') base.tx_inflate_pct = 20;
+
+    for (const lnk of base.links) lnk.rate_mbps = speed;
+
+    // Filter out failed links
+    if (failedLinkIds && failedLinkIds.size > 0) {
+      base.links = base.links.filter(l => !failedLinkIds.has(l.id));
+    }
+
+    base.flows = FLOW_DEFS.map(f => ({
+      id: f.id, PCP: f.pcp, payload_bytes: f.payload,
+      period_us: f.period, deadline_us: f.deadline,
+      traffic_type: f.id.includes('lidar') ? 'lidar' : 'radar',
+      src: f.src, dst: f.dst, k_paths: 2
+    }));
+
+    return base;
+  }
+
+  /* ════════════════════════════════════════════
+     Route Extraction Helper
+     ════════════════════════════════════════════ */
+  function getRoute(model, packetRow) {
+    const route = [];
+    for (const h of packetRow.hops) {
+      const lnk = model.links.find(l => l.id === h.link_id);
+      if (lnk && !route.includes(lnk.from)) route.push(lnk.from);
+    }
+    const lastHop = packetRow.hops[packetRow.hops.length - 1];
+    if (lastHop) {
+      const lastLnk = model.links.find(l => l.id === lastHop.link_id);
+      if (lastLnk) route.push(lastLnk.to);
+    }
+    return route;
+  }
+
+  function routeStr(route) { return route.join(' \u2192 '); }
+
+  /* ════════════════════════════════════════════
+     Topology Rendering (D3)
+     ════════════════════════════════════════════ */
+  function renderTopology() {
+    const container = document.getElementById('topoContainer');
+    container.innerHTML = '';
+    const W = container.clientWidth || 900;
+    const H = 420;
+    const positions = getRealPositions(W, H);
+
+    const svg = d3.select(container).append('svg')
+      .attr('viewBox', `0 0 ${W} ${H}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet')
+      .style('width', '100%')
+      .style('display', 'block');
+
+    // Arrow marker
+    const defs = svg.append('defs');
+    defs.append('marker').attr('id', 'arrow-active')
+      .attr('viewBox', '0 0 10 10').attr('refX', 28).attr('refY', 5)
+      .attr('markerWidth', 6).attr('markerHeight', 6).attr('orient', 'auto')
+      .append('path').attr('d', 'M0,0 L10,5 L0,10 Z').attr('fill', 'rgba(59,130,246,0.4)');
+    defs.append('marker').attr('id', 'arrow-failed')
+      .attr('viewBox', '0 0 10 10').attr('refX', 28).attr('refY', 5)
+      .attr('markerWidth', 6).attr('markerHeight', 6).attr('orient', 'auto')
+      .append('path').attr('d', 'M0,0 L10,5 L0,10 Z').attr('fill', 'rgba(220,38,38,0.6)');
+
+    const baseModel = JSON.parse(JSON.stringify(ROII_REAL_8TC));
+    const failedIds = getFailedLinkIds();
+
+    // Group links by toggleability
+    const toggleablePairs = new Set(Object.values(LINK_PAIRS).flatMap(p => p.ids));
+
+    // Draw links
+    const linkGroup = svg.append('g');
+    const drawnBidirectional = new Set();
+
+    for (const lnk of baseModel.links) {
+      const from = positions[lnk.from];
+      const to = positions[lnk.to];
+      if (!from || !to) continue;
+
+      const isFailed = failedIds.has(lnk.id);
+      const isToggleable = toggleablePairs.has(lnk.id);
+      const pairName = linkToPair[lnk.id];
+      const pairDef = pairName ? LINK_PAIRS[pairName] : null;
+      const isGateway = pairDef && pairDef.type === 'gateway';
+
+      // For bidirectional backbone pairs, only draw once
+      if (pairDef && pairDef.ids.length === 2) {
+        const biKey = pairDef.ids.sort().join('|');
+        if (drawnBidirectional.has(biKey)) continue;
+        drawnBidirectional.add(biKey);
+      }
+
+      let cssClass;
+      if (!isToggleable) {
+        cssClass = 'topo-link-active';
+      } else if (isFailed && isGateway) {
+        cssClass = 'topo-link-gateway-failed';
+      } else if (isFailed) {
+        cssClass = 'topo-link-failed';
+      } else if (isGateway) {
+        cssClass = 'topo-link-gateway';
+      } else {
+        cssClass = 'topo-link-backbone';
+      }
+
+      const line = linkGroup.append('line')
+        .attr('x1', from.x).attr('y1', from.y)
+        .attr('x2', to.x).attr('y2', to.y)
+        .attr('class', cssClass);
+
+      // X marker for failed links
+      if (isFailed) {
+        const mx = (from.x + to.x) / 2;
+        const my = (from.y + to.y) / 2;
+        const sz = 8;
+        linkGroup.append('line')
+          .attr('x1', mx - sz).attr('y1', my - sz)
+          .attr('x2', mx + sz).attr('y2', my + sz)
+          .attr('stroke', '#dc2626').attr('stroke-width', 3).attr('stroke-linecap', 'round')
+          .style('pointer-events', 'none');
+        linkGroup.append('line')
+          .attr('x1', mx + sz).attr('y1', my - sz)
+          .attr('x2', mx - sz).attr('y2', my + sz)
+          .attr('stroke', '#dc2626').attr('stroke-width', 3).attr('stroke-linecap', 'round')
+          .style('pointer-events', 'none');
+      }
+
+      // Click handler for toggleable links
+      if (isToggleable && pairName) {
+        // Widen the click area with invisible overlay
+        linkGroup.append('line')
+          .attr('x1', from.x).attr('y1', from.y)
+          .attr('x2', to.x).attr('y2', to.y)
+          .attr('stroke', 'transparent').attr('stroke-width', 16)
+          .style('cursor', 'pointer')
+          .on('click', () => {
+            if (failedPairs.has(pairName)) {
+              failedPairs.delete(pairName);
+            } else {
+              failedPairs.add(pairName);
+            }
+            renderTopology();
+            renderFailedTags();
+            resolve();
+          });
+      }
+
+      // Link label for backbone/gateway
+      if (isToggleable) {
+        const mx = (from.x + to.x) / 2;
+        const my = (from.y + to.y) / 2;
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        const nx = -dy / len * 12;
+        const ny = dx / len * 12;
+        linkGroup.append('text')
+          .attr('x', mx + nx).attr('y', my + ny)
+          .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+          .attr('font-size', '8px').attr('fill', isFailed ? '#dc2626' : 'var(--text3)')
+          .attr('font-weight', isFailed ? '700' : '400')
+          .style('pointer-events', 'none')
+          .text(isFailed ? 'FAILED' : '1 Gbps');
+      }
+    }
+
+    // Draw nodes
+    const nodeGroup = svg.append('g');
+    for (const node of baseModel.nodes) {
+      const pos = positions[node.id];
+      if (!pos) continue;
+      const nc = ROII_REAL_NODE_COLORS[node.id] || { fill: '#ddd', stroke: '#888', label: node.id, shortLabel: '' };
+      const isSwitch = node.type === 'switch';
+      const isACU = node.id === 'ACU_IT';
+      const r = isSwitch || isACU ? 22 : 16;
+
+      const g = nodeGroup.append('g')
+        .attr('transform', `translate(${pos.x},${pos.y})`);
+
+      g.append('circle')
+        .attr('r', r)
+        .attr('fill', nc.fill)
+        .attr('stroke', nc.stroke)
+        .attr('stroke-width', isSwitch ? 2.5 : 1.5);
+
+      // Short label inside circle
+      g.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('font-size', isSwitch || isACU ? '8px' : '7px')
+        .attr('font-weight', '700')
+        .attr('fill', nc.stroke)
+        .style('pointer-events', 'none')
+        .text(nc.shortLabel);
+
+      // Label below
+      g.append('text')
+        .attr('y', r + 12)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '9px')
+        .attr('font-weight', '600')
+        .attr('fill', 'var(--text2)')
+        .style('pointer-events', 'none')
+        .text(nc.label || node.id);
+    }
+  }
+
+  /* ════════════════════════════════════════════
+     Failed Tags Rendering
+     ════════════════════════════════════════════ */
+  function renderFailedTags() {
+    const area = document.getElementById('failedTagsArea');
+    if (failedPairs.size === 0) {
+      area.innerHTML = '<span style="font-size:0.78rem;color:var(--text3);">No link failures &mdash; click backbone links in topology to simulate failure.</span>';
+      return;
+    }
+    area.innerHTML = Array.from(failedPairs).map(name =>
+      `<span class="failed-tag">\u2717 ${name}<span class="x" data-pair="${name}">&times;</span></span>`
+    ).join('');
+    area.querySelectorAll('.x').forEach(el => {
+      el.addEventListener('click', () => {
+        failedPairs.delete(el.dataset.pair);
+        renderTopology();
+        renderFailedTags();
+        resolve();
+      });
+    });
+  }
+
+  /* ════════════════════════════════════════════
+     Comparison Stats Rendering
+     ════════════════════════════════════════════ */
+  function extractStats(model, result) {
+    const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
+    const allOk = stPkts.every(p => p.status === 'OK');
+    const e2es = stPkts.map(p => p.e2e_delay_us);
+    const worstE2E = e2es.length ? Math.max(...e2es) : 0;
+    const avgE2E = e2es.length ? round3(e2es.reduce((a, b) => a + b, 0) / e2es.length) : 0;
+    return {
+      worstE2E,
+      avgE2E,
+      objective: result.objective,
+      worstUtil: result.worst_util_percent,
+      feasible: allOk,
+      totalPkts: result.packetRows.length,
+      conflicts: result.stats.overlap_conflicts,
+    };
+  }
+
+  function renderCompareCol(containerId, stats, label, deltaStats) {
+    const el = document.getElementById(containerId);
+    const rows = [
+      { k: 'Worst E2E',    v: `${stats.worstE2E} \u00b5s`,     field: 'worstE2E',  unit: '\u00b5s', lowerBetter: true },
+      { k: 'Avg E2E',      v: `${stats.avgE2E} \u00b5s`,       field: 'avgE2E',    unit: '\u00b5s', lowerBetter: true },
+      { k: 'Objective',    v: `${stats.objective} \u00b5s`,     field: 'objective',  unit: '\u00b5s', lowerBetter: true },
+      { k: 'Worst Util',   v: `${stats.worstUtil}%`,           field: 'worstUtil',  unit: '%',       lowerBetter: true },
+      { k: 'Packets',      v: `${stats.totalPkts}`,            field: 'totalPkts',  unit: '',        lowerBetter: false },
+      { k: 'Conflicts',    v: `${stats.conflicts}`,            field: 'conflicts',  unit: '',        lowerBetter: true },
+      { k: 'Feasibility',  v: stats.feasible ? 'ALL OK' : 'MISS', field: 'feasible', unit: '', special: true },
+    ];
+
+    let html = '';
+    for (const row of rows) {
+      let deltaHtml = '';
+      if (deltaStats && !row.special) {
+        const dv = round3(stats[row.field] - deltaStats[row.field]);
+        if (Math.abs(dv) < 0.001) {
+          deltaHtml = `<span class="delta-same">(=)</span>`;
+        } else {
+          const isBetter = row.lowerBetter ? dv < 0 : dv > 0;
+          const cls = isBetter ? 'delta-better' : 'delta-worse';
+          const sign = dv > 0 ? '+' : '';
+          deltaHtml = `<span class="${cls}">(${sign}${dv}${row.unit})</span>`;
+        }
+      }
+      if (row.special && deltaStats) {
+        const changed = stats.feasible !== deltaStats.feasible;
+        deltaHtml = changed
+          ? `<span class="${stats.feasible ? 'delta-better' : 'delta-worse'}">(changed)</span>`
+          : `<span class="delta-same">(=)</span>`;
+      }
+      const valClass = row.special ? (stats.feasible ? 'status-ok' : 'status-miss') : '';
+      html += `<div class="stat-row">
+        <span class="sk">${row.k}</span>
+        <span><span class="sv ${valClass}">${row.v}</span> ${deltaHtml}</span>
+      </div>`;
+    }
+    el.innerHTML = html;
+  }
+
+  /* ════════════════════════════════════════════
+     Affected Flows Table
+     ════════════════════════════════════════════ */
+  function renderAffectedFlows(normalModel, normalResult, failoverModel, failoverResult) {
+    const panel = document.getElementById('affectedPanel');
+
+    if (!failoverResult) {
+      panel.innerHTML = '<div style="color:var(--text3);font-size:0.82rem;padding:8px;">No failover result.</div>';
+      return;
+    }
+
+    // Map flow_id -> best packet info (first occurrence)
+    function flowMap(model, result) {
+      const m = {};
+      for (const pr of result.packetRows) {
+        // Take first packet of each flow (packet #0)
+        if (!m[pr.flow_id] || pr.packet_id.endsWith('#0')) {
+          m[pr.flow_id] = { route: getRoute(model, pr), e2e: pr.e2e_delay_us, status: pr.status, hops: pr.hops };
+        }
+      }
+      return m;
+    }
+
+    const normalMap = flowMap(normalModel, normalResult);
+    const failoverMap = flowMap(failoverModel, failoverResult);
+
+    // Determine affected flows: route changed OR e2e changed significantly (>0.5us)
+    const affected = [];
+    for (const fdef of FLOW_DEFS) {
+      const fid = fdef.id;
+      const nm = normalMap[fid];
+      const fm = failoverMap[fid];
+
+      if (!nm || !fm) {
+        // Flow is unreachable in failover
+        affected.push({
+          fid, sensor: fdef.sensor, color: fdef.color,
+          normalRoute: nm ? routeStr(nm.route) : '-',
+          failoverRoute: fm ? routeStr(fm.route) : 'UNREACHABLE',
+          normalE2E: nm ? nm.e2e : '-',
+          failoverE2E: fm ? fm.e2e : '-',
+          delta: '-',
+          status: fm ? fm.status : 'FAIL',
+          changed: true,
+        });
+        continue;
+      }
+
+      const nRouteStr = routeStr(nm.route);
+      const fRouteStr = routeStr(fm.route);
+      const routeChanged = nRouteStr !== fRouteStr;
+      const delta = round3(fm.e2e - nm.e2e);
+      const sigChange = Math.abs(delta) > 0.5;
+
+      if (routeChanged || sigChange) {
+        affected.push({
+          fid, sensor: fdef.sensor, color: fdef.color,
+          normalRoute: nRouteStr,
+          failoverRoute: fRouteStr,
+          normalE2E: nm.e2e,
+          failoverE2E: fm.e2e,
+          delta,
+          status: fm.status,
+          changed: routeChanged,
+        });
+      }
+    }
+
+    if (affected.length === 0) {
+      panel.innerHTML = '<div style="color:var(--text3);font-size:0.82rem;padding:8px;">No flows affected &mdash; all routes and delays unchanged.</div>';
+      return;
+    }
+
+    let html = `<table class="param-table"><thead><tr>
+      <th>Flow</th><th>Sensor</th><th>Normal Route</th><th>Failover Route</th>
+      <th>Normal E2E</th><th>Failover E2E</th><th>Delta</th><th>Status</th>
+    </tr></thead><tbody>`;
+
+    for (const a of affected) {
+      const routeCls = a.changed ? 'route-path changed' : 'route-path';
+      const deltaCls = a.delta === '-' ? '' : a.delta > 0 ? 'delta-worse' : a.delta < 0 ? 'delta-better' : 'delta-same';
+      const deltaStr = a.delta === '-' ? '-' : (a.delta > 0 ? '+' : '') + a.delta + ' \u00b5s';
+      const statusCls = a.status === 'OK' ? 'status-ok' : a.status === 'MISS' ? 'status-miss' : 'delta-worse';
+      html += `<tr class="${a.changed ? 'route-changed' : ''}">
+        <td><span class="pcp-dot" style="background:${a.color}"></span>${a.fid}</td>
+        <td style="font-size:0.72rem;">${a.sensor}</td>
+        <td class="route-path">${a.normalRoute}</td>
+        <td class="${routeCls}">${a.failoverRoute}</td>
+        <td class="calc">${a.normalE2E !== '-' ? a.normalE2E + ' \u00b5s' : '-'}</td>
+        <td class="calc">${a.failoverE2E !== '-' ? a.failoverE2E + ' \u00b5s' : '-'}</td>
+        <td class="${deltaCls}" style="font-weight:700;">${deltaStr}</td>
+        <td class="${statusCls}">${a.status}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    panel.innerHTML = html;
+  }
+
+  /* ════════════════════════════════════════════
+     Gantt Chart Rendering
+     ════════════════════════════════════════════ */
+  function renderGantt(model, result) {
+    const container = document.getElementById('ganttContainer');
+    container.innerHTML = '';
+    if (!result) return;
+
+    const activeLinks = model.links.filter(l =>
+      result.gcl.links[l.id]?.entries.some(e =>
+        !e.note.includes('non-ST') && !e.note.includes('all-gates-closed')
+      )
+    );
+    if (!activeLinks.length) {
+      container.innerHTML = '<div style="padding:20px;color:var(--text3);text-align:center;">No scheduled packets.</div>';
+      return;
+    }
+
+    const margin = { top: 28, right: 60, bottom: 40, left: 130 };
+    const rowH = 38;
+    const W = container.clientWidth || 900;
+    const H = margin.top + activeLinks.length * rowH + margin.bottom;
+
+    const svg = d3.select(container).append('svg')
+      .attr('viewBox', `0 0 ${W} ${H}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet');
+
+    const defs = svg.append('defs');
+    const gp = defs.append('pattern').attr('id', 'guardHatch')
+      .attr('patternUnits', 'userSpaceOnUse').attr('width', 6).attr('height', 6)
+      .attr('patternTransform', 'rotate(45)');
+    gp.append('rect').attr('width', 6).attr('height', 6).attr('fill', '#f9a825');
+    gp.append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 6)
+      .attr('stroke', 'rgba(0,0,0,0.2)').attr('stroke-width', 2);
+
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+    const innerW = W - margin.left - margin.right;
+    const innerH = activeLinks.length * rowH;
+
+    const x = d3.scaleLinear().domain([0, model.cycle_time_us]).range([0, innerW]);
+    const y = d3.scaleBand().domain(activeLinks.map(l => l.id)).range([0, innerH]).padding(0.15);
+
+    g.append('g').attr('class', 'gcl-grid')
+      .selectAll('line').data(x.ticks(10)).enter().append('line')
+      .attr('x1', d => x(d)).attr('x2', d => x(d)).attr('y1', 0).attr('y2', innerH);
+
+    g.append('g').attr('class', 'gcl-axis').attr('transform', `translate(0,${innerH})`)
+      .call(d3.axisBottom(x).ticks(10).tickFormat(d => d + ' \u00b5s'));
+
+    g.append('g').attr('class', 'gcl-axis')
+      .call(d3.axisLeft(y).tickSize(0).tickPadding(6))
+      .selectAll('text').text(d => {
+        const lnk = model.links.find(l => l.id === d);
+        return lnk ? `${lnk.from} \u2192 ${lnk.to}` : d;
+      }).attr('font-size', '9px');
+
+    g.selectAll('.rbg').data(activeLinks).enter().append('rect')
+      .attr('x', 0).attr('y', d => y(d.id))
+      .attr('width', innerW).attr('height', y.bandwidth())
+      .attr('fill', (_, i) => i % 2 === 0 ? 'rgba(59,130,246,0.03)' : 'transparent').attr('rx', 3);
+
+    const tooltip = document.getElementById('tooltip');
+    for (const lnk of activeLinks) {
+      const entries = result.gcl.links[lnk.id]?.entries || [];
+      for (const e of entries) {
+        const yPos = y(lnk.id);
+        if (yPos === undefined) continue;
+        const bw = y.bandwidth();
+
+        if (e.note === 'guard') {
+          g.append('rect')
+            .attr('x', x(e.start_us)).attr('y', yPos)
+            .attr('width', Math.max(x(e.end_us) - x(e.start_us), 1))
+            .attr('height', bw)
+            .attr('fill', 'url(#guardHatch)')
+            .attr('stroke', '#e8a317').attr('stroke-width', 0.5)
+            .attr('rx', 2).attr('opacity', 0.7);
+        } else if (e.note === 'all-gates-closed') {
+          g.append('rect')
+            .attr('x', x(e.start_us)).attr('y', yPos)
+            .attr('width', Math.max(x(e.end_us) - x(e.start_us), 1))
+            .attr('height', bw)
+            .attr('fill', 'rgba(100,116,139,0.08)')
+            .attr('stroke', 'rgba(100,116,139,0.15)').attr('stroke-width', 0.5)
+            .attr('rx', 2);
+        } else if (!e.note.includes('non-ST')) {
+          const color = flowColor(e.note.split('#')[0]) || '#3B82F6';
+          g.append('rect')
+            .attr('x', x(e.start_us)).attr('y', yPos)
+            .attr('width', Math.max(x(e.end_us) - x(e.start_us), 3))
+            .attr('height', bw)
+            .attr('fill', color).attr('stroke', 'rgba(255,255,255,0.4)')
+            .attr('stroke-width', 0.8).attr('rx', 3).attr('opacity', 0.9)
+            .style('cursor', 'pointer')
+            .on('mouseover', (evt) => {
+              tooltip.innerHTML = `<div class="tt-title" style="color:${color}">${e.note}</div>`
+                + `<div class="tt-row"><span class="tt-k">Gate</span><span class="tt-v">${e.gate_mask}</span></div>`
+                + `<div class="tt-row"><span class="tt-k">Start</span><span class="tt-v">${e.start_us} \u00b5s</span></div>`
+                + `<div class="tt-row"><span class="tt-k">End</span><span class="tt-v">${e.end_us} \u00b5s</span></div>`
+                + `<div class="tt-row"><span class="tt-k">Duration</span><span class="tt-v">${e.duration_us} \u00b5s</span></div>`;
+              tooltip.classList.add('show');
+            })
+            .on('mousemove', (evt) => { tooltip.style.left = (evt.clientX + 12) + 'px'; tooltip.style.top = (evt.clientY - 10) + 'px'; })
+            .on('mouseout', () => tooltip.classList.remove('show'));
+
+          const pw = x(e.end_us) - x(e.start_us);
+          if (pw > 25) {
+            g.append('text').attr('class', 'gcl-label')
+              .attr('x', x(e.start_us) + pw / 2).attr('y', yPos + bw / 2)
+              .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+              .text(e.note.replace('#', '.'));
+          }
+        }
+      }
+
+      // Utilization label
+      let used = 0;
+      for (const e of (result.gcl.links[lnk.id]?.entries || [])) {
+        if (!e.note.includes('non-ST') && !e.note.includes('guard') && !e.note.includes('all-gates-closed')) used += e.duration_us;
+      }
+      g.append('text')
+        .attr('x', innerW + 8).attr('y', y(lnk.id) + y.bandwidth() / 2)
+        .attr('fill', 'var(--text2)').attr('font-size', '11px').attr('font-weight', '600')
+        .attr('dominant-baseline', 'central')
+        .text((used / model.cycle_time_us * 100).toFixed(1) + '%');
+    }
+
+    const mode = document.getElementById('paramMode').value;
+    const modeLabel = mode === 'margin' ? ' | TX Margin: 2\u00b5s'
+                    : mode === 'inflate' ? ' | TX Inflate: +20%' : '';
+    const failLabel = failedPairs.size > 0
+      ? ` | Failed: ${Array.from(failedPairs).join(', ')}`
+      : ' | No failures';
+
+    svg.append('text').attr('x', margin.left).attr('y', margin.top - 10)
+      .attr('fill', 'var(--text3)').attr('font-size', '9px')
+      .text(`Cycle: ${model.cycle_time_us} \u00b5s${modeLabel}${failLabel} | Active: ${activeLinks.length}/${model.links.length} links`);
+
+    // Legend
+    const legendEl = document.getElementById('ganttLegend');
+    const seenFlows = [];
+    for (const pr of result.packetRows) {
+      if (!seenFlows.includes(pr.flow_id)) seenFlows.push(pr.flow_id);
+    }
+    legendEl.innerHTML = seenFlows.map(fid =>
+      `<div class="legend-item"><span class="legend-swatch" style="background:${flowColor(fid)}"></span>${fid}</div>`
+    ).join('');
+  }
+
+  /* ════════════════════════════════════════════
+     Main Resolve Function
+     ════════════════════════════════════════════ */
+  let normalResult = null;
+  let normalModel = null;
+  let failoverResult = null;
+  let failoverModel = null;
+
+  function resolve() {
+    const errorBanner = document.getElementById('errorBanner');
+    errorBanner.style.display = 'none';
+
+    // Normal solve (no failures)
+    try {
+      normalModel = buildModel(new Set());
+      normalResult = solveGreedy(normalModel);
+    } catch (e) {
+      errorBanner.innerHTML = `<strong>Normal solve error:</strong> ${e.message}`;
+      errorBanner.style.display = 'block';
+      return;
+    }
+
+    // Failover solve
+    const failedIds = getFailedLinkIds();
+    failoverResult = null;
+    failoverModel = null;
+    let failoverError = null;
+    const unreachableFlows = [];
+
+    if (failedIds.size > 0) {
+      try {
+        failoverModel = buildModel(failedIds);
+        failoverResult = solveGreedy(failoverModel);
+      } catch (e) {
+        failoverError = e.message;
+        // Try to identify which flows are unreachable
+        if (e.message.includes('No route')) {
+          const match = e.message.match(/No route: (\S+)->(\S+)/);
+          if (match) unreachableFlows.push(`${match[1]} \u2192 ${match[2]}`);
+        }
+      }
+    } else {
+      failoverModel = normalModel;
+      failoverResult = normalResult;
+    }
+
+    // Show error if failover failed
+    if (failoverError) {
+      errorBanner.innerHTML = `<strong>Failover infeasible:</strong> ${failoverError}`
+        + (unreachableFlows.length ? `<br>Unreachable: ${unreachableFlows.join(', ')}` : '')
+        + `<br><span style="font-size:0.75rem;color:var(--text3);">The failed links disconnect one or more flows from ACU_IT. Restore links to recover.</span>`;
+      errorBanner.style.display = 'block';
+    }
+
+    // Render comparison
+    const normalStats = extractStats(normalModel, normalResult);
+    renderCompareCol('normalStats', normalStats, 'Normal', null);
+
+    if (failoverResult) {
+      const failoverStats = extractStats(failoverModel, failoverResult);
+      renderCompareCol('failoverStats', failoverStats, 'Failover', normalStats);
+    } else {
+      document.getElementById('failoverStats').innerHTML =
+        '<div style="color:var(--red);font-weight:700;padding:8px;">Solve failed &mdash; infeasible topology.</div>';
+    }
+
+    // Affected flows
+    if (failoverResult && failedIds.size > 0) {
+      renderAffectedFlows(normalModel, normalResult, failoverModel, failoverResult);
+    } else if (failedIds.size === 0) {
+      document.getElementById('affectedPanel').innerHTML =
+        '<div style="color:var(--text3);font-size:0.82rem;padding:8px;">No link failures active. Click backbone links in topology to simulate.</div>';
+    } else {
+      // Failover failed — show all flows as affected
+      let html = `<table class="param-table"><thead><tr>
+        <th>Flow</th><th>Sensor</th><th>Normal Route</th><th>Failover Route</th>
+        <th>Normal E2E</th><th>Failover E2E</th><th>Delta</th><th>Status</th>
+      </tr></thead><tbody>`;
+      for (const fdef of FLOW_DEFS) {
+        const nm = normalResult.packetRows.find(p => p.flow_id === fdef.id);
+        const nRoute = nm ? routeStr(getRoute(normalModel, nm)) : '-';
+        const nE2E = nm ? nm.e2e_delay_us : '-';
+        html += `<tr class="route-changed">
+          <td><span class="pcp-dot" style="background:${fdef.color}"></span>${fdef.id}</td>
+          <td style="font-size:0.72rem;">${fdef.sensor}</td>
+          <td class="route-path">${nRoute}</td>
+          <td class="route-path changed">UNREACHABLE</td>
+          <td class="calc">${nE2E !== '-' ? nE2E + ' \u00b5s' : '-'}</td>
+          <td class="calc" style="color:var(--red);">-</td>
+          <td class="delta-worse">-</td>
+          <td class="status-miss">FAIL</td>
+        </tr>`;
+      }
+      html += '</tbody></table>';
+      document.getElementById('affectedPanel').innerHTML = html;
+    }
+
+    // Gantt
+    const ganttModel = failoverResult ? failoverModel : normalModel;
+    const ganttResult = failoverResult ? failoverResult : normalResult;
+    renderGantt(ganttModel, ganttResult);
+  }
+
+  /* ════════════════════════════════════════════
+     Event Handlers
+     ════════════════════════════════════════════ */
+  document.getElementById('btnResolve').addEventListener('click', () => {
+    renderTopology();
+    resolve();
+  });
+
+  document.getElementById('btnReset').addEventListener('click', () => {
+    failedPairs.clear();
+    renderTopology();
+    renderFailedTags();
+    resolve();
+  });
+
+  /* ════════════════════════════════════════════
+     Init
+     ════════════════════════════════════════════ */
+  renderTopology();
+  renderFailedTags();
+  resolve();
+  </script>
+</body>
+</html>
