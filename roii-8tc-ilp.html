@@ -252,6 +252,12 @@
         <label style="color:var(--text3);">ILP Time Limit (s)
           <input type="number" id="paramTmlim" value="60" min="10" max="300" step="10" style="width:70px;">
         </label>
+        <label style="color:var(--cyan);font-weight:600;" title="k=1: 경로 고정 (빠름). k=2: 경로+타이밍 동시 최적화 (느림, GLPK 한계로 실패 가능)">ILP k-paths
+          <select id="paramKPaths" style="width:60px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);font-size:0.82rem;">
+            <option value="1" selected>1</option>
+            <option value="2">2</option>
+          </select>
+        </label>
         <button class="btn btn-primary" id="btnGreedy" style="padding:8px 20px;font-size:0.85rem;">&#9654; Greedy</button>
         <button class="btn btn-ilp" id="btnILP" style="padding:8px 20px;font-size:0.85rem;">&#9654; ILP</button>
         <button class="btn btn-compare" id="btnCompare" style="padding:8px 20px;font-size:0.85rem;">&#9654; Compare Both</button>
@@ -279,6 +285,9 @@
         <p><strong>사용률 30~50%</strong>: 패킷 배치 순서와 타이밍 최적화가 중요해지며, ILP가 5~20% 더 나은 목적함수 값을 달성합니다.</p>
         <p><strong>사용률 60%+</strong>: Greedy가 데드라인 미스를 발생시킬 수 있으며, ILP만이 실행 가능한 스케줄을 찾을 수 있습니다.</p>
         <p><strong>ILP 단점</strong>: 계산 시간 (수초~수분), 패킷 70개 제한. 대규모 문제에는 Greedy 필수.</p>
+        <h3 style="margin-top:14px;">ILP k-paths 설정</h3>
+        <p><strong>k=1 (권장)</strong>: 경로 고정, 타이밍만 최적화. Fixed-route 정형화 사용 &mdash; per-pair tight M + window pruning으로 바이너리 변수 ~100-200개. GLPK가 수초 내 최적해를 찾습니다.</p>
+        <p><strong>k=2</strong>: 경로 선택 + 타이밍 동시 최적화. Multi-route 정형화 (z-변수 + global big-M) &mdash; 바이너리 변수 1500개 이상. GLPK WASM의 한계로 시간 내 해를 못 찾을 수 있습니다. (상용 솔버 Gurobi/CPLEX 필요)</p>
         <table class="concept-table">
           <thead><tr><th>Load Scale</th><th>예상 사용률</th><th>예상 차이</th></tr></thead>
           <tbody>
@@ -441,13 +450,14 @@
   }
 
   /* ── Build Model ── */
-  function buildModel() {
+  function buildModel(kPaths) {
     const cycle = getParam('paramCycle') || 1000;
     const guard = getParam('paramGuard');
     const speed = getParam('paramSpeed') || 1000;
     const procDelay = getParam('paramProcDelay') || 5;
     const loadScale = getParam('paramLoadScale') || 1;
     const deadlineFactor = getParam('paramDeadlineFactor') || 1;
+    const k = kPaths || 2;
 
     const base = JSON.parse(JSON.stringify(ROII_REAL_8TC));
     base.cycle_time_us = cycle;
@@ -462,7 +472,7 @@
       period_us: f.period,
       deadline_us: Math.round(f.deadline * deadlineFactor),
       traffic_type: f.id.includes('lidar') ? 'lidar' : 'radar',
-      src: f.src, dst: f.dst, k_paths: 2
+      src: f.src, dst: f.dst, k_paths: k
     }));
 
     return base;
@@ -1005,7 +1015,7 @@
   /* ── Solve Greedy ── */
   function runGreedy() {
     try {
-      currentModel = buildModel();
+      currentModel = buildModel(2);  // Greedy always uses k_paths=2 (fast, explores routes)
       const t0 = performance.now();
       greedyResult = solveGreedy(currentModel);
       const elapsed = round3(performance.now() - t0);
@@ -1031,17 +1041,30 @@
   /* ── Solve ILP ── */
   async function runILP() {
     try {
+      const ilpKPaths = parseInt(document.getElementById('paramKPaths').value) || 1;
+
       // Check packet count first
-      const testModel = buildModel();
+      const testModel = buildModel(ilpKPaths);
       const pkts = expandPackets(testModel);
       if (pkts.length > 70) {
         setStatus(`<span style="color:var(--red);">ILP: Too many packets (${pkts.length} > 70 limit). Reduce Load Scale or increase cycle time.</span>`);
         return;
       }
 
-      currentModel = buildModel();
+      // Estimate problem size for user feedback
+      const nRoutes = pkts.reduce((s, pk) => s + pk.routes.length, 0);
+      const allSingle = pkts.every(pk => pk.routes.length === 1);
+      const formulation = allSingle ? 'Fixed-route (tight)' : 'Multi-route (big-M)';
+      const estBins = allSingle
+        ? '~' + Math.round(pkts.length * (pkts.length - 1) / 4)  // pruned pairs
+        : '~' + Math.round(nRoutes + nRoutes * (nRoutes - 1) / 3);  // z + y vars
+
+      currentModel = buildModel(ilpKPaths);
       const tmlim = parseInt(document.getElementById('paramTmlim').value) || 60;
-      setStatus(`<span class="spinner-sm"></span><span style="color:var(--purple);font-weight:700;">Solving ILP...</span> (${pkts.length} packets, tmlim: ${tmlim}s)`);
+      setStatus(`<span class="spinner-sm"></span><span style="color:var(--purple);font-weight:700;">Solving ILP...</span> (${pkts.length} pkts, k=${ilpKPaths}, ${formulation}, est. binaries: ${estBins}, tmlim: ${tmlim}s)`);
+
+      // Yield to UI before heavy computation
+      await new Promise(r => setTimeout(r, 50));
 
       const glpk = await ensureGLPK();
       if (!glpk) {
@@ -1083,7 +1106,16 @@
       renderAll();
     } catch (e) {
       let msg = e.message || String(e);
-      setStatus(`<span style="color:var(--red);">ILP Error: ${msg}</span>`);
+      const ilpKPaths = parseInt(document.getElementById('paramKPaths').value) || 1;
+      let hint = '';
+      if (msg.includes('infeasible') || msg.includes('status=1') || msg.includes('status=4')) {
+        if (ilpKPaths > 1) {
+          hint = ' — k=2 multi-route 정형화는 바이너리 변수가 많아 GLPK WASM에서 풀기 어렵습니다. k=1로 변경하세요.';
+        } else {
+          hint = ' — Time Limit을 늘리거나, Load Scale/Deadline Factor를 완화해 보세요.';
+        }
+      }
+      setStatus(`<span style="color:var(--red);">ILP Error: ${msg}${hint}</span>`);
       console.error(e);
       // Keep Greedy result visible
       renderAll();
