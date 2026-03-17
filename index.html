@@ -146,15 +146,15 @@
       <a class="landing-card" href="roii-8tc-multiroute.html">
         <h2>8-TC Multi-Route ILP</h2>
         <p>
-          경로 조합별 고정 경로 ILP를 순차 실행(4&times;k=1).
-          k=2 ILP의 1500+ 바이너리 문제를 우회하여 각 ~150개로 수초 내 최적해.
-          S1+S2+S3으로 모든 단일 백본 링크 장애 커버 + Failover 매트릭스.
+          정상 + FL 장애 + FR 장애 3가지 경로 시나리오를 각각 고정 경로 ILP로 풀어
+          GCL 스케줄 3세트를 사전 계산합니다. 링크 장애 시 즉시 전환.
+          시나리오별 Gantt 차트 + Board GCL 설정 비교.
         </p>
         <div class="card-tags">
-          <span>4&times; Fixed-Route ILP</span>
-          <span>Failover Matrix</span>
-          <span>Route Scenarios</span>
-          <span>~15s Total</span>
+          <span>3&times; Fixed-Route ILP</span>
+          <span>Per-Scenario GCL</span>
+          <span>Failover Ready</span>
+          <span>~10s Total</span>
         </div>
       </a>
 
