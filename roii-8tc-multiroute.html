@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>8-TC Multi-Route ILP &mdash; TSN/GCL Solver</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    :root {
+      --bg: #f8f9fa; --bg2: #f0f2f5;
+      --card: #ffffff; --card-hi: #f8fafc;
+      --border: rgba(59,130,246,0.2); --border-hi: rgba(59,130,246,0.4);
+      --text: #1e293b; --text2: #475569; --text3: #64748b;
+      --cyan: #0891b2; --blue: #3B82F6; --purple: #7c3aed;
+      --orange: #d97706; --red: #dc2626; --green: #059669; --pink: #db2777;
+      --guard: #d97706; --be: #e2e8f0;
+    }
+    body { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 50%, #dee2e6 100%); }
+    .bg-grid {
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59,130,246,0.06), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(6,182,212,0.04), transparent),
+        linear-gradient(rgba(59,130,246,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.06) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+    }
+    .card {
+      background: rgba(255,255,255,0.95);
+      border: 1px solid rgba(59,130,246,0.15);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    }
+    .card:hover { border-color: rgba(59,130,246,0.3); }
+    .card-title { color: var(--text2); }
+    .card-title::before { background: var(--blue); }
+    .tooltip {
+      background: rgba(255,255,255,0.97);
+      border: 1px solid rgba(59,130,246,0.25);
+      color: var(--text); box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
+    .tooltip .tt-title { color: var(--blue); }
+    .tooltip .tt-k { color: var(--text3); }
+    .btn-primary { background: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%); color: #fff; }
+    .btn-secondary { background: rgba(248,250,252,0.8); color: var(--text); border: 1px solid rgba(59,130,246,0.2); }
+    .btn-secondary:hover { border-color: var(--blue); background: #fff; }
+    .gcl-grid line { stroke: rgba(59,130,246,0.06); stroke-width: 1; }
+    .gcl-axis text { fill: var(--text2) !important; font-size: 11px; }
+    .gcl-axis path, .gcl-axis line { stroke: rgba(59,130,246,0.15); }
+    .gcl-label { fill: rgba(0,0,0,0.75); font-size: 11px; font-weight: 700; pointer-events: none; }
+
+    /* Header */
+    .keti-header {
+      display: flex; align-items: center; justify-content: center;
+      gap: 16px; margin-bottom: 8px;
+    }
+    .keti-header img { height: 40px; width: auto; }
+    .keti-header h1 {
+      font-size: 2rem; font-weight: 800; letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #7c3aed 0%, #3B82F6 50%, #059669 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+
+    /* Global Params */
+    .global-params {
+      display: flex; gap: 16px; flex-wrap: wrap; align-items: center;
+      margin-bottom: 12px;
+    }
+    .global-params label {
+      font-size: 0.78rem; font-weight: 600; color: var(--text2);
+    }
+    .global-params input[type="number"] {
+      width: 90px; padding: 4px 8px; border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 4px; font-size: 0.82rem; font-family: 'Courier New', monospace;
+      text-align: right;
+    }
+    .global-params input[type="number"]:focus {
+      outline: none; border-color: var(--blue);
+      box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+    }
+
+    /* Status Bar */
+    .status-bar {
+      display: flex; gap: 16px; flex-wrap: wrap; align-items: center;
+      padding: 10px 16px; border-radius: 8px;
+      background: rgba(59,130,246,0.04);
+      border: 1px solid rgba(59,130,246,0.1);
+      font-size: 0.82rem; color: var(--text2);
+      margin-bottom: 14px; min-height: 42px;
+    }
+    .status-bar .spinner-sm {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid rgba(124,58,237,0.2); border-top-color: var(--purple);
+      border-radius: 50%; animation: spin 0.6s linear infinite;
+      vertical-align: middle; margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Concept Card */
+    .concept-card {
+      border-left: 4px solid var(--blue);
+      background: rgba(59,130,246,0.03);
+      padding: 16px 20px; border-radius: 0 8px 8px 0;
+      margin-bottom: 14px;
+    }
+    .concept-card h3 {
+      font-size: 0.88rem; font-weight: 700; color: var(--blue);
+      margin: 0 0 10px 0;
+    }
+    .concept-card p {
+      font-size: 0.82rem; color: var(--text2); line-height: 1.7; margin: 4px 0;
+    }
+
+    /* Scenario Table */
+    .scenario-table {
+      width: 100%; border-collapse: collapse; font-size: 0.78rem;
+    }
+    .scenario-table th {
+      background: rgba(59,130,246,0.06); color: var(--text2);
+      padding: 6px 10px; text-align: center; font-weight: 700;
+      border-bottom: 2px solid rgba(59,130,246,0.15);
+      font-size: 0.72rem;
+    }
+    .scenario-table th:first-child { text-align: left; }
+    .scenario-table td {
+      padding: 5px 8px; border-bottom: 1px solid rgba(59,130,246,0.08);
+      text-align: center; vertical-align: middle;
+    }
+    .scenario-table td:first-child { text-align: left; font-weight: 600; }
+    .scenario-table tr:hover { background: rgba(59,130,246,0.04); }
+    .route-direct {
+      background: rgba(5,150,105,0.08); color: var(--green); font-weight: 600;
+      border-radius: 4px; padding: 2px 6px;
+    }
+    .route-detour {
+      background: rgba(217,119,6,0.08); color: var(--orange); font-weight: 600;
+      border-radius: 4px; padding: 2px 6px;
+    }
+    .sc-dot {
+      display: inline-block; width: 10px; height: 10px;
+      border-radius: 50%; margin-right: 6px; vertical-align: middle;
+    }
+
+    /* Comparison Table */
+    .cmp-table {
+      width: 100%; border-collapse: collapse; font-size: 0.78rem;
+    }
+    .cmp-table th {
+      background: rgba(59,130,246,0.06); color: var(--text2);
+      padding: 8px 10px; text-align: center; font-weight: 700;
+      border-bottom: 2px solid rgba(59,130,246,0.15);
+      font-size: 0.72rem;
+    }
+    .cmp-table th:first-child { text-align: left; }
+    .cmp-table td {
+      padding: 5px 10px; border-bottom: 1px solid rgba(59,130,246,0.08);
+      text-align: center; font-family: 'Courier New', monospace;
+      font-size: 0.76rem;
+    }
+    .cmp-table td:first-child {
+      text-align: left; font-family: inherit; font-weight: 600; color: var(--text2);
+    }
+    .cmp-table tr:hover { background: rgba(59,130,246,0.04); }
+    .cmp-winner { color: var(--green); font-weight: 700; }
+    .cmp-miss { color: var(--red); font-weight: 700; }
+
+    /* Failover Matrix */
+    .fo-table {
+      width: 100%; border-collapse: collapse; font-size: 0.78rem;
+    }
+    .fo-table th {
+      background: rgba(59,130,246,0.06); color: var(--text2);
+      padding: 6px 10px; text-align: center; font-weight: 700;
+      border-bottom: 2px solid rgba(59,130,246,0.15);
+      font-size: 0.72rem;
+    }
+    .fo-table th:first-child { text-align: left; }
+    .fo-table td {
+      padding: 5px 10px; border-bottom: 1px solid rgba(59,130,246,0.08);
+      text-align: center; font-weight: 600; font-size: 0.82rem;
+    }
+    .fo-table td:first-child {
+      text-align: left; font-weight: 600; color: var(--text2); font-size: 0.76rem;
+    }
+    .fo-table tr:hover { background: rgba(59,130,246,0.04); }
+    .fo-ok { color: var(--green); }
+    .fo-fail { color: var(--red); }
+    .fo-best { background: rgba(5,150,105,0.08); font-weight: 700; color: var(--green); font-size: 0.72rem; }
+
+    /* Gantt */
+    .gantt-wrap { min-height: 300px; position: relative; }
+    .gantt-legend {
+      display: flex; flex-wrap: wrap; gap: 8px 16px;
+      padding: 10px 16px; border-top: 1px solid rgba(59,130,246,0.1);
+      background: #f8fafc; border-radius: 0 0 8px 8px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text2); }
+    .legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+
+    /* Scenario selector */
+    .scenario-selector {
+      display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 10px;
+    }
+    .scenario-selector label {
+      font-size: 0.78rem; font-weight: 600; color: var(--text2);
+    }
+    .scenario-selector select {
+      padding: 5px 10px; border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 6px; font-size: 0.82rem; background: #fff; color: var(--text);
+    }
+    .scenario-selector select:focus {
+      outline: none; border-color: var(--blue);
+      box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+    }
+
+    /* Topology */
+    .topo-container {
+      position: relative; overflow: hidden; border-radius: 10px;
+      background: rgba(248,250,252,0.8); min-height: 400px;
+    }
+
+    /* Coverage note */
+    .coverage-note {
+      margin-top: 12px; padding: 10px 16px; border-radius: 8px;
+      background: rgba(5,150,105,0.05); border: 1px solid rgba(5,150,105,0.15);
+      font-size: 0.78rem; color: var(--text2); line-height: 1.7;
+    }
+    .coverage-note strong { color: var(--green); }
+    .coverage-note .warning { color: var(--orange); }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="wrap">
+    <!-- Header -->
+    <div class="header">
+      <div class="keti-header">
+        <img src="keti.png" alt="KETI" onerror="this.style.display='none'">
+        <h1>8-TC Multi-Route ILP</h1>
+      </div>
+      <div class="sub">
+        경로 조합별 고정 경로 ILP를 순차 실행하여<br>
+        최적 스케줄 + Failover 백업 계획을 동시에 생성합니다.
+      </div>
+    </div>
+
+    <!-- Parameters -->
+    <div class="card">
+      <div class="card-title">Parameters</div>
+      <div class="global-params">
+        <label>Cycle (&micro;s)
+          <input type="number" id="paramCycle" value="1000" min="100" step="100">
+        </label>
+        <label>Guard (&micro;s)
+          <input type="number" id="paramGuard" value="0" min="0" step="0.1">
+        </label>
+        <label>Speed (Mbps)
+          <input type="number" id="paramSpeed" value="1000" min="100" step="100">
+        </label>
+        <label>Proc Delay (&micro;s)
+          <input type="number" id="paramProcDelay" value="5" min="0" step="0.5">
+        </label>
+        <label style="color:var(--text3);">ILP Time Limit (s)
+          <input type="number" id="paramTmlim" value="60" min="10" max="300" step="10" style="width:70px;">
+        </label>
+        <button class="btn btn-primary" id="btnSolveAll" style="padding:8px 24px;font-size:0.88rem;">&#9654; Solve All Scenarios</button>
+      </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="status-bar" id="statusBar">
+      Press <strong>Solve All Scenarios</strong> to run Greedy + 4 ILP solves.
+    </div>
+
+    <!-- Concept Card -->
+    <div class="card">
+      <div class="card-title">Approach</div>
+      <div class="concept-card">
+        <h3>"왜 Multi-Route ILP인가?"</h3>
+        <p><strong>k_paths=2 ILP</strong>: z-변수 + global big-M &rarr; 바이너리 1500+개 &rarr; GLPK WASM으로 풀 수 없음</p>
+        <p><strong>Multi-Route 방식</strong>: 경로 조합 4개 &times; k=1 ILP &rarr; 바이너리 ~150개 &times; 4회 &rarr; 총 ~15초</p>
+        <p><strong>결과</strong>: 최적 스케줄 4개 사전 계산 &rarr; 단일 링크 장애 시 즉시 전환</p>
+        <p><strong>S1+S2+S3</strong> 만으로 모든 단일 백본 링크 장애 커버 (gateway 제외)</p>
+      </div>
+    </div>
+
+    <!-- Route Scenarios Table -->
+    <div class="card">
+      <div class="card-title">Route Scenarios</div>
+      <table class="scenario-table">
+        <thead>
+          <tr>
+            <th>Scenario</th>
+            <th>FL Group (4 flows)</th>
+            <th>FR Group (2 flows)</th>
+            <th>REAR Group (3 flows)</th>
+            <th>Backbone Links Used</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="sc-dot" style="background:#3B82F6;"></span>S1: All Direct</td>
+            <td><span class="route-direct">FL&rarr;REAR (direct)</span></td>
+            <td><span class="route-direct">FR&rarr;REAR (direct)</span></td>
+            <td><span class="route-direct">REAR&rarr;ACU</span></td>
+            <td style="font-size:0.7rem;font-family:'Courier New',monospace;">FL&rarr;REAR, FR&rarr;REAR</td>
+          </tr>
+          <tr>
+            <td><span class="sc-dot" style="background:#059669;"></span>S2: FL via FR</td>
+            <td><span class="route-detour">FL&rarr;FR&rarr;REAR (detour)</span></td>
+            <td><span class="route-direct">FR&rarr;REAR (direct)</span></td>
+            <td><span class="route-direct">REAR&rarr;ACU</span></td>
+            <td style="font-size:0.7rem;font-family:'Courier New',monospace;">FL&rarr;FR, FR&rarr;REAR</td>
+          </tr>
+          <tr>
+            <td><span class="sc-dot" style="background:#d97706;"></span>S3: FR via FL</td>
+            <td><span class="route-direct">FL&rarr;REAR (direct)</span></td>
+            <td><span class="route-detour">FR&rarr;FL&rarr;REAR (detour)</span></td>
+            <td><span class="route-direct">REAR&rarr;ACU</span></td>
+            <td style="font-size:0.7rem;font-family:'Courier New',monospace;">FL&rarr;REAR, FR&rarr;FL</td>
+          </tr>
+          <tr>
+            <td><span class="sc-dot" style="background:#dc2626;"></span>S4: Cross-Route</td>
+            <td><span class="route-detour">FL&rarr;FR&rarr;REAR (detour)</span></td>
+            <td><span class="route-detour">FR&rarr;FL&rarr;REAR (detour)</span></td>
+            <td><span class="route-direct">REAR&rarr;ACU</span></td>
+            <td style="font-size:0.7rem;font-family:'Courier New',monospace;">All 4 backbone links</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Results Comparison -->
+    <div class="card" id="resultsCard" style="display:none;">
+      <div class="card-title">Results Comparison</div>
+      <div style="overflow-x:auto;">
+        <table class="cmp-table" id="resultsTable">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th style="color:var(--blue);">Greedy</th>
+              <th style="color:#3B82F6;">S1</th>
+              <th style="color:#059669;">S2</th>
+              <th style="color:#d97706;">S3</th>
+              <th style="color:#dc2626;">S4</th>
+            </tr>
+          </thead>
+          <tbody id="resultsTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Failover Matrix -->
+    <div class="card" id="failoverCard" style="display:none;">
+      <div class="card-title">Failover Matrix</div>
+      <div style="overflow-x:auto;">
+        <table class="fo-table" id="failoverTable">
+          <thead>
+            <tr>
+              <th>Link Failure</th>
+              <th style="color:#3B82F6;">S1</th>
+              <th style="color:#059669;">S2</th>
+              <th style="color:#d97706;">S3</th>
+              <th style="color:#dc2626;">S4</th>
+            </tr>
+          </thead>
+          <tbody id="failoverTableBody"></tbody>
+        </table>
+      </div>
+      <div class="coverage-note" id="coverageNote"></div>
+    </div>
+
+    <!-- Gantt Chart -->
+    <div class="card" id="ganttCard" style="display:none;">
+      <div class="card-title">Schedule Timeline</div>
+      <div class="scenario-selector">
+        <label>Select Scenario:</label>
+        <select id="ganttSelector">
+          <option value="greedy">Greedy (k=2)</option>
+          <option value="S1" selected>S1: All Direct</option>
+          <option value="S2">S2: FL via FR</option>
+          <option value="S3">S3: FR via FL</option>
+          <option value="S4">S4: Cross-Route</option>
+        </select>
+        <span id="ganttInfo" style="font-size:0.76rem;color:var(--text3);"></span>
+      </div>
+      <div class="gantt-wrap" id="ganttContainer"></div>
+      <div class="gantt-legend" id="ganttLegend"></div>
+    </div>
+
+    <!-- Topology -->
+    <div class="card" id="topoCard">
+      <div class="card-title">Network Topology</div>
+      <div class="scenario-selector">
+        <label>Highlight Scenario:</label>
+        <select id="topoSelector">
+          <option value="">None</option>
+          <option value="S1">S1: All Direct</option>
+          <option value="S2">S2: FL via FR</option>
+          <option value="S3">S3: FR via FL</option>
+          <option value="S4">S4: Cross-Route</option>
+        </select>
+      </div>
+      <div class="topo-container" id="topoContainer"></div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="card" style="padding:12px 20px;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <a href="roii-8tc.html" class="btn btn-secondary" style="font-size:0.78rem;">8-TC</a>
+        <a href="roii-8tc-stable.html" class="btn btn-secondary" style="font-size:0.78rem;">Margin</a>
+        <a href="roii-8tc-inflate.html" class="btn btn-secondary" style="font-size:0.78rem;">Inflate</a>
+        <a href="roii-8tc-compare.html" class="btn btn-secondary" style="font-size:0.78rem;">Compare</a>
+        <a href="roii-8tc-failover.html" class="btn btn-secondary" style="font-size:0.78rem;">Failover</a>
+        <a href="roii-8tc-ilp.html" class="btn btn-secondary" style="font-size:0.78rem;">ILP</a>
+        <a href="roii-debug.html" class="btn btn-secondary" style="font-size:0.78rem;">Debugger</a>
+        <a href="index.html" class="btn btn-secondary" style="margin-left:auto;font-size:0.78rem;">Home</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <script src="vendor/d3.min.js"></script>
+  <script type="module">
+  import { ROII_REAL_8TC, getRealPositions, ROII_REAL_NODE_COLORS } from './js/roii-real-data.js';
+  import { solveGreedy, solveILP, expandPackets, generateKPaths, initTooltip, flowColor } from './js/ilp-core.js';
+
+  initTooltip();
+
+  /* ════════════════════════════════════════════
+     GLPK Lazy Loader
+     ════════════════════════════════════════════ */
+  let glpkInstance = null;
+  let glpkLoading = false;
+  async function ensureGLPK() {
+    if (glpkInstance) return glpkInstance;
+    if (glpkLoading) {
+      while (glpkLoading) await new Promise(r => setTimeout(r, 100));
+      return glpkInstance;
+    }
+    glpkLoading = true;
+    try {
+      const GLPK = (await import('./vendor/glpk.js')).default;
+      glpkInstance = await GLPK();
+    } catch (e) {
+      console.error('GLPK load error:', e);
+    }
+    glpkLoading = false;
+    return glpkInstance;
+  }
+  ensureGLPK(); // preload
+
+  /* ════════════════════════════════════════════
+     Flow Definitions
+     ════════════════════════════════════════════ */
+  const FLOW_DEFS = [
+    { pcp: 7, id: 'f_lidar_fc',  sensor: 'AutoL G32',       payload: 1276, period: 200, deadline: 1000, src: 'LIDAR_FC',  dst: 'ACU_IT', color: '#10B981' },
+    { pcp: 6, id: 'f_lidar_r',   sensor: 'AutoL G32',       payload: 1276, period: 200, deadline: 1000, src: 'LIDAR_R',   dst: 'ACU_IT', color: '#059669' },
+    { pcp: 5, id: 'f_lidar_fl',  sensor: 'Hesai Pandar',    payload: 1290, period: 500, deadline: 1000, src: 'LIDAR_FL',  dst: 'ACU_IT', color: '#0D9488' },
+    { pcp: 4, id: 'f_lidar_fr',  sensor: 'Hesai Pandar',    payload: 1290, period: 500, deadline: 1000, src: 'LIDAR_FR',  dst: 'ACU_IT', color: '#0891b2' },
+    { pcp: 3, id: 'f_radar_f',   sensor: 'MRR-35',          payload: 64,   period: 500, deadline: 1000, src: 'RADAR_F',   dst: 'ACU_IT', color: '#952aff' },
+    { pcp: 2, id: 'f_radar_flc', sensor: 'MRR-35',          payload: 64,   period: 500, deadline: 1000, src: 'RADAR_FLC', dst: 'ACU_IT', color: '#7c3aed' },
+    { pcp: 1, id: 'f_radar_frc', sensor: 'MRR-35',          payload: 64,   period: 500, deadline: 1000, src: 'RADAR_FRC', dst: 'ACU_IT', color: '#db2777' },
+    { pcp: 0, id: 'f_radar_rlc', sensor: 'MRR-35 (shared)', payload: 64,   period: 500, deadline: 1000, src: 'RADAR_RLC', dst: 'ACU_IT', color: '#e11d48' },
+    { pcp: 0, id: 'f_radar_rrc', sensor: 'MRR-35 (shared)', payload: 64,   period: 500, deadline: 1000, src: 'RADAR_RRC', dst: 'ACU_IT', color: '#dc2626' }
+  ];
+
+  const round3 = v => Math.round(v * 1000) / 1000;
+
+  /* ════════════════════════════════════════════
+     Route Precomputation
+     ════════════════════════════════════════════ */
+  const base = JSON.parse(JSON.stringify(ROII_REAL_8TC));
+  const adj = new Map();
+  for (const l of base.links) {
+    if (!adj.has(l.from)) adj.set(l.from, []);
+    adj.get(l.from).push({ to: l.to, lid: l.id });
+  }
+
+  const flowPaths = {};
+  for (const f of FLOW_DEFS) {
+    flowPaths[f.id] = generateKPaths(adj, f.src, f.dst, 2, base.nodes.length + 2);
+  }
+
+  /* ════════════════════════════════════════════
+     Flow Groups & Scenarios
+     ════════════════════════════════════════════ */
+  const FL_FLOWS = ['f_lidar_fc', 'f_lidar_fl', 'f_radar_f', 'f_radar_flc'];
+  const FR_FLOWS = ['f_lidar_fr', 'f_radar_frc'];
+  const REAR_FLOWS = ['f_lidar_r', 'f_radar_rlc', 'f_radar_rrc'];
+
+  const SCENARIOS = [
+    { id: 'S1', name: 'All Direct',  desc: '모든 플로우 최단 경로',       flRoute: 0, frRoute: 0, color: '#3B82F6',
+      needs: ['l_swfl_swrear', 'l_swfr_swrear'] },
+    { id: 'S2', name: 'FL via FR',   desc: 'FL 그룹이 FR 경유 우회',      flRoute: 1, frRoute: 0, color: '#059669',
+      needs: ['l_swfl_swfr', 'l_swfr_swrear'] },
+    { id: 'S3', name: 'FR via FL',   desc: 'FR 그룹이 FL 경유 우회',      flRoute: 0, frRoute: 1, color: '#d97706',
+      needs: ['l_swfl_swrear', 'l_swfr_swfl'] },
+    { id: 'S4', name: 'Cross-Route', desc: '양방향 교차 우회 (부하 분산)', flRoute: 1, frRoute: 1, color: '#dc2626',
+      needs: ['l_swfl_swfr', 'l_swfr_swfl', 'l_swfl_swrear', 'l_swfr_swrear'] }
+  ];
+
+  const BACKBONE_LINKS = [
+    { id: 'l_swfl_swrear', label: 'FL \u2192 REAR' },
+    { id: 'l_swfr_swrear', label: 'FR \u2192 REAR' },
+    { id: 'l_swfl_swfr',   label: 'FL \u2192 FR' },
+    { id: 'l_swfr_swfl',   label: 'FR \u2192 FL' }
+  ];
+
+  /* ════════════════════════════════════════════
+     Parameter Helpers
+     ════════════════════════════════════════════ */
+  function getParam(id) { return parseFloat(document.getElementById(id).value) || 0; }
+
+  function setStatus(html) {
+    document.getElementById('statusBar').innerHTML = html;
+  }
+
+  /* ════════════════════════════════════════════
+     Model Builders
+     ════════════════════════════════════════════ */
+  function buildScenarioModel(scenario) {
+    const cycle = getParam('paramCycle') || 1000;
+    const guard = getParam('paramGuard');
+    const speed = getParam('paramSpeed') || 1000;
+    const procDelay = getParam('paramProcDelay') || 5;
+
+    const m = JSON.parse(JSON.stringify(ROII_REAL_8TC));
+    m.cycle_time_us = cycle;
+    m.guard_band_us = guard;
+    m.processing_delay_us = procDelay;
+    for (const lnk of m.links) lnk.rate_mbps = speed;
+
+    m.flows = FLOW_DEFS.map(f => {
+      let routeIdx = 0;
+      if (FL_FLOWS.includes(f.id)) routeIdx = scenario.flRoute;
+      else if (FR_FLOWS.includes(f.id)) routeIdx = scenario.frRoute;
+
+      const paths = flowPaths[f.id];
+      const selectedPath = paths[Math.min(routeIdx, paths.length - 1)];
+
+      return {
+        id: f.id, PCP: f.pcp,
+        payload_bytes: f.payload,
+        period_us: f.period,
+        deadline_us: f.deadline,
+        traffic_type: f.id.includes('lidar') ? 'lidar' : 'radar',
+        src: f.src, dst: f.dst,
+        k_paths: 1,
+        candidate_paths: [selectedPath]
+      };
+    });
+
+    return m;
+  }
+
+  function buildGreedyModel() {
+    const cycle = getParam('paramCycle') || 1000;
+    const guard = getParam('paramGuard');
+    const speed = getParam('paramSpeed') || 1000;
+    const procDelay = getParam('paramProcDelay') || 5;
+
+    const m = JSON.parse(JSON.stringify(ROII_REAL_8TC));
+    m.cycle_time_us = cycle;
+    m.guard_band_us = guard;
+    m.processing_delay_us = procDelay;
+    for (const lnk of m.links) lnk.rate_mbps = speed;
+
+    m.flows = FLOW_DEFS.map(f => ({
+      id: f.id, PCP: f.pcp,
+      payload_bytes: f.payload,
+      period_us: f.period,
+      deadline_us: f.deadline,
+      traffic_type: f.id.includes('lidar') ? 'lidar' : 'radar',
+      src: f.src, dst: f.dst,
+      k_paths: 2
+    }));
+
+    return m;
+  }
+
+  /* ════════════════════════════════════════════
+     E2E Stats Extraction
+     ════════════════════════════════════════════ */
+  function getE2EStats(result) {
+    if (!result || result.error) return null;
+    const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
+    if (!stPkts.length) return { worst: 0, avg: 0, allOk: true, missCount: 0 };
+    const delays = stPkts.map(p => p.e2e_delay_us);
+    const worst = Math.max(...delays);
+    const avg = round3(delays.reduce((a, b) => a + b, 0) / delays.length);
+    const missCount = stPkts.filter(p => p.status === 'MISS').length;
+    return { worst, avg, allOk: missCount === 0, missCount };
+  }
+
+  /* ════════════════════════════════════════════
+     Stored Results
+     ════════════════════════════════════════════ */
+  let greedyResult = null;
+  let greedyModel = null;
+  const ilpResults = {};   // scenario id -> result
+  const ilpModels = {};    // scenario id -> model
+
+  /* ════════════════════════════════════════════
+     Solve All Scenarios
+     ════════════════════════════════════════════ */
+  async function solveAll() {
+    const btn = document.getElementById('btnSolveAll');
+    btn.disabled = true;
+
+    try {
+      // 1. Greedy baseline
+      setStatus('<span class="spinner-sm"></span> Running Greedy (k=2, free route choice)...');
+      await new Promise(r => setTimeout(r, 30));
+
+      try {
+        greedyModel = buildGreedyModel();
+        greedyResult = solveGreedy(greedyModel);
+      } catch (e) {
+        greedyResult = { error: e.message };
+        greedyModel = null;
+        console.error('Greedy error:', e);
+      }
+
+      // 2. Load GLPK
+      setStatus('<span class="spinner-sm"></span> Loading GLPK WASM...');
+      await new Promise(r => setTimeout(r, 30));
+      const glpk = await ensureGLPK();
+      if (!glpk) {
+        setStatus('<span style="color:var(--red);">GLPK failed to load. Cannot run ILP.</span>');
+        btn.disabled = false;
+        renderAll();
+        return;
+      }
+
+      const tmlim = parseInt(document.getElementById('paramTmlim').value) || 60;
+
+      // 3. Solve each scenario
+      for (let i = 0; i < SCENARIOS.length; i++) {
+        const sc = SCENARIOS[i];
+        setStatus(`<span class="spinner-sm"></span> Solving <strong style="color:${sc.color};">${sc.id}: ${sc.name}</strong>... (${i + 1}/${SCENARIOS.length})`);
+        await new Promise(r => setTimeout(r, 50));
+
+        try {
+          const model = buildScenarioModel(sc);
+          ilpModels[sc.id] = model;
+          ilpResults[sc.id] = await solveILP(model, glpk, { tmlim });
+        } catch (e) {
+          ilpResults[sc.id] = { error: e.message };
+          ilpModels[sc.id] = buildScenarioModel(sc);
+          console.error(`${sc.id} error:`, e);
+        }
+      }
+
+      // 4. Summary status
+      const solved = SCENARIOS.filter(sc => ilpResults[sc.id] && !ilpResults[sc.id].error);
+      const failed = SCENARIOS.filter(sc => ilpResults[sc.id]?.error);
+      let statusHtml = `<span style="color:var(--green);font-weight:700;">${solved.length}/4 ILP scenarios solved.</span>`;
+      if (failed.length > 0) {
+        statusHtml += ` <span style="color:var(--red);">Failed: ${failed.map(s => s.id).join(', ')}</span>`;
+      }
+      if (greedyResult && !greedyResult.error) {
+        statusHtml += ` | Greedy obj: ${greedyResult.objective} \u00b5s`;
+      }
+      const bestSc = solved.reduce((best, sc) => {
+        const obj = ilpResults[sc.id].objective;
+        return (!best || obj < best.obj) ? { id: sc.id, obj } : best;
+      }, null);
+      if (bestSc) {
+        statusHtml += ` | Best ILP: <strong style="color:var(--green);">${bestSc.id}</strong> (${bestSc.obj} \u00b5s)`;
+      }
+      setStatus(statusHtml);
+
+    } catch (e) {
+      setStatus(`<span style="color:var(--red);">Error: ${e.message}</span>`);
+      console.error(e);
+    }
+
+    btn.disabled = false;
+    renderAll();
+  }
+
+  /* ════════════════════════════════════════════
+     Render All
+     ════════════════════════════════════════════ */
+  function renderAll() {
+    renderResultsTable();
+    renderFailoverMatrix();
+    renderGanttForSelected();
+    renderTopologyForSelected();
+  }
+
+  /* ════════════════════════════════════════════
+     Results Comparison Table
+     ════════════════════════════════════════════ */
+  function renderResultsTable() {
+    const card = document.getElementById('resultsCard');
+    const hasAny = (greedyResult && !greedyResult.error) || SCENARIOS.some(sc => ilpResults[sc.id] && !ilpResults[sc.id].error);
+    if (!hasAny) { card.style.display = 'none'; return; }
+    card.style.display = '';
+
+    const gStats = (greedyResult && !greedyResult.error) ? getE2EStats(greedyResult) : null;
+
+    // Find best ILP objective
+    let bestObj = Infinity;
+    for (const sc of SCENARIOS) {
+      const r = ilpResults[sc.id];
+      if (r && !r.error && typeof r.objective === 'number' && r.objective < bestObj) bestObj = r.objective;
+    }
+
+    function cell(val, isBest) {
+      if (val === '-' || val === undefined || val === null) return '<td>-</td>';
+      return `<td${isBest ? ' class="cmp-winner"' : ''}>${val}</td>`;
+    }
+
+    function scVal(scId, getter, bestVal) {
+      const r = ilpResults[scId];
+      if (!r || r.error) return '<td style="color:var(--red);font-size:0.7rem;">error</td>';
+      const v = getter(r);
+      const isBest = bestVal !== undefined && v === bestVal;
+      return cell(v, isBest);
+    }
+
+    const rows = [];
+
+    // Method
+    rows.push({ label: 'Method',
+      g: greedyResult && !greedyResult.error ? greedyResult.method : '-',
+      vals: SCENARIOS.map(sc => ilpResults[sc.id]?.error ? 'error' : (ilpResults[sc.id]?.method || '-'))
+    });
+
+    // Objective
+    const objGetter = r => r.objective;
+    rows.push({ label: 'Objective (\u00b5s)', field: 'objective', getter: objGetter, bestVal: bestObj });
+
+    // Worst E2E
+    const worstGetter = r => { const s = getE2EStats(r); return s ? s.worst : '-'; };
+    const bestWorst = Math.min(...SCENARIOS.map(sc => { const r = ilpResults[sc.id]; if (!r || r.error) return Infinity; const s = getE2EStats(r); return s ? s.worst : Infinity; }));
+    rows.push({ label: 'Worst E2E (\u00b5s)', getter: worstGetter, bestVal: bestWorst });
+
+    // Avg E2E
+    const avgGetter = r => { const s = getE2EStats(r); return s ? s.avg : '-'; };
+    const bestAvg = Math.min(...SCENARIOS.map(sc => { const r = ilpResults[sc.id]; if (!r || r.error) return Infinity; const s = getE2EStats(r); return s ? s.avg : Infinity; }));
+    rows.push({ label: 'Avg E2E (\u00b5s)', getter: avgGetter, bestVal: bestAvg });
+
+    // Worst Util
+    const utilGetter = r => r.worst_util_percent + '%';
+    rows.push({ label: 'Worst Util (%)', getter: utilGetter });
+
+    // Packets
+    const pktGetter = r => r.packetRows.length;
+    rows.push({ label: 'Packets', getter: pktGetter });
+
+    // Deadlines
+    const dlGetter = r => { const s = getE2EStats(r); return s ? (s.allOk ? 'OK' : `MISS (${s.missCount})`) : '-'; };
+    rows.push({ label: 'Deadlines Met', getter: dlGetter, special: true });
+
+    // Runtime
+    const rtGetter = r => (r.stats?.runtime_ms ?? '<1') + ' ms';
+    rows.push({ label: 'Runtime', getter: rtGetter });
+
+    // ILP Status
+    const statusGetter = r => {
+      const s = r.stats?.status;
+      if (s === 5) return 'optimal';
+      if (s === 2) return 'feasible';
+      return r.stats?.status ?? '-';
+    };
+    rows.push({ label: 'ILP Status', getter: statusGetter });
+
+    const tbody = document.getElementById('resultsTableBody');
+    let html = '';
+
+    for (const row of rows) {
+      html += '<tr>';
+      html += `<td>${row.label}</td>`;
+
+      // Greedy column
+      if (row.vals) {
+        html += `<td>${greedyResult && !greedyResult.error ? row.g : '-'}</td>`;
+      } else if (row.getter) {
+        const gv = (greedyResult && !greedyResult.error) ? row.getter(greedyResult) : '-';
+        html += `<td>${gv}</td>`;
+      } else {
+        html += '<td>-</td>';
+      }
+
+      // Scenario columns
+      for (let i = 0; i < SCENARIOS.length; i++) {
+        const sc = SCENARIOS[i];
+        const r = ilpResults[sc.id];
+
+        if (row.vals) {
+          html += `<td>${row.vals[i]}</td>`;
+        } else if (row.getter) {
+          if (!r || r.error) {
+            html += '<td style="color:var(--red);font-size:0.7rem;">error</td>';
+          } else {
+            const v = row.getter(r);
+            let cls = '';
+            if (row.special && typeof v === 'string' && v.includes('MISS')) {
+              cls = ' class="cmp-miss"';
+            } else if (row.bestVal !== undefined && v === row.bestVal) {
+              cls = ' class="cmp-winner"';
+            }
+            html += `<td${cls}>${v}</td>`;
+          }
+        } else {
+          html += '<td>-</td>';
+        }
+      }
+
+      html += '</tr>';
+    }
+
+    tbody.innerHTML = html;
+  }
+
+  /* ════════════════════════════════════════════
+     Failover Matrix
+     ════════════════════════════════════════════ */
+  function renderFailoverMatrix() {
+    const card = document.getElementById('failoverCard');
+    const hasAny = SCENARIOS.some(sc => ilpResults[sc.id] && !ilpResults[sc.id].error);
+    if (!hasAny) { card.style.display = 'none'; return; }
+    card.style.display = '';
+
+    // For each backbone link failure, determine which scenarios survive
+    // A scenario survives if it does NOT need the failed link
+    function survives(sc, failedLinkId) {
+      return !sc.needs.includes(failedLinkId);
+    }
+
+    let html = '';
+
+    for (const bl of BACKBONE_LINKS) {
+      html += '<tr>';
+      html += `<td>${bl.label} fails</td>`;
+
+      for (const sc of SCENARIOS) {
+        const ok = survives(sc, bl.id);
+        html += `<td class="${ok ? 'fo-ok' : 'fo-fail'}">${ok ? '\u2705' : '\u274C'}</td>`;
+      }
+
+      html += '</tr>';
+    }
+
+    // Best surviving scenario row
+    html += '<tr style="border-top:2px solid rgba(59,130,246,0.2);">';
+    html += '<td style="font-weight:700;color:var(--blue);">Best Surviving</td>';
+
+    for (const sc of SCENARIOS) {
+      // Find which link failures this scenario survives
+      const survivedLinks = BACKBONE_LINKS.filter(bl => survives(sc, bl.id));
+      if (survivedLinks.length === 0) {
+        html += '<td style="color:var(--text3);font-size:0.7rem;">None</td>';
+      } else {
+        // For each failure this scenario survives, find the other scenarios that also survive
+        // and show which has the best objective
+        const backups = [];
+        for (const bl of BACKBONE_LINKS) {
+          if (!survives(sc, bl.id)) continue;
+          const others = SCENARIOS.filter(osc => osc.id !== sc.id && survives(osc, bl.id) && ilpResults[osc.id] && !ilpResults[osc.id].error);
+          if (others.length > 0) {
+            others.sort((a, b) => (ilpResults[a.id]?.objective || Infinity) - (ilpResults[b.id]?.objective || Infinity));
+            backups.push(others[0].id);
+          }
+        }
+        const unique = [...new Set(backups)];
+        html += `<td class="fo-best">${unique.length > 0 ? unique.join('/') : '-'}</td>`;
+      }
+    }
+    html += '</tr>';
+
+    document.getElementById('failoverTableBody').innerHTML = html;
+
+    // Coverage note
+    const coverageNote = document.getElementById('coverageNote');
+    const s1ok = ilpResults['S1'] && !ilpResults['S1'].error;
+    const s2ok = ilpResults['S2'] && !ilpResults['S2'].error;
+    const s3ok = ilpResults['S3'] && !ilpResults['S3'].error;
+
+    if (s1ok && s2ok && s3ok) {
+      // Verify full coverage
+      let allCovered = true;
+      for (const bl of BACKBONE_LINKS) {
+        const anySurvives = ['S1', 'S2', 'S3'].some(sid => {
+          const sc = SCENARIOS.find(s => s.id === sid);
+          return !sc.needs.includes(bl.id);
+        });
+        if (!anySurvives) { allCovered = false; break; }
+      }
+
+      if (allCovered) {
+        coverageNote.innerHTML = '<strong>Coverage: S1+S2+S3 cover all single backbone link failures.</strong> '
+          + 'Gateway (SW_REAR \u2192 ACU_IT) has no alternative &mdash; '
+          + '<span class="warning">if the gateway fails, no scenario can recover.</span>';
+      } else {
+        coverageNote.innerHTML = '<span class="warning">Warning: Not all single-link failures are covered by S1+S2+S3.</span>';
+      }
+    } else {
+      coverageNote.innerHTML = '<span class="warning">Some ILP scenarios failed to solve. Coverage analysis may be incomplete.</span>';
+    }
+  }
+
+  /* ════════════════════════════════════════════
+     Gantt Chart Rendering
+     ════════════════════════════════════════════ */
+  function renderGanttForSelected() {
+    const card = document.getElementById('ganttCard');
+    const hasAny = (greedyResult && !greedyResult.error) || SCENARIOS.some(sc => ilpResults[sc.id] && !ilpResults[sc.id].error);
+    if (!hasAny) { card.style.display = 'none'; return; }
+    card.style.display = '';
+
+    const sel = document.getElementById('ganttSelector').value;
+    let model, result, label;
+
+    if (sel === 'greedy') {
+      model = greedyModel;
+      result = greedyResult;
+      label = 'Greedy (k=2)';
+    } else {
+      const sc = SCENARIOS.find(s => s.id === sel);
+      model = ilpModels[sel];
+      result = ilpResults[sel];
+      label = sc ? `${sc.id}: ${sc.name}` : sel;
+    }
+
+    const info = document.getElementById('ganttInfo');
+    if (result && !result.error) {
+      const stats = getE2EStats(result);
+      info.textContent = `Obj: ${result.objective} \u00b5s | ${stats.allOk ? 'All OK' : 'MISS'} | ${result.method || label}`;
+      info.style.color = stats.allOk ? 'var(--green)' : 'var(--red)';
+    } else if (result?.error) {
+      info.textContent = `Error: ${result.error}`;
+      info.style.color = 'var(--red)';
+    } else {
+      info.textContent = 'Not solved yet';
+      info.style.color = 'var(--text3)';
+    }
+
+    renderGantt(model, result, 'ganttContainer', 'ganttLegend');
+  }
+
+  function renderGantt(model, result, containerId, legendId) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    const legendEl = document.getElementById(legendId);
+    if (legendEl) legendEl.innerHTML = '';
+
+    if (!result || result.error || !model) {
+      container.innerHTML = `<p style="color:var(--red);padding:20px;">${result?.error ? 'Error: ' + result.error : 'No valid result'}</p>`;
+      return;
+    }
+
+    const activeLinks = model.links.filter(l => {
+      const entries = result.gcl?.links?.[l.id]?.entries;
+      return entries?.some(e => !e.note.includes('non-ST') && !e.note.includes('all-gates-closed'));
+    });
+    if (!activeLinks.length) {
+      container.innerHTML = '<p style="padding:20px;color:var(--text3);">No scheduled traffic</p>';
+      return;
+    }
+
+    const margin = { top: 28, right: 60, bottom: 40, left: 130 };
+    const rowH = 38;
+    const W = container.clientWidth || 900;
+    const H = margin.top + activeLinks.length * rowH + margin.bottom;
+    const innerW = W - margin.left - margin.right;
+    const innerH = activeLinks.length * rowH;
+
+    const svg = d3.select(container).append('svg')
+      .attr('viewBox', `0 0 ${W} ${H}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet')
+      .style('width', '100%');
+
+    const defs = svg.append('defs');
+    const pId = 'guardHatch_' + containerId;
+    const gp = defs.append('pattern').attr('id', pId)
+      .attr('patternUnits', 'userSpaceOnUse').attr('width', 6).attr('height', 6)
+      .attr('patternTransform', 'rotate(45)');
+    gp.append('rect').attr('width', 6).attr('height', 6).attr('fill', '#f9a825');
+    gp.append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 6)
+      .attr('stroke', 'rgba(0,0,0,0.2)').attr('stroke-width', 2);
+
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+    const x = d3.scaleLinear().domain([0, model.cycle_time_us]).range([0, innerW]);
+    const y = d3.scaleBand().domain(activeLinks.map(l => l.id)).range([0, innerH]).padding(0.15);
+
+    // Grid
+    g.append('g').attr('class', 'gcl-grid')
+      .selectAll('line').data(x.ticks(10)).enter().append('line')
+      .attr('x1', d => x(d)).attr('x2', d => x(d)).attr('y1', 0).attr('y2', innerH);
+
+    // X axis
+    g.append('g').attr('class', 'gcl-axis').attr('transform', `translate(0,${innerH})`)
+      .call(d3.axisBottom(x).ticks(10).tickFormat(d => d + ' \u00b5s'));
+
+    // Y axis labels
+    g.append('g').attr('class', 'gcl-axis')
+      .call(d3.axisLeft(y).tickSize(0).tickPadding(6))
+      .selectAll('text').text(d => {
+        const lnk = model.links.find(l => l.id === d);
+        return lnk ? `${lnk.from} \u2192 ${lnk.to}` : d;
+      }).attr('font-size', '9px');
+
+    // Row backgrounds
+    g.selectAll('.rbg').data(activeLinks).enter().append('rect')
+      .attr('x', 0).attr('y', d => y(d.id))
+      .attr('width', innerW).attr('height', y.bandwidth())
+      .attr('fill', (_, i) => i % 2 === 0 ? 'rgba(59,130,246,0.03)' : 'transparent').attr('rx', 3);
+
+    // Draw entries
+    const tooltip = document.getElementById('tooltip');
+    for (const lnk of activeLinks) {
+      const entries = result.gcl.links[lnk.id]?.entries || [];
+      let used = 0;
+
+      for (const e of entries) {
+        const xPos = x(e.start_us);
+        const w = Math.max(x(e.end_us) - xPos, 2);
+        const yPos = y(lnk.id);
+        if (yPos === undefined) continue;
+        const bw = y.bandwidth();
+
+        if (e.note === 'guard') {
+          g.append('rect').attr('x', xPos).attr('y', yPos).attr('width', w).attr('height', bw)
+            .attr('fill', `url(#${pId})`).attr('opacity', 0.7).attr('rx', 2);
+        } else if (e.note.includes('all-gates-closed') || e.note.includes('non-ST')) {
+          // skip
+        } else {
+          const fid = e.note.split('#')[0];
+          const color = flowColor(fid) || '#3B82F6';
+          g.append('rect')
+            .attr('x', xPos).attr('y', yPos)
+            .attr('width', w).attr('height', bw)
+            .attr('fill', color).attr('stroke', 'rgba(255,255,255,0.4)')
+            .attr('stroke-width', 0.8).attr('rx', 3).attr('opacity', 0.9)
+            .style('cursor', 'pointer')
+            .on('mouseover', (ev) => {
+              tooltip.innerHTML = `<div class="tt-title" style="color:${color}">${e.note}</div>`
+                + `<div class="tt-row"><span class="tt-k">Gate</span><span class="tt-v">${e.gate_mask}</span></div>`
+                + `<div class="tt-row"><span class="tt-k">Start</span><span class="tt-v">${e.start_us} \u00b5s</span></div>`
+                + `<div class="tt-row"><span class="tt-k">End</span><span class="tt-v">${e.end_us} \u00b5s</span></div>`
+                + `<div class="tt-row"><span class="tt-k">Duration</span><span class="tt-v">${e.duration_us} \u00b5s</span></div>`;
+              tooltip.classList.add('show');
+            })
+            .on('mousemove', (ev) => {
+              tooltip.style.left = (ev.clientX + 12) + 'px';
+              tooltip.style.top = (ev.clientY - 20) + 'px';
+            })
+            .on('mouseout', () => tooltip.classList.remove('show'));
+
+          const pw = x(e.end_us) - x(e.start_us);
+          if (pw > 25) {
+            g.append('text').attr('class', 'gcl-label')
+              .attr('x', xPos + pw / 2).attr('y', yPos + bw / 2)
+              .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+              .text(e.note.replace('#', '.'));
+          }
+          used += e.duration_us;
+        }
+      }
+
+      // Utilization label
+      g.append('text').attr('x', innerW + 8).attr('y', y(lnk.id) + y.bandwidth() / 2)
+        .attr('text-anchor', 'start').attr('dominant-baseline', 'middle')
+        .attr('font-size', '10px').attr('fill', 'var(--text3)').attr('font-weight', '700')
+        .text((used / model.cycle_time_us * 100).toFixed(1) + '%');
+    }
+
+    // Header annotation
+    svg.append('text').attr('x', margin.left).attr('y', margin.top - 10)
+      .attr('fill', 'var(--text3)').attr('font-size', '9px')
+      .text(`Cycle: ${model.cycle_time_us} \u00b5s | Active: ${activeLinks.length}/${model.links.length} links`);
+
+    // Legend
+    if (legendEl) {
+      const seenFlows = [];
+      for (const pr of result.packetRows) {
+        if (!seenFlows.includes(pr.flow_id)) seenFlows.push(pr.flow_id);
+      }
+      legendEl.innerHTML = seenFlows.map(fid =>
+        `<div class="legend-item"><span class="legend-swatch" style="background:${flowColor(fid)}"></span>${fid}</div>`
+      ).join('');
+    }
+  }
+
+  /* ════════════════════════════════════════════
+     Topology Rendering
+     ════════════════════════════════════════════ */
+  function renderTopologyForSelected() {
+    const sel = document.getElementById('topoSelector').value;
+    const sc = sel ? SCENARIOS.find(s => s.id === sel) : null;
+    renderTopology(sc);
+  }
+
+  function renderTopology(selectedScenario) {
+    const container = document.getElementById('topoContainer');
+    container.innerHTML = '';
+    const W = container.clientWidth || 700;
+    const H = 420;
+    const pos = getRealPositions(W, H);
+
+    const svg = d3.select(container).append('svg')
+      .attr('viewBox', `0 0 ${W} ${H}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet')
+      .style('width', '100%')
+      .style('display', 'block');
+
+    const topoBase = JSON.parse(JSON.stringify(ROII_REAL_8TC));
+
+    // All backbone link IDs for reference
+    const backboneIds = new Set(['l_swfl_swfr', 'l_swfr_swfl', 'l_swfl_swrear', 'l_swrear_swfl', 'l_swfr_swrear', 'l_swrear_swfr']);
+    const gatewayId = 'l_swrear_acu';
+
+    // Track drawn bidirectional links
+    const drawnBi = new Set();
+
+    // Draw links
+    for (const lnk of topoBase.links) {
+      const p1 = pos[lnk.from], p2 = pos[lnk.to];
+      if (!p1 || !p2) continue;
+
+      const isBackbone = backboneIds.has(lnk.id);
+      const isGateway = lnk.id === gatewayId;
+
+      // Skip reverse backbone links (draw once as bidirectional)
+      if (isBackbone) {
+        const biKey = [lnk.from, lnk.to].sort().join('|');
+        if (drawnBi.has(biKey)) continue;
+        drawnBi.add(biKey);
+      }
+
+      const isUsed = selectedScenario?.needs?.includes(lnk.id);
+
+      let strokeColor, strokeWidth, dashArray;
+      if (isUsed) {
+        strokeColor = selectedScenario.color;
+        strokeWidth = 3.5;
+        dashArray = 'none';
+      } else if (isBackbone) {
+        strokeColor = 'rgba(59,130,246,0.15)';
+        strokeWidth = 2;
+        dashArray = '6,3';
+      } else if (isGateway) {
+        strokeColor = 'rgba(6,182,212,0.35)';
+        strokeWidth = 2.5;
+        dashArray = 'none';
+      } else {
+        strokeColor = 'rgba(59,130,246,0.1)';
+        strokeWidth = 1;
+        dashArray = 'none';
+      }
+
+      svg.append('line')
+        .attr('x1', p1.x).attr('y1', p1.y)
+        .attr('x2', p2.x).attr('y2', p2.y)
+        .attr('stroke', strokeColor)
+        .attr('stroke-width', strokeWidth)
+        .attr('stroke-dasharray', dashArray);
+
+      // Label used links
+      if (isUsed) {
+        const mx = (p1.x + p2.x) / 2;
+        const my = (p1.y + p2.y) / 2;
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        const nx = -dy / len * 14;
+        const ny = dx / len * 14;
+        svg.append('text')
+          .attr('x', mx + nx).attr('y', my + ny)
+          .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+          .attr('font-size', '7px').attr('fill', selectedScenario.color)
+          .attr('font-weight', '700')
+          .style('pointer-events', 'none')
+          .text('1 Gbps');
+      }
+    }
+
+    // Draw nodes
+    for (const node of topoBase.nodes) {
+      const p = pos[node.id];
+      if (!p) continue;
+      const nc = ROII_REAL_NODE_COLORS[node.id] || { fill: '#e2e8f0', stroke: '#94a3b8', shortLabel: node.id, label: node.id };
+      const isSwitch = node.type === 'switch';
+      const isACU = node.id === 'ACU_IT';
+      const r = isSwitch || isACU ? 22 : 16;
+
+      svg.append('circle')
+        .attr('cx', p.x).attr('cy', p.y).attr('r', r)
+        .attr('fill', nc.fill).attr('stroke', nc.stroke).attr('stroke-width', isSwitch ? 2.5 : 1.5);
+
+      svg.append('text')
+        .attr('x', p.x).attr('y', p.y + 3)
+        .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+        .attr('font-size', isSwitch || isACU ? '8px' : '7px')
+        .attr('font-weight', '700').attr('fill', nc.stroke)
+        .style('pointer-events', 'none')
+        .text(nc.shortLabel);
+
+      svg.append('text')
+        .attr('x', p.x).attr('y', p.y + r + 12)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '9px').attr('font-weight', '600')
+        .attr('fill', 'var(--text2)')
+        .style('pointer-events', 'none')
+        .text(nc.label || node.id);
+    }
+
+    // Scenario title
+    if (selectedScenario) {
+      svg.append('text')
+        .attr('x', W / 2).attr('y', H - 8)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '11px').attr('font-weight', '700')
+        .attr('fill', selectedScenario.color)
+        .text(`${selectedScenario.id}: ${selectedScenario.name} \u2014 ${selectedScenario.desc}`);
+    }
+  }
+
+  /* ════════════════════════════════════════════
+     Event Listeners
+     ════════════════════════════════════════════ */
+  document.getElementById('btnSolveAll').addEventListener('click', solveAll);
+
+  document.getElementById('ganttSelector').addEventListener('change', renderGanttForSelected);
+  document.getElementById('topoSelector').addEventListener('change', renderTopologyForSelected);
+
+  /* ════════════════════════════════════════════
+     Init: render topology and auto-solve
+     ════════════════════════════════════════════ */
+  renderTopology(null);
+  solveAll();
+  </script>
+</body>
+</html>
