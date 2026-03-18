@@ -959,6 +959,16 @@
       }
     }
 
+    // Also add reverse backbone links so bidirectional drawing works
+    const backboneReverse = {
+      'l_swfl_swfr': 'l_swfr_swfl', 'l_swfr_swfl': 'l_swfl_swfr',
+      'l_swfl_swrear': 'l_swrear_swfl', 'l_swrear_swfl': 'l_swfl_swrear',
+      'l_swfr_swrear': 'l_swrear_swfr', 'l_swrear_swfr': 'l_swfr_swrear',
+    };
+    for (const lid of [...usedLinks]) {
+      if (backboneReverse[lid]) usedLinks.add(backboneReverse[lid]);
+    }
+
     // Backbone link IDs
     const backboneIds = new Set([
       'l_swfl_swfr', 'l_swfr_swfl', 'l_swfl_swrear', 'l_swrear_swfl',
