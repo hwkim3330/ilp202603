@@ -424,6 +424,7 @@
     m.guard_band_us = getParam('paramGuard');
     m.processing_delay_us = getParam('paramProcDelay') || 5;
     for (const lnk of m.links) lnk.rate_mbps = getParam('paramSpeed') || 1000;
+    for (const f of m.flows) f.k_paths = 1;  // fixed-route for fast ILP
     return m;
   }
 
@@ -433,7 +434,7 @@
       id: f.id, PCP: f.PCP, payload_bytes: f.payload_bytes,
       period_us: f.period_us, deadline_us: f.deadline_us,
       traffic_type: 'added', src: f.src, dst: f.dst,
-      k_paths: 2
+      k_paths: 1
     }));
     return m;
   }
