@@ -54,7 +54,7 @@
     /* Main content — 3-column */
     .main-content {
       display: grid;
-      grid-template-columns: 310px 1fr 280px;
+      grid-template-columns: 380px 1fr 240px;
       gap: 6px;
       min-height: 0;
     }
@@ -305,9 +305,24 @@
     const container = document.getElementById('topoContainer');
     container.innerHTML = '';
     const rect = container.getBoundingClientRect();
-    const W = rect.width || 300;
-    const H = rect.height || 350;
-    const pos = getRealPositions(W, H);
+    const W = rect.width || 360;
+    const H = rect.height || 400;
+    // Custom positions: more spacing for larger sensor nodes
+    const pos = {
+      RADAR_FLC: { x: W * 0.04, y: H * 0.09 },
+      LIDAR_FL:  { x: W * 0.22, y: H * 0.09 },
+      LIDAR_FC:  { x: W * 0.40, y: H * 0.09 },
+      RADAR_F:   { x: W * 0.58, y: H * 0.09 },
+      LIDAR_FR:  { x: W * 0.76, y: H * 0.09 },
+      RADAR_FRC: { x: W * 0.96, y: H * 0.09 },
+      SW_FL:     { x: W * 0.25, y: H * 0.36 },
+      SW_FR:     { x: W * 0.75, y: H * 0.36 },
+      RADAR_RLC: { x: W * 0.08, y: H * 0.60 },
+      SW_REAR:   { x: W * 0.50, y: H * 0.58 },
+      RADAR_RRC: { x: W * 0.92, y: H * 0.60 },
+      LIDAR_R:   { x: W * 0.50, y: H * 0.77 },
+      ACU_IT:    { x: W * 0.50, y: H * 0.92 }
+    };
 
     const svg = d3.select(container).append('svg')
       .attr('viewBox', `0 0 ${W} ${H}`)
@@ -337,9 +352,9 @@
       }
       const isGateway = lnk.id === 'l_swrear_acu';
       let color, width;
-      if (isBackbone) { color = 'rgba(59,130,246,0.35)'; width = 2.5; }
-      else if (isGateway) { color = 'rgba(6,182,212,0.5)'; width = 3; }
-      else { color = 'rgba(59,130,246,0.15)'; width = 1.2; }
+      if (isBackbone) { color = 'rgba(59,130,246,0.4)'; width = 3; }
+      else if (isGateway) { color = 'rgba(6,182,212,0.55)'; width = 3.5; }
+      else { color = 'rgba(59,130,246,0.2)'; width = 1.5; }
 
       svg.append('line')
         .attr('x1', p1.x).attr('y1', p1.y)
@@ -354,26 +369,33 @@
       const nc = ROII_REAL_NODE_COLORS[node.id] || { fill: '#e2e8f0', stroke: '#94a3b8', shortLabel: node.id, label: node.id };
       const isSwitch = node.type === 'switch';
       const isACU = node.id === 'ACU_IT';
-      const r = isSwitch || isACU ? 18 : 13;
+      const isLidar = node.id.startsWith('LIDAR');
+      const isRadar = node.id.startsWith('RADAR');
+      let r, sw, fs, fsLabel;
+      if (isACU)        { r = 24; sw = 2.5; fs = '8px'; fsLabel = '8.5px'; }
+      else if (isSwitch) { r = 22; sw = 2;   fs = '7px'; fsLabel = '8px'; }
+      else if (isLidar)  { r = 22; sw = 2;   fs = '8px'; fsLabel = '8px'; }
+      else if (isRadar)  { r = 18; sw = 1.8; fs = '7.5px'; fsLabel = '7.5px'; }
+      else               { r = 14; sw = 1.2; fs = '6px'; fsLabel = '7px'; }
 
       svg.append('circle')
         .attr('cx', p.x).attr('cy', p.y).attr('r', r)
         .attr('fill', nc.fill).attr('stroke', nc.stroke)
-        .attr('stroke-width', isSwitch ? 2 : 1.2);
+        .attr('stroke-width', sw);
 
       svg.append('text')
-        .attr('x', p.x).attr('y', p.y + 2)
+        .attr('x', p.x).attr('y', p.y + 1)
         .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-        .attr('font-size', isSwitch || isACU ? '7px' : '6px')
-        .attr('font-weight', '700').attr('fill', nc.stroke)
+        .attr('font-size', fs)
+        .attr('font-weight', '800').attr('fill', nc.stroke)
         .style('pointer-events', 'none')
         .text(nc.shortLabel);
 
       svg.append('text')
-        .attr('x', p.x).attr('y', p.y + r + 10)
+        .attr('x', p.x).attr('y', p.y + r + 11)
         .attr('text-anchor', 'middle')
-        .attr('font-size', '7px').attr('font-weight', '600')
-        .attr('fill', 'var(--text2)')
+        .attr('font-size', fsLabel).attr('font-weight', '700')
+        .attr('fill', '#334155')
         .style('pointer-events', 'none')
         .text(nc.label || node.id);
     }
@@ -394,9 +416,9 @@
     const rect = container.getBoundingClientRect();
     const W = rect.width || 700;
     const H = rect.height || 400;
-    const margin = { top: 24, right: 50, bottom: 28, left: 110 };
+    const margin = { top: 20, right: 44, bottom: 24, left: 90 };
     const innerW = W - margin.left - margin.right;
-    const rowH = Math.min(32, (H - margin.top - margin.bottom) / activeLinks.length);
+    const rowH = Math.min(24, (H - margin.top - margin.bottom) / activeLinks.length);
     const innerH = activeLinks.length * rowH;
 
     const svg = d3.select(container).append('svg')
@@ -425,15 +447,17 @@
 
     // X axis
     g.append('g').attr('class', 'gcl-axis').attr('transform', `translate(0,${innerH})`)
-      .call(d3.axisBottom(x).ticks(8).tickFormat(d => d + ' \u00b5s'));
+      .call(d3.axisBottom(x).ticks(6).tickFormat(d => d + '\u00b5s'));
 
     // Y axis
     g.append('g').attr('class', 'gcl-axis')
       .call(d3.axisLeft(y).tickSize(0).tickPadding(4))
       .selectAll('text').text(d => {
         const lnk = model.links.find(l => l.id === d);
-        return lnk ? `${lnk.from} \u2192 ${lnk.to}` : d;
-      }).attr('font-size', '8px');
+        if (!lnk) return d;
+        const short = n => n.replace('LIDAR_','L_').replace('RADAR_','R_').replace('SW_','').replace('ACU_IT','ACU');
+        return `${short(lnk.from)}\u2192${short(lnk.to)}`;
+      }).attr('font-size', '7px');
 
     // Row backgrounds
     g.selectAll('.rbg').data(activeLinks).enter().append('rect')
@@ -489,11 +513,11 @@
             })
             .on('mouseout', () => tooltip.classList.remove('show'));
 
-          if (actualW > 20) {
+          if (actualW > 18) {
             g.append('text').attr('class', 'gcl-label')
               .attr('x', xPos + actualW / 2).attr('y', yPos + bw / 2)
               .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-              .attr('font-size', '8px')
+              .attr('font-size', '7px')
               .text(e.note.replace('#', '.'));
           }
           used += e.duration_us;
@@ -501,9 +525,9 @@
       }
 
       // Utilization
-      g.append('text').attr('x', innerW + 6).attr('y', y(lnk.id) + y.bandwidth() / 2)
+      g.append('text').attr('x', innerW + 4).attr('y', y(lnk.id) + y.bandwidth() / 2)
         .attr('text-anchor', 'start').attr('dominant-baseline', 'middle')
-        .attr('font-size', '8px').attr('fill', 'var(--text3)').attr('font-weight', '700')
+        .attr('font-size', '7px').attr('fill', 'var(--text3)').attr('font-weight', '700')
         .text((used / model.cycle_time_us * 100).toFixed(1) + '%');
     }
   }
