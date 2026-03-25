@@ -434,7 +434,7 @@ function buildResult(model, pkts, schedHops, method, stats) {
    GREEDY SCHEDULER — Priority-based list scheduler
    No GLPK dependency, runs in <1ms
    ═══════════════════════════════════════════════ */
-export function solveGreedy(model) {
+export function solveGreedy(model, opts = {}) {
   if (!model.processing_delay_us) model.processing_delay_us = 3;
   const t0 = performance.now();
   const pkts = expandPackets(model);
@@ -467,6 +467,16 @@ export function solveGreedy(model) {
   }
 
   const linkOcc = Object.fromEntries(model.links.map(l => [l.id, []]));
+
+  // Pre-load occupancy from existing schedule (e.g., ILP result for hybrid mode)
+  if (opts.preOcc) {
+    for (const [lid, intervals] of Object.entries(opts.preOcc)) {
+      if (linkOcc[lid]) {
+        linkOcc[lid].push(...intervals);
+        linkOcc[lid].sort((a, b) => a[0] - b[0]);
+      }
+    }
+  }
 
   // Find earliest start time within the correct TC gate window + no link overlap
   function findEarliest(lid, earliest, duration, pktTC) {
@@ -507,13 +517,17 @@ export function solveGreedy(model) {
   }
 
   const order = pkts.map((pk, i) => i);
-  order.sort((a, b) => {
-    const pa = pkts[a], pb = pkts[b];
-    if (pa.pri !== pb.pri) return pb.pri - pa.pri;
-    if (pa.rel !== pb.rel) return pa.rel - pb.rel;
-    const da = pa.dl ?? Infinity, db = pb.dl ?? Infinity;
-    return da - db;
-  });
+  if (opts.sortFn) {
+    order.sort((a, b) => opts.sortFn(pkts[a], pkts[b]));
+  } else {
+    order.sort((a, b) => {
+      const pa = pkts[a], pb = pkts[b];
+      if (pa.pri !== pb.pri) return pb.pri - pa.pri;
+      if (pa.rel !== pb.rel) return pa.rel - pb.rel;
+      const da = pa.dl ?? Infinity, db = pb.dl ?? Infinity;
+      return da - db;
+    });
+  }
 
   const schedHops = new Array(pkts.length);
 

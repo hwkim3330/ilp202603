@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>8-TC Hybrid: ILP + Greedy &mdash; TSN/GCL Solver</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    :root {
+      --bg: #f8f9fa; --bg2: #f0f2f5;
+      --card: #ffffff; --card-hi: #f8fafc;
+      --border: rgba(59,130,246,0.2); --border-hi: rgba(59,130,246,0.4);
+      --text: #1e293b; --text2: #475569; --text3: #64748b;
+      --cyan: #0891b2; --blue: #3B82F6; --purple: #7c3aed;
+      --orange: #d97706; --red: #dc2626; --green: #059669; --pink: #db2777;
+      --guard: #d97706; --be: #e2e8f0;
+    }
+    body { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 50%, #dee2e6 100%); }
+    .bg-grid {
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59,130,246,0.06), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(6,182,212,0.04), transparent),
+        linear-gradient(rgba(59,130,246,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.06) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+    }
+    .card {
+      background: rgba(255,255,255,0.95);
+      border: 1px solid rgba(59,130,246,0.15);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    }
+    .card:hover { border-color: rgba(59,130,246,0.3); }
+    .card-title { color: var(--text2); }
+    .card-title::before { background: var(--blue); }
+    .tooltip {
+      background: rgba(255,255,255,0.97);
+      border: 1px solid rgba(59,130,246,0.25);
+      color: var(--text); box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
+    .tooltip .tt-title { color: var(--blue); }
+    .tooltip .tt-k { color: var(--text3); }
+    .btn-primary { background: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%); color: #fff; }
+    .btn-secondary { background: rgba(248,250,252,0.8); color: var(--text); border: 1px solid rgba(59,130,246,0.2); }
+    .btn-secondary:hover { border-color: var(--blue); background: #fff; }
+    .gcl-grid line { stroke: rgba(59,130,246,0.06); stroke-width: 1; }
+    .gcl-axis text { fill: var(--text2) !important; font-size: 11px; }
+    .gcl-axis path, .gcl-axis line { stroke: rgba(59,130,246,0.15); }
+    .gcl-label { fill: rgba(0,0,0,0.75); font-size: 11px; font-weight: 700; pointer-events: none; }
+
+    /* Header */
+    .landing-hero { text-align: center; padding: 40px 20px 24px; }
+    .landing-hero h1 {
+      font-size: 2.2rem; font-weight: 800; letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #7c3aed 0%, #3B82F6 50%, #059669 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .landing-hero .sub { color: var(--text2); font-size: 0.92rem; margin-top: 8px; line-height: 1.6; }
+
+    /* Global Params */
+    .global-params {
+      display: flex; gap: 14px; flex-wrap: wrap; align-items: end; margin-bottom: 10px;
+    }
+    .global-params label {
+      font-size: 0.75rem; font-weight: 600; color: var(--text2);
+      display: flex; flex-direction: column; gap: 3px;
+    }
+    .global-params input, .global-params select {
+      padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border);
+      font-size: 0.82rem; width: 85px;
+    }
+    .global-params input:focus, .global-params select:focus {
+      outline: none; border-color: var(--blue);
+      box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+    }
+
+    /* Status Bar */
+    .status-bar {
+      padding: 12px 20px; border-radius: 10px;
+      background: rgba(255,255,255,0.9); border: 1px solid rgba(59,130,246,0.15);
+      margin-bottom: 16px; font-size: 0.85rem; color: var(--text2);
+      min-height: 42px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner-sm {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid rgba(59,130,246,0.2); border-top-color: var(--blue);
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+      vertical-align: middle; margin-right: 6px;
+    }
+
+    /* Two Column Layout */
+    .two-col {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* Flow Table */
+    .flow-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .flow-table th {
+      background: rgba(59,130,246,0.06); padding: 8px 12px; text-align: left;
+      font-weight: 700; color: var(--text2);
+    }
+    .flow-table td {
+      padding: 8px 12px; border-bottom: 1px solid rgba(59,130,246,0.08);
+    }
+    .flow-table tr:hover { background: rgba(59,130,246,0.04); }
+    .flow-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: middle; margin-right: 6px; }
+
+    /* Preset Buttons */
+    .preset-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;
+    }
+    .preset-btn {
+      padding: 10px 14px; border: 2px dashed rgba(59,130,246,0.25);
+      border-radius: 8px; background: rgba(59,130,246,0.03);
+      cursor: pointer; font-size: 0.78rem; text-align: left;
+      transition: all 0.2s; color: var(--text);
+    }
+    .preset-btn:hover {
+      border-color: var(--blue); background: rgba(59,130,246,0.08);
+      transform: translateY(-1px);
+    }
+    .preset-btn .preset-name { font-weight: 700; margin-bottom: 2px; }
+    .preset-btn .preset-detail { font-size: 0.7rem; color: var(--text3); }
+
+    /* Added Flow List */
+    .added-list { list-style: none; padding: 0; margin: 0 0 12px 0; }
+    .added-list li {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 12px; border-radius: 6px;
+      border: 1px solid rgba(59,130,246,0.1);
+      margin-bottom: 6px; font-size: 0.82rem;
+      background: rgba(255,255,255,0.8);
+    }
+    .added-list li .flow-info { display: flex; align-items: center; gap: 8px; }
+    .added-list .remove-btn {
+      background: none; border: 1px solid rgba(220,38,38,0.2);
+      color: var(--red); cursor: pointer; padding: 2px 10px;
+      border-radius: 4px; font-size: 0.72rem; font-weight: 600;
+      transition: all 0.2s;
+    }
+    .added-list .remove-btn:hover { background: rgba(220,38,38,0.08); border-color: var(--red); }
+
+    /* Combined Stats */
+    .stats-row {
+      display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 10px;
+    }
+    .stat-box {
+      flex: 1; min-width: 150px; padding: 14px 18px;
+      border: 1px solid rgba(59,130,246,0.12); border-radius: 8px;
+      background: rgba(59,130,246,0.02); text-align: center;
+    }
+    .stat-val { font-size: 1.4rem; font-weight: 800; color: var(--blue); font-variant-numeric: tabular-nums; }
+    .stat-val.purple { color: var(--purple); }
+    .stat-val.green { color: var(--green); }
+    .stat-val.orange { color: var(--orange); }
+    .stat-label { font-size: 0.72rem; color: var(--text3); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* Gantt */
+    .gantt-section { margin-bottom: 24px; }
+    .gantt-header {
+      padding: 10px 16px; font-size: 0.85rem;
+      background: rgba(255,255,255,0.9); border-radius: 8px;
+      margin-bottom: 8px; display: flex; justify-content: space-between;
+      align-items: center;
+    }
+    .gantt-stats { font-size: 0.75rem; color: var(--text3); font-weight: 400; }
+    .gantt-wrap { min-height: 200px; position: relative; }
+    .gantt-legend {
+      display: flex; flex-wrap: wrap; gap: 8px 16px;
+      padding: 10px 16px; border-top: 1px solid rgba(59,130,246,0.1);
+      background: #f8fafc; border-radius: 0 0 8px 8px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text2); }
+    .legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+
+    /* Board Config Styles */
+    .board-section {
+      margin-bottom: 20px; padding: 12px 16px;
+      border: 1px solid rgba(59,130,246,0.12); border-radius: 8px;
+      background: rgba(59,130,246,0.02);
+    }
+    .board-section h3 {
+      font-size: 0.88rem; font-weight: 700; color: var(--blue);
+      margin: 0 0 10px 0;
+    }
+    .board-port { margin-bottom: 14px; }
+    .board-port h4 {
+      font-size: 0.78rem; font-weight: 600; color: var(--text2);
+      margin: 0 0 6px 0;
+    }
+    .board-port .port-meta {
+      font-size: 0.7rem; color: var(--text3); margin-bottom: 6px;
+    }
+    .gcl-table {
+      width: 100%; border-collapse: collapse; font-size: 0.72rem;
+      font-family: 'Courier New', monospace;
+    }
+    .gcl-table th {
+      background: rgba(59,130,246,0.06); color: var(--text2);
+      padding: 4px 8px; text-align: left; font-weight: 700;
+      border-bottom: 1px solid rgba(59,130,246,0.15);
+    }
+    .gcl-table td {
+      padding: 3px 8px; border-bottom: 1px solid rgba(59,130,246,0.06);
+    }
+    .gcl-table tr:hover { background: rgba(59,130,246,0.04); }
+    .gate-bits { display: inline-flex; gap: 1px; }
+    .gate-bit {
+      display: inline-block; width: 12px; height: 16px;
+      border-radius: 2px; font-size: 8px; text-align: center;
+      line-height: 16px; font-weight: 700;
+    }
+    .gate-bit.open { background: rgba(59,130,246,0.35); color: #1e40af; }
+    .gate-bit.closed { background: rgba(100,116,139,0.12); color: #94a3b8; }
+    .gate-bit.guard { background: rgba(249,168,37,0.4); color: #92400e; }
+    .pcp-map { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+    .pcp-badge {
+      font-size: 0.7rem; padding: 2px 10px; border-radius: 4px;
+      background: rgba(59,130,246,0.08); color: var(--blue); font-weight: 600;
+    }
+
+    /* Phase Labels */
+    .phase-label {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 3px 12px; border-radius: 12px; font-size: 0.72rem; font-weight: 700;
+    }
+    .phase-ilp { background: rgba(124,58,237,0.1); color: var(--purple); border: 1px solid rgba(124,58,237,0.2); }
+    .phase-greedy { background: rgba(5,150,105,0.1); color: var(--green); border: 1px solid rgba(5,150,105,0.2); }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center; padding: 30px 20px; color: var(--text3);
+      font-size: 0.85rem; line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="wrap">
+
+    <!-- 1. Header -->
+    <div class="landing-hero">
+      <img src="keti.png" onerror="this.style.display='none'" style="height:48px;width:auto;">
+      <h1>8-TC Hybrid: ILP + Greedy</h1>
+      <div class="sub">
+        Phase 1: ILP solves base traffic (9 flows) optimally.<br>
+        Phase 2: Greedy schedules new flows into remaining gaps (preOcc).
+      </div>
+    </div>
+
+    <!-- 2. Parameters Card -->
+    <div class="card">
+      <div class="card-title">Parameters</div>
+      <div class="global-params">
+        <label>Cycle (&micro;s)
+          <input type="number" id="paramCycle" value="1000" min="100" step="100">
+        </label>
+        <label>Guard (&micro;s)
+          <input type="number" id="paramGuard" value="0" min="0" step="0.1">
+        </label>
+        <label>Speed (Mbps)
+          <input type="number" id="paramSpeed" value="1000" min="100" step="100">
+        </label>
+        <label>Proc Delay (&micro;s)
+          <input type="number" id="paramProcDelay" value="5" min="0" step="0.5">
+        </label>
+        <label>ILP Time Limit (s)
+          <input type="number" id="paramTmlim" value="60" min="10" max="300" step="10">
+        </label>
+      </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="status-bar" id="statusBar">
+      Loading GLPK... Base ILP will auto-solve on load.
+    </div>
+
+    <!-- 3. Two-Column: Base Traffic + Add Traffic -->
+    <div class="two-col">
+      <!-- Left: Base Traffic -->
+      <div class="card">
+        <div class="card-title">
+          <span>Base Traffic (9 Flows)</span>
+          <span class="phase-label phase-ilp" style="margin-left:auto;">ILP</span>
+        </div>
+        <table class="flow-table" id="baseFlowTable">
+          <thead><tr>
+            <th></th><th>Flow</th><th>PCP</th><th>Payload</th><th>Period</th><th>Src</th>
+          </tr></thead>
+          <tbody id="baseFlowBody"></tbody>
+        </table>
+        <div style="margin-top:12px;">
+          <button class="btn btn-primary" id="btnSolveBase" style="padding:8px 24px;font-size:0.85rem;">&#9654; Solve Base (ILP)</button>
+        </div>
+      </div>
+
+      <!-- Right: Add Traffic -->
+      <div class="card">
+        <div class="card-title">
+          <span>Add New Traffic</span>
+          <span class="phase-label phase-greedy" style="margin-left:auto;">Greedy</span>
+        </div>
+        <div style="font-size:0.78rem;color:var(--text3);margin-bottom:10px;">
+          Click a preset to add a new flow. Greedy will schedule it around ILP-locked slots.
+        </div>
+        <div class="preset-grid" id="presetGrid"></div>
+        <div style="font-size:0.78rem;font-weight:700;color:var(--text2);margin-bottom:6px;">Added Flows</div>
+        <ul class="added-list" id="addedFlowList">
+          <li class="empty-state" id="emptyMsg">No flows added yet. Click a preset above.</li>
+        </ul>
+        <button class="btn btn-primary" id="btnScheduleNew" disabled style="padding:8px 24px;font-size:0.85rem;">&#9654; Schedule New (Greedy)</button>
+      </div>
+    </div>
+
+    <!-- 4. Combined Stats -->
+    <div class="card" id="statsCard" style="display:none;">
+      <div class="card-title">Combined Statistics</div>
+      <div class="stats-row" id="statsRow"></div>
+    </div>
+
+    <!-- 5. Combined Gantt -->
+    <div class="card" id="ganttCard" style="display:none;">
+      <div class="card-title">Combined Schedule Timeline</div>
+      <div class="gantt-section">
+        <div class="gantt-header" id="ganttHeader" style="border-left: 4px solid var(--blue);">
+          <strong>Combined Gantt &mdash; ILP + Greedy</strong>
+          <span class="gantt-stats" id="ganttStats"></span>
+        </div>
+        <div class="gantt-wrap" id="ganttCombined"></div>
+        <div class="gantt-legend" id="ganttLegend"></div>
+      </div>
+    </div>
+
+    <!-- 6. Board GCL Config -->
+    <div class="card" id="gclCard" style="display:none;">
+      <div class="card-title">Board GCL Configuration (Combined)</div>
+      <div id="gclCombined"></div>
+    </div>
+
+    <!-- 7. Navigation -->
+    <div class="card" style="padding:12px 20px;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <a href="roii-8tc.html" class="btn btn-secondary" style="font-size:0.78rem;">8-TC</a>
+        <a href="roii-8tc-stable.html" class="btn btn-secondary" style="font-size:0.78rem;">Margin</a>
+        <a href="roii-8tc-inflate.html" class="btn btn-secondary" style="font-size:0.78rem;">Inflate</a>
+        <a href="roii-8tc-compare.html" class="btn btn-secondary" style="font-size:0.78rem;">Compare</a>
+        <a href="roii-8tc-failover.html" class="btn btn-secondary" style="font-size:0.78rem;">Failover</a>
+        <a href="roii-8tc-ilp.html" class="btn btn-secondary" style="font-size:0.78rem;">ILP</a>
+        <a href="roii-8tc-multiroute.html" class="btn btn-secondary" style="font-size:0.78rem;">Multi-Route</a>
+        <a href="roii-debug.html" class="btn btn-secondary" style="font-size:0.78rem;">Debugger</a>
+        <a href="index.html" class="btn btn-secondary" style="margin-left:auto;font-size:0.78rem;">Home</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <script src="vendor/d3.min.js"></script>
+  <script type="module">
+  import { ROII_REAL_8TC, ROII_REAL_SWITCHES, getRealPositions, ROII_REAL_NODE_COLORS } from './js/roii-real-data.js';
+  import { solveGreedy, solveILP, expandPackets, initTooltip, flowColor } from './js/ilp-core.js';
+
+  initTooltip();
+
+  /* ════════════════════════════════════════════
+     GLPK Lazy Loader
+     ════════════════════════════════════════════ */
+  let glpkInstance = null;
+  let glpkLoading = false;
+  async function ensureGLPK() {
+    if (glpkInstance) return glpkInstance;
+    if (glpkLoading) {
+      while (glpkLoading) await new Promise(r => setTimeout(r, 100));
+      return glpkInstance;
+    }
+    glpkLoading = true;
+    try {
+      const GLPK = (await import('./vendor/glpk.js')).default;
+      glpkInstance = await GLPK();
+    } catch (e) {
+      console.error('GLPK load error:', e);
+    }
+    glpkLoading = false;
+    return glpkInstance;
+  }
+  ensureGLPK();
+
+  /* ════════════════════════════════════════════
+     Constants & State
+     ════════════════════════════════════════════ */
+  const round3 = v => Math.round(v * 1000) / 1000;
+
+  const NEW_FLOW_PRESETS = [
+    { id: 'f_cam_front',  label: 'Front Camera',  PCP: 5, payload_bytes: 1400, period_us: 250, deadline_us: 1000, src: 'LIDAR_FC',  dst: 'ACU_IT', color: '#f97316' },
+    { id: 'f_cam_rear',   label: 'Rear Camera',   PCP: 4, payload_bytes: 1400, period_us: 250, deadline_us: 1000, src: 'LIDAR_R',   dst: 'ACU_IT', color: '#f59e0b' },
+    { id: 'f_radar_extra',label: 'Extra Radar',    PCP: 3, payload_bytes: 64,   period_us: 500, deadline_us: 1000, src: 'RADAR_FLC', dst: 'ACU_IT', color: '#06b6d4' },
+    { id: 'f_ctrl_brake',  label: 'Brake Control', PCP: 7, payload_bytes: 128,  period_us: 200, deadline_us: 500,  src: 'RADAR_RLC', dst: 'ACU_IT', color: '#ef4444' },
+  ];
+
+  let addedFlows = [];
+  let baseResult = null;
+  let greedyResult = null;
+  let addedCounter = {};  // track how many of each preset have been added
+
+  /* ════════════════════════════════════════════
+     Parameter Helpers
+     ════════════════════════════════════════════ */
+  function getParam(id) {
+    return parseFloat(document.getElementById(id).value) || 0;
+  }
+
+  function setStatus(html) {
+    document.getElementById('statusBar').innerHTML = html;
+  }
+
+  /* ════════════════════════════════════════════
+     Model Builders
+     ════════════════════════════════════════════ */
+  function buildBaseModel() {
+    const m = JSON.parse(JSON.stringify(ROII_REAL_8TC));
+    m.cycle_time_us = getParam('paramCycle') || 1000;
+    m.guard_band_us = getParam('paramGuard');
+    m.processing_delay_us = getParam('paramProcDelay') || 5;
+    for (const lnk of m.links) lnk.rate_mbps = getParam('paramSpeed') || 1000;
+    return m;
+  }
+
+  function buildNewModel(flows) {
+    const m = buildBaseModel();
+    m.flows = flows.map(f => ({
+      id: f.id, PCP: f.PCP, payload_bytes: f.payload_bytes,
+      period_us: f.period_us, deadline_us: f.deadline_us,
+      traffic_type: 'added', src: f.src, dst: f.dst,
+      k_paths: 2
+    }));
+    return m;
+  }
+
+  /* ════════════════════════════════════════════
+     Extract Occupancy from ILP Result
+     ════════════════════════════════════════════ */
+  function extractOccupancy(result) {
+    const occ = {};
+    for (const pr of result.packetRows) {
+      for (const h of pr.hops) {
+        if (!occ[h.link_id]) occ[h.link_id] = [];
+        occ[h.link_id].push([h.start_us, h.end_us]);
+      }
+    }
+    for (const lid of Object.keys(occ)) occ[lid].sort((a, b) => a[0] - b[0]);
+    return occ;
+  }
+
+  /* ════════════════════════════════════════════
+     Base Flow Table
+     ════════════════════════════════════════════ */
+  function renderBaseFlowTable() {
+    const model = ROII_REAL_8TC;
+    const tbody = document.getElementById('baseFlowBody');
+    let html = '';
+    for (const f of model.flows) {
+      const color = flowColor(f.id);
+      html += `<tr>
+        <td><span class="flow-dot" style="background:${color}"></span></td>
+        <td style="font-weight:600;">${f.id}</td>
+        <td>PCP ${f.PCP}</td>
+        <td>${f.payload_bytes} B</td>
+        <td>${f.period_us} &micro;s</td>
+        <td>${f.src}</td>
+      </tr>`;
+    }
+    tbody.innerHTML = html;
+  }
+
+  /* ════════════════════════════════════════════
+     Preset Buttons
+     ════════════════════════════════════════════ */
+  function renderPresetGrid() {
+    const grid = document.getElementById('presetGrid');
+    let html = '';
+    for (const p of NEW_FLOW_PRESETS) {
+      html += `<div class="preset-btn" data-preset-id="${p.id}">
+        <div class="preset-name"><span class="flow-dot" style="background:${p.color}"></span>${p.label}</div>
+        <div class="preset-detail">PCP ${p.PCP} | ${p.payload_bytes}B | ${p.period_us}&micro;s period | ${p.src}&rarr;${p.dst}</div>
+      </div>`;
+    }
+    grid.innerHTML = html;
+
+    grid.querySelectorAll('.preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const presetId = btn.dataset.presetId;
+        addPresetFlow(presetId);
+      });
+    });
+  }
+
+  function addPresetFlow(presetId) {
+    const preset = NEW_FLOW_PRESETS.find(p => p.id === presetId);
+    if (!preset) return;
+
+    // Generate unique ID
+    addedCounter[presetId] = (addedCounter[presetId] || 0) + 1;
+    const uniqueId = addedCounter[presetId] > 1 ? `${presetId}_${addedCounter[presetId]}` : presetId;
+
+    addedFlows.push({ ...preset, id: uniqueId });
+    renderAddedFlowList();
+    greedyResult = null; // invalidate previous greedy result
+    updateGreedyButton();
+  }
+
+  function removeFlow(idx) {
+    addedFlows.splice(idx, 1);
+    renderAddedFlowList();
+    greedyResult = null;
+    updateGreedyButton();
+    // Re-render if we had a combined view
+    if (baseResult) renderCombined();
+  }
+
+  function renderAddedFlowList() {
+    const list = document.getElementById('addedFlowList');
+    if (addedFlows.length === 0) {
+      list.innerHTML = '<li class="empty-state" id="emptyMsg">No flows added yet. Click a preset above.</li>';
+      return;
+    }
+    let html = '';
+    for (let i = 0; i < addedFlows.length; i++) {
+      const f = addedFlows[i];
+      html += `<li>
+        <div class="flow-info">
+          <span class="flow-dot" style="background:${f.color}"></span>
+          <strong>${f.label}</strong>
+          <span style="font-size:0.72rem;color:var(--text3);">PCP${f.PCP} ${f.payload_bytes}B ${f.period_us}&micro;s</span>
+        </div>
+        <button class="remove-btn" data-idx="${i}">Remove</button>
+      </li>`;
+    }
+    list.innerHTML = html;
+    list.querySelectorAll('.remove-btn').forEach(btn => {
+      btn.addEventListener('click', () => removeFlow(parseInt(btn.dataset.idx)));
+    });
+  }
+
+  function updateGreedyButton() {
+    const btn = document.getElementById('btnScheduleNew');
+    btn.disabled = !baseResult || addedFlows.length === 0;
+  }
+
+  /* ════════════════════════════════════════════
+     Phase 1: Solve Base ILP
+     ════════════════════════════════════════════ */
+  async function solveBase() {
+    const btn = document.getElementById('btnSolveBase');
+    btn.disabled = true;
+
+    try {
+      setStatus('<span class="spinner-sm"></span> Loading GLPK WASM...');
+      await new Promise(r => setTimeout(r, 30));
+
+      const glpk = await ensureGLPK();
+      if (!glpk) {
+        setStatus('<span style="color:var(--red);">GLPK failed to load. Cannot run ILP.</span>');
+        btn.disabled = false;
+        return;
+      }
+
+      const tmlim = parseInt(document.getElementById('paramTmlim').value) || 60;
+      setStatus('<span class="spinner-sm"></span> Solving base traffic with <strong style="color:var(--purple);">ILP</strong>...');
+      await new Promise(r => setTimeout(r, 50));
+
+      const model = buildBaseModel();
+      baseResult = await solveILP(model, glpk, { tmlim });
+
+      if (baseResult.error) {
+        setStatus(`<span style="color:var(--red);">ILP Error: ${baseResult.error}</span>`);
+        baseResult = null;
+        btn.disabled = false;
+        updateGreedyButton();
+        return;
+      }
+
+      const stPkts = baseResult.packetRows.filter(p => p.status !== 'NON-ST');
+      const missCount = stPkts.filter(p => p.status === 'MISS').length;
+      const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
+
+      let statusHtml = `<span style="color:var(--green);font-weight:700;">Base ILP solved.</span>`;
+      statusHtml += ` | Obj: ${baseResult.objective} &micro;s | Worst E2E: ${worst} &micro;s | Util: ${baseResult.worst_util_percent}%`;
+      if (missCount > 0) statusHtml += ` | <span style="color:var(--red);">MISS: ${missCount}</span>`;
+      statusHtml += ` | Runtime: ${baseResult.stats?.runtime_ms ?? '<1'} ms`;
+      const statusStr = baseResult.stats?.status;
+      if (statusStr === 5) statusHtml += ' (optimal)';
+      else if (statusStr === 2) statusHtml += ' (feasible)';
+      setStatus(statusHtml);
+
+      greedyResult = null;
+      renderCombined();
+    } catch (e) {
+      setStatus(`<span style="color:var(--red);">Error: ${e.message}</span>`);
+      console.error(e);
+      baseResult = null;
+    }
+
+    btn.disabled = false;
+    updateGreedyButton();
+  }
+
+  /* ════════════════════════════════════════════
+     Phase 2: Schedule New Flows (Greedy)
+     ════════════════════════════════════════════ */
+  async function scheduleNew() {
+    if (!baseResult || addedFlows.length === 0) return;
+
+    const btn = document.getElementById('btnScheduleNew');
+    btn.disabled = true;
+
+    try {
+      setStatus('<span class="spinner-sm"></span> Scheduling new flows with <strong style="color:var(--green);">Greedy</strong> (respecting ILP slots)...');
+      await new Promise(r => setTimeout(r, 30));
+
+      const newModel = buildNewModel(addedFlows);
+      const preOcc = extractOccupancy(baseResult);
+      greedyResult = solveGreedy(newModel, { preOcc });
+
+      if (greedyResult.error) {
+        setStatus(`<span style="color:var(--red);">Greedy Error: ${greedyResult.error}</span>`);
+        greedyResult = null;
+        btn.disabled = false;
+        return;
+      }
+
+      const stPkts = greedyResult.packetRows.filter(p => p.status !== 'NON-ST');
+      const missCount = stPkts.filter(p => p.status === 'MISS').length;
+      const greedyPkts = greedyResult.packetRows.length;
+
+      let statusHtml = `<span style="color:var(--green);font-weight:700;">Hybrid schedule complete.</span>`;
+      statusHtml += ` | <span style="color:var(--purple);">ILP: ${baseResult.packetRows.length} pkts</span>`;
+      statusHtml += ` | <span style="color:var(--green);">Greedy: ${greedyPkts} pkts</span>`;
+      if (missCount > 0) statusHtml += ` | <span style="color:var(--red);">New MISS: ${missCount}</span>`;
+      const fb = greedyResult.stats?.fallback_packets || 0;
+      if (fb > 0) statusHtml += ` | <span style="color:var(--orange);">Fallback: ${fb}</span>`;
+      setStatus(statusHtml);
+
+      renderCombined();
+    } catch (e) {
+      setStatus(`<span style="color:var(--red);">Error: ${e.message}</span>`);
+      console.error(e);
+      greedyResult = null;
+    }
+
+    btn.disabled = false;
+  }
+
+  /* ════════════════════════════════════════════
+     Render Combined
+     ════════════════════════════════════════════ */
+  function renderCombined() {
+    if (!baseResult) {
+      document.getElementById('statsCard').style.display = 'none';
+      document.getElementById('ganttCard').style.display = 'none';
+      document.getElementById('gclCard').style.display = 'none';
+      return;
+    }
+
+    const model = buildBaseModel();
+
+    // Show stats
+    document.getElementById('statsCard').style.display = '';
+    renderStats(model);
+
+    // Show gantt
+    document.getElementById('ganttCard').style.display = '';
+    renderGantt(model);
+
+    // Show board GCL
+    document.getElementById('gclCard').style.display = '';
+    renderBoardConfig(model);
+  }
+
+  /* ════════════════════════════════════════════
+     Combined Stats
+     ════════════════════════════════════════════ */
+  function renderStats(model) {
+    const row = document.getElementById('statsRow');
+
+    const basePkts = baseResult.packetRows.length;
+    const greedyPkts = greedyResult ? greedyResult.packetRows.length : 0;
+    const totalPkts = basePkts + greedyPkts;
+
+    // Compute combined utilization
+    const allOcc = extractOccupancy(baseResult);
+    if (greedyResult) {
+      const greedyOcc = extractOccupancy(greedyResult);
+      for (const [lid, intervals] of Object.entries(greedyOcc)) {
+        if (!allOcc[lid]) allOcc[lid] = [];
+        allOcc[lid].push(...intervals);
+      }
+    }
+    let worstUtil = 0;
+    for (const [lid, intervals] of Object.entries(allOcc)) {
+      let totalTx = 0;
+      for (const [s, e] of intervals) totalTx += (e - s);
+      const util = totalTx / model.cycle_time_us * 100;
+      worstUtil = Math.max(worstUtil, util);
+    }
+
+    // Base stats
+    const baseStPkts = baseResult.packetRows.filter(p => p.status !== 'NON-ST');
+    const baseMiss = baseStPkts.filter(p => p.status === 'MISS').length;
+    const baseWorst = baseStPkts.length ? round3(Math.max(...baseStPkts.map(p => p.e2e_delay_us))) : 0;
+
+    // Greedy stats
+    let greedyMiss = 0, greedyWorst = 0;
+    if (greedyResult) {
+      const grStPkts = greedyResult.packetRows.filter(p => p.status !== 'NON-ST');
+      greedyMiss = grStPkts.filter(p => p.status === 'MISS').length;
+      greedyWorst = grStPkts.length ? round3(Math.max(...grStPkts.map(p => p.e2e_delay_us))) : 0;
+    }
+
+    const totalMiss = baseMiss + greedyMiss;
+
+    row.innerHTML = `
+      <div class="stat-box">
+        <div class="stat-val purple">${basePkts}</div>
+        <div class="stat-label">ILP Packets</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val green">${greedyPkts}</div>
+        <div class="stat-label">Greedy Packets</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val">${totalPkts}</div>
+        <div class="stat-label">Total Packets</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val ${totalMiss > 0 ? 'orange' : ''}">${round3(worstUtil)}%</div>
+        <div class="stat-label">Worst Utilization</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val purple">${baseWorst}</div>
+        <div class="stat-label">ILP Worst E2E (&micro;s)</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val green">${greedyResult ? greedyWorst : '-'}</div>
+        <div class="stat-label">Greedy Worst E2E (&micro;s)</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val ${totalMiss > 0 ? 'orange' : 'green'}">${totalMiss === 0 ? 'OK' : 'MISS (' + totalMiss + ')'}</div>
+        <div class="stat-label">Deadlines</div>
+      </div>
+    `;
+  }
+
+  /* ════════════════════════════════════════════
+     Combined Gantt Chart Rendering
+     ════════════════════════════════════════════ */
+  function renderGantt(model) {
+    const container = document.getElementById('ganttCombined');
+    container.innerHTML = '';
+    const legendEl = document.getElementById('ganttLegend');
+    legendEl.innerHTML = '';
+
+    // Merge GCL entries from both results
+    // We render per-link from the raw packet data for combined view
+    const allEntries = {}; // link_id -> [{start, end, fid, source:'ilp'|'greedy', note}]
+
+    // ILP entries
+    for (const pr of baseResult.packetRows) {
+      for (const h of pr.hops) {
+        if (!allEntries[h.link_id]) allEntries[h.link_id] = [];
+        allEntries[h.link_id].push({
+          start_us: h.start_us, end_us: h.end_us, duration_us: h.duration_us,
+          fid: pr.flow_id, note: pr.packet_id, source: 'ilp',
+          gate_mask: (() => { const tc = pr.priority; const mask = Array(8).fill('0'); mask[7 - tc] = '1'; return mask.join(''); })(),
+          priority: pr.priority
+        });
+      }
+    }
+
+    // Greedy entries
+    if (greedyResult) {
+      for (const pr of greedyResult.packetRows) {
+        for (const h of pr.hops) {
+          if (!allEntries[h.link_id]) allEntries[h.link_id] = [];
+          allEntries[h.link_id].push({
+            start_us: h.start_us, end_us: h.end_us, duration_us: h.duration_us,
+            fid: pr.flow_id, note: pr.packet_id, source: 'greedy',
+            gate_mask: (() => { const tc = pr.priority; const mask = Array(8).fill('0'); mask[7 - tc] = '1'; return mask.join(''); })(),
+            priority: pr.priority
+          });
+        }
+      }
+    }
+
+    // Find active links
+    const activeLinks = model.links.filter(l => allEntries[l.id] && allEntries[l.id].length > 0);
+    if (!activeLinks.length) {
+      container.innerHTML = '<p style="padding:20px;color:var(--text3);">No scheduled traffic</p>';
+      return;
+    }
+
+    // Sort entries per link
+    for (const lid of Object.keys(allEntries)) {
+      allEntries[lid].sort((a, b) => a.start_us - b.start_us);
+    }
+
+    const margin = { top: 28, right: 60, bottom: 40, left: 130 };
+    const rowH = 38;
+    const W = container.clientWidth || 900;
+    const H = margin.top + activeLinks.length * rowH + margin.bottom;
+    const innerW = W - margin.left - margin.right;
+    const innerH = activeLinks.length * rowH;
+
+    const svg = d3.select(container).append('svg')
+      .attr('viewBox', `0 0 ${W} ${H}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet')
+      .style('width', '100%');
+
+    const defs = svg.append('defs');
+    const pId = 'guardHatch_combined';
+    const gp = defs.append('pattern').attr('id', pId)
+      .attr('patternUnits', 'userSpaceOnUse').attr('width', 6).attr('height', 6)
+      .attr('patternTransform', 'rotate(45)');
+    gp.append('rect').attr('width', 6).attr('height', 6).attr('fill', '#f9a825');
+    gp.append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 6)
+      .attr('stroke', 'rgba(0,0,0,0.2)').attr('stroke-width', 2);
+
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+    const x = d3.scaleLinear().domain([0, model.cycle_time_us]).range([0, innerW]);
+    const y = d3.scaleBand().domain(activeLinks.map(l => l.id)).range([0, innerH]).padding(0.15);
+
+    // Grid
+    g.append('g').attr('class', 'gcl-grid')
+      .selectAll('line').data(x.ticks(10)).enter().append('line')
+      .attr('x1', d => x(d)).attr('x2', d => x(d)).attr('y1', 0).attr('y2', innerH);
+
+    // X axis
+    g.append('g').attr('class', 'gcl-axis').attr('transform', `translate(0,${innerH})`)
+      .call(d3.axisBottom(x).ticks(10).tickFormat(d => d + ' \u00b5s'));
+
+    // Y axis labels
+    g.append('g').attr('class', 'gcl-axis')
+      .call(d3.axisLeft(y).tickSize(0).tickPadding(6))
+      .selectAll('text').text(d => {
+        const lnk = model.links.find(l => l.id === d);
+        return lnk ? `${lnk.from} \u2192 ${lnk.to}` : d;
+      }).attr('font-size', '9px');
+
+    // Row backgrounds
+    g.selectAll('.rbg').data(activeLinks).enter().append('rect')
+      .attr('x', 0).attr('y', d => y(d.id))
+      .attr('width', innerW).attr('height', y.bandwidth())
+      .attr('fill', (_, i) => i % 2 === 0 ? 'rgba(59,130,246,0.03)' : 'transparent').attr('rx', 3);
+
+    // Draw entries
+    const tooltip = document.getElementById('tooltip');
+
+    // Color helper for added flows
+    const addedColorMap = {};
+    for (const af of addedFlows) addedColorMap[af.id] = af.color;
+
+    for (const lnk of activeLinks) {
+      const entries = allEntries[lnk.id] || [];
+      let usedILP = 0, usedGreedy = 0;
+
+      for (const e of entries) {
+        const xPos = x(e.start_us);
+        const actualW = x(e.end_us) - xPos;
+        const yPos = y(lnk.id);
+        if (yPos === undefined) continue;
+        const bw = y.bandwidth();
+
+        const isGreedy = e.source === 'greedy';
+        const color = isGreedy ? (addedColorMap[e.fid] || '#059669') : flowColor(e.fid);
+        const opacity = isGreedy ? 1.0 : 0.85;
+        const displayW = Math.max(actualW, 1);
+
+        // Visible rect
+        g.append('rect')
+          .attr('x', xPos).attr('y', yPos)
+          .attr('width', displayW).attr('height', bw)
+          .attr('fill', color)
+          .attr('stroke', isGreedy ? 'rgba(5,150,105,0.8)' : 'rgba(255,255,255,0.4)')
+          .attr('stroke-width', isGreedy ? 1.5 : 0.8)
+          .attr('stroke-dasharray', isGreedy ? '3,2' : 'none')
+          .attr('rx', 3).attr('opacity', opacity);
+
+        // Transparent hit area for hover (min 8px centered)
+        const hitW = Math.max(displayW, 8);
+        const hitOff = (hitW - displayW) / 2;
+        const sourceLabel = isGreedy ? 'Greedy' : 'ILP';
+        const showTooltip = (ev) => {
+          tooltip.innerHTML = `<div class="tt-title" style="color:${color}">${e.note} <span style="font-size:0.68rem;opacity:0.7;">[${sourceLabel}]</span></div>`
+            + `<div class="tt-row"><span class="tt-k">Gate</span><span class="tt-v">${e.gate_mask}</span></div>`
+            + `<div class="tt-row"><span class="tt-k">Start</span><span class="tt-v">${e.start_us} \u00b5s</span></div>`
+            + `<div class="tt-row"><span class="tt-k">End</span><span class="tt-v">${e.end_us} \u00b5s</span></div>`
+            + `<div class="tt-row"><span class="tt-k">Duration</span><span class="tt-v">${e.duration_us} \u00b5s</span></div>`
+            + `<div class="tt-row"><span class="tt-k">Source</span><span class="tt-v">${sourceLabel}</span></div>`;
+          tooltip.classList.add('show');
+        };
+        g.append('rect')
+          .attr('x', xPos - hitOff).attr('y', yPos)
+          .attr('width', hitW).attr('height', bw)
+          .attr('fill', 'transparent')
+          .style('cursor', 'pointer')
+          .on('mouseover', showTooltip)
+          .on('mousemove', (ev) => {
+            tooltip.style.left = (ev.clientX + 12) + 'px';
+            tooltip.style.top = (ev.clientY - 20) + 'px';
+          })
+          .on('mouseout', () => tooltip.classList.remove('show'));
+
+        if (actualW > 25) {
+          g.append('text').attr('class', 'gcl-label')
+            .attr('x', xPos + actualW / 2).attr('y', yPos + bw / 2)
+            .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+            .text(e.note.replace('#', '.'));
+        }
+
+        if (isGreedy) usedGreedy += e.duration_us;
+        else usedILP += e.duration_us;
+      }
+
+      // Utilization label
+      const totalUsed = usedILP + usedGreedy;
+      g.append('text').attr('x', innerW + 8).attr('y', y(lnk.id) + y.bandwidth() / 2)
+        .attr('text-anchor', 'start').attr('dominant-baseline', 'middle')
+        .attr('font-size', '10px').attr('fill', 'var(--text3)').attr('font-weight', '700')
+        .text((totalUsed / model.cycle_time_us * 100).toFixed(1) + '%');
+    }
+
+    // Header annotation
+    svg.append('text').attr('x', margin.left).attr('y', margin.top - 10)
+      .attr('fill', 'var(--text3)').attr('font-size', '9px')
+      .text(`Cycle: ${model.cycle_time_us} \u00b5s | Active: ${activeLinks.length}/${model.links.length} links`);
+
+    // Update gantt header stats
+    const basePkts = baseResult.packetRows.length;
+    const greedyPkts = greedyResult ? greedyResult.packetRows.length : 0;
+    document.getElementById('ganttStats').textContent =
+      `ILP: ${basePkts} pkts | Greedy: ${greedyPkts} pkts | Total: ${basePkts + greedyPkts}`;
+
+    // Legend
+    const seenILP = new Set();
+    for (const pr of baseResult.packetRows) seenILP.add(pr.flow_id);
+    const seenGreedy = new Set();
+    if (greedyResult) {
+      for (const pr of greedyResult.packetRows) seenGreedy.add(pr.flow_id);
+    }
+
+    let legendHtml = '<div class="legend-item" style="font-weight:700;color:var(--purple);margin-right:8px;">ILP (base):</div>';
+    for (const fid of seenILP) {
+      legendHtml += `<div class="legend-item"><span class="legend-swatch" style="background:${flowColor(fid)}"></span>${fid}</div>`;
+    }
+    if (seenGreedy.size > 0) {
+      legendHtml += '<div class="legend-item" style="font-weight:700;color:var(--green);margin-left:12px;margin-right:8px;">Greedy (added):</div>';
+      for (const fid of seenGreedy) {
+        const c = addedColorMap[fid] || '#059669';
+        legendHtml += `<div class="legend-item"><span class="legend-swatch" style="background:${c};border:1.5px dashed rgba(5,150,105,0.6);"></span>${fid}</div>`;
+      }
+    }
+    legendEl.innerHTML = legendHtml;
+  }
+
+  /* ════════════════════════════════════════════
+     Board GCL Config Rendering (Combined)
+     ════════════════════════════════════════════ */
+  function renderBoardConfig(model) {
+    const panel = document.getElementById('gclCombined');
+
+    // Build combined GCL from both results
+    // We use the base ILP result's boardConfigs as foundation, then merge greedy packets
+    if (!baseResult || !baseResult.boardConfigs) {
+      panel.innerHTML = '<p style="color:var(--text3);padding:8px;">No GCL data</p>';
+      return;
+    }
+
+    // Build combined GCL per link from raw packet data
+    const nodeType = Object.fromEntries(model.nodes.map(n => [n.id, n.type]));
+    const allPacketEntries = {}; // link_id -> [{start, end, note, priority, source}]
+
+    for (const pr of baseResult.packetRows) {
+      for (const h of pr.hops) {
+        if (!allPacketEntries[h.link_id]) allPacketEntries[h.link_id] = [];
+        allPacketEntries[h.link_id].push({
+          start_us: h.start_us, end_us: h.end_us, duration_us: h.duration_us,
+          note: pr.packet_id, priority: pr.priority, source: 'ilp'
+        });
+      }
+    }
+    if (greedyResult) {
+      for (const pr of greedyResult.packetRows) {
+        for (const h of pr.hops) {
+          if (!allPacketEntries[h.link_id]) allPacketEntries[h.link_id] = [];
+          allPacketEntries[h.link_id].push({
+            start_us: h.start_us, end_us: h.end_us, duration_us: h.duration_us,
+            note: pr.packet_id, priority: pr.priority, source: 'greedy'
+          });
+        }
+      }
+    }
+
+    const switches = ROII_REAL_SWITCHES;
+    let html = '';
+    for (const sw of switches) {
+      const swLinks = model.links.filter(l => l.from === sw.id);
+      if (!swLinks.length) continue;
+
+      html += `<div class="board-section"><h3>${sw.label} (${sw.chip})</h3>`;
+      for (const lnk of swLinks) {
+        const rows = (allPacketEntries[lnk.id] || []).slice().sort((a, b) => a.start_us - b.start_us);
+        if (!rows.length) continue;
+
+        // Build GCL entries with all-gates-closed gaps
+        const entries = [];
+        let idx = 0, cursor = 0;
+        for (const r of rows) {
+          if (r.start_us > cursor + 0.001) {
+            entries.push({ index: idx++, gate_mask: '00000000', start_us: round3(cursor), end_us: r.start_us, duration_us: round3(r.start_us - cursor), note: 'all-gates-closed', source: '' });
+          }
+          const tc = r.priority;
+          const mask = Array(8).fill('0'); mask[7 - tc] = '1';
+          entries.push({ index: idx++, gate_mask: mask.join(''), start_us: r.start_us, end_us: r.end_us, duration_us: r.duration_us, note: r.note, source: r.source });
+          cursor = r.end_us;
+        }
+        if (cursor < model.cycle_time_us - 0.001) {
+          entries.push({ index: idx++, gate_mask: '00000000', start_us: round3(cursor), end_us: model.cycle_time_us, duration_us: round3(model.cycle_time_us - cursor), note: 'all-gates-closed', source: '' });
+        }
+
+        // PCP mapping
+        const pcpSet = new Set();
+        for (const e of entries) {
+          if (e.gate_mask && e.gate_mask !== '00000000' && e.gate_mask !== '11111111') {
+            const q = e.gate_mask.split('').reverse().indexOf('1');
+            if (q >= 0) pcpSet.add(q);
+          }
+        }
+
+        html += `<div class="board-port">`;
+        html += `<h4>Egress &rarr; ${lnk.to} <span style="color:var(--text3);font-weight:400;">(${lnk.id})</span></h4>`;
+        html += `<div class="port-meta">Cycle: ${model.cycle_time_us} &micro;s | Guard: ${model.guard_band_us} &micro;s | Entries: ${entries.length}</div>`;
+        if (pcpSet.size) {
+          html += `<div class="pcp-map">`;
+          for (const q of [...pcpSet].sort((a, b) => b - a)) html += `<span class="pcp-badge">PCP ${q} &rarr; Q${q}</span>`;
+          html += `</div>`;
+        }
+        html += `<table class="gcl-table"><thead><tr><th>#</th><th>Gate Mask</th><th>Start (&micro;s)</th><th>End (&micro;s)</th><th>Duration (&micro;s)</th><th>TC</th><th>Note</th><th>Source</th></tr></thead><tbody>`;
+        for (const e of entries) {
+          const bits = e.gate_mask.split('');
+          const isGuard = e.note === 'guard';
+          const isClosed = e.note === 'all-gates-closed';
+          let bitsHtml = '<span class="gate-bits">';
+          for (let b = 0; b < 8; b++) {
+            const cls = isGuard ? 'guard' : (bits[b] === '1' ? 'open' : 'closed');
+            bitsHtml += `<span class="gate-bit ${cls}">${7-b}</span>`;
+          }
+          bitsHtml += '</span>';
+          let tc = '-';
+          if (isGuard) tc = 'Guard';
+          else if (isClosed) tc = 'Closed';
+          else if (e.gate_mask === '11111111') tc = 'BE';
+          else { const q = e.gate_mask.split('').reverse().indexOf('1'); if (q >= 0) tc = 'TC' + q; }
+          const srcLabel = e.source === 'ilp' ? '<span style="color:var(--purple);font-weight:700;">ILP</span>'
+                         : e.source === 'greedy' ? '<span style="color:var(--green);font-weight:700;">Greedy</span>'
+                         : '-';
+          html += `<tr><td>${e.index}</td><td>${bitsHtml}</td><td>${e.start_us}</td><td>${e.end_us}</td><td>${e.duration_us}</td><td>${tc}</td><td>${e.note}</td><td>${srcLabel}</td></tr>`;
+        }
+        html += `</tbody></table></div>`;
+      }
+      html += `</div>`;
+    }
+
+    panel.innerHTML = html || '<p style="color:var(--text3);padding:8px;">No switch egress data</p>';
+  }
+
+  /* ════════════════════════════════════════════
+     Event Listeners
+     ════════════════════════════════════════════ */
+  document.getElementById('btnSolveBase').addEventListener('click', solveBase);
+  document.getElementById('btnScheduleNew').addEventListener('click', scheduleNew);
+
+  /* ════════════════════════════════════════════
+     Init
+     ════════════════════════════════════════════ */
+  renderBaseFlowTable();
+  renderPresetGrid();
+  renderAddedFlowList();
+  updateGreedyButton();
+
+  // Auto-solve base ILP on load
+  solveBase();
+  </script>
+</body>
+</html>
