@@ -51,12 +51,24 @@
     .stat-group { text-align: center; }
     .top-bar .keti-logo { height: 28px; width: auto; }
 
-    /* Main content — 3-column */
+    /* Main content — 2-column: Topology left, Schedule+GCL right */
     .main-content {
       display: grid;
-      grid-template-columns: 380px 1fr 240px;
+      grid-template-columns: 320px 1fr;
+      grid-template-rows: 1fr 140px;
       gap: 6px;
       min-height: 0;
+    }
+    .topo-panel { grid-row: 1 / 3; } /* Topology spans both rows */
+    .schedule-area {
+      display: grid;
+      grid-template-columns: 1fr 220px;
+      gap: 6px;
+    }
+    .gcl-area {
+      display: grid;
+      grid-template-columns: 1fr 220px;
+      gap: 6px;
     }
 
     /* Panel base */
@@ -199,51 +211,57 @@
       </div>
     </div>
 
-    <!-- Main 3-Column -->
+    <!-- Main Layout -->
     <div class="main-content">
-      <!-- Left: Topology -->
-      <div class="panel">
+      <!-- Left: Topology (spans both rows) -->
+      <div class="panel topo-panel">
         <div class="panel-title">Network Topology</div>
         <div class="panel-body topo-body" id="topoContainer"></div>
       </div>
 
-      <!-- Center: Gantt -->
-      <div class="panel">
-        <div class="panel-title">GCL Schedule Timeline</div>
-        <div class="panel-body gantt-body" id="ganttContainer"></div>
+      <!-- Right top: Gantt + TAS side by side -->
+      <div class="schedule-area">
+        <div class="panel">
+          <div class="panel-title">GCL Schedule Timeline</div>
+          <div class="panel-body gantt-body" id="ganttContainer"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">TAS / Flows</div>
+          <div class="panel-body right-panel" id="rightPanel">
+            <table class="tas-table">
+              <thead><tr><th>Param</th><th>Value</th></tr></thead>
+              <tbody>
+                <tr><td>Cycle</td><td>1000 &micro;s</td></tr>
+                <tr><td>Guard</td><td>0 &micro;s</td></tr>
+                <tr><td>Speed</td><td>1000 Mbps</td></tr>
+                <tr><td>Proc Delay</td><td>5 &micro;s</td></tr>
+                <tr><td>Gate Mode</td><td>8-TC</td></tr>
+                <tr><td>Scheduler</td><td>Greedy</td></tr>
+              </tbody>
+            </table>
+            <div class="section-divider">Flows (9)</div>
+            <div class="flow-list" id="flowList"></div>
+          </div>
+        </div>
       </div>
 
-      <!-- Right: TAS Config + GCL -->
-      <div class="panel">
-        <div class="panel-title">TAS Configuration</div>
-        <div class="panel-body right-panel" id="rightPanel">
-          <!-- TAS Settings -->
-          <table class="tas-table">
-            <thead><tr><th>Parameter</th><th>Value</th></tr></thead>
-            <tbody>
-              <tr><td>Cycle Time</td><td>1000 &micro;s</td></tr>
-              <tr><td>Guard Band</td><td>0 &micro;s</td></tr>
-              <tr><td>Link Speed</td><td>1000 Mbps</td></tr>
-              <tr><td>Processing Delay</td><td>5 &micro;s</td></tr>
-              <tr><td>Gate Mode</td><td>8-TC (No BE)</td></tr>
-              <tr><td>Scheduler</td><td>Greedy</td></tr>
-            </tbody>
-          </table>
-
-          <div class="section-divider">Flows (9)</div>
-          <div class="flow-list" id="flowList"></div>
-
-          <div class="section-divider">Board GCL (SW_REAR &rarr; ACU_IT)</div>
-          <div class="gcl-mini" id="gclMini"></div>
+      <!-- Right bottom: Board GCL (below schedule) -->
+      <div class="gcl-area">
+        <div class="panel">
+          <div class="panel-title">Board GCL Configuration</div>
+          <div class="panel-body" style="overflow-y:auto;padding:4px 8px;" id="gclMini"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">Legend</div>
+          <div class="panel-body" style="padding:6px 10px;" id="legendPanel"></div>
         </div>
       </div>
     </div>
 
     <!-- Bottom Bar -->
     <div class="bottom-bar">
-      <div class="legend-row" id="legendRow"></div>
+      <div>KETI &mdash; IEEE 802.1Qbv TAS &mdash; Presentation Mode (Radar payload scaled for visibility)</div>
       <div>
-        KETI &mdash; IEEE 802.1Qbv TAS |
         <a href="roii-8tc.html">8-TC</a>
         <a href="roii-8tc-ilp.html">ILP</a>
         <a href="roii-8tc-multiroute.html">Multi-Route</a>
@@ -269,6 +287,10 @@
     m.guard_band_us = 0;
     m.processing_delay_us = 5;
     for (const lnk of m.links) lnk.rate_mbps = 1000;
+    // Presentation: increase radar payload so bars are visible (similar to LiDAR)
+    for (const f of m.flows) {
+      if (f.traffic_type === 'radar') f.payload_bytes = 1200;
+    }
     return m;
   }
 
@@ -305,8 +327,8 @@
     const container = document.getElementById('topoContainer');
     container.innerHTML = '';
     const rect = container.getBoundingClientRect();
-    const W = rect.width || 360;
-    const H = rect.height || 400;
+    const W = rect.width || 310;
+    const H = rect.height || 450;
     // Custom positions: more spacing for larger sensor nodes
     const pos = {
       RADAR_FLC: { x: W * 0.04, y: H * 0.09 },
@@ -537,34 +559,33 @@
     const el = document.getElementById('flowList');
     el.innerHTML = model.flows.map(f => {
       const color = flowColor(f.id) || '#3B82F6';
-      const type = f.id.includes('lidar') ? 'LiDAR' : 'Radar';
+      const name = f.id.replace('f_','');
       return `<div class="flow-item">
         <span class="flow-dot" style="background:${color}"></span>
-        <span class="flow-name">${f.id}</span>
-        <span class="flow-meta">PCP${f.PCP} ${f.payload_bytes}B ${f.period_us}\u00b5s</span>
+        <span class="flow-name">${name}</span>
+        <span class="flow-meta">P${f.PCP} ${f.payload_bytes}B</span>
       </div>`;
     }).join('');
   }
 
-  /* ═══════ Board GCL Mini ═══════ */
+  /* ═══════ Board GCL (horizontal for bottom panel) ═══════ */
   function renderGclMini(result) {
     const el = document.getElementById('gclMini');
     if (!result.boardConfigs) { el.innerHTML = '<span style="color:var(--text3);font-size:0.65rem;">No GCL</span>'; return; }
 
-    // Show bottleneck link: SW_REAR → ACU_IT
-    let html = '';
+    let html = '<div style="display:flex;gap:16px;flex-wrap:wrap;">';
     const switches = ROII_REAL_SWITCHES;
     for (const sw of switches) {
       const cfg = result.boardConfigs[sw.id];
       if (!cfg) continue;
-      html += `<h4>${sw.label}</h4>`;
+      html += `<div style="flex:1;min-width:200px;">`;
+      html += `<div style="font-size:0.68rem;font-weight:700;color:var(--blue);margin-bottom:3px;">${sw.label}</div>`;
       for (const [portId, port] of Object.entries(cfg.ports)) {
-        // Only show ports with actual traffic (more than just all-gates-closed)
         const hasTraffic = port.entries.some(e => !e.note.includes('all-gates-closed') && !e.note.includes('non-ST'));
         if (!hasTraffic) continue;
-        html += `<div style="margin-bottom:4px;font-size:0.62rem;color:var(--text2);font-weight:600;">&rarr; ${port.to}</div>`;
+        html += `<div style="font-size:0.58rem;color:var(--text2);font-weight:600;margin:2px 0 1px;">&rarr; ${port.to}</div>`;
         for (const e of port.entries) {
-          if (e.note === 'all-gates-closed' && e.duration_us > 500) continue; // skip large gaps
+          if (e.note === 'all-gates-closed' && e.duration_us > 500) continue;
           const bits = e.gate_mask.split('');
           let bitsHtml = '<span class="gcl-gate-bits">';
           for (let b = 0; b < 8; b++) {
@@ -572,24 +593,36 @@
             bitsHtml += `<span class="gcl-bit ${cls}">${7-b}</span>`;
           }
           bitsHtml += '</span>';
-          const noteShort = e.note.length > 14 ? e.note.slice(0, 14) + '..' : e.note;
+          const noteShort = e.note.length > 12 ? e.note.slice(0, 12) + '..' : e.note;
           html += `<div class="gcl-entry-row">${bitsHtml}<span class="gcl-entry-time">${e.start_us}-${e.end_us}</span><span class="gcl-entry-note" title="${e.note}">${noteShort}</span></div>`;
         }
       }
+      html += '</div>';
     }
+    html += '</div>';
     el.innerHTML = html;
   }
 
   /* ═══════ Legend ═══════ */
   function renderLegend(result) {
-    const el = document.getElementById('legendRow');
+    const el = document.getElementById('legendPanel');
+    if (!el) return;
     const seenFlows = [];
     for (const pr of result.packetRows) {
       if (!seenFlows.includes(pr.flow_id)) seenFlows.push(pr.flow_id);
     }
-    el.innerHTML = seenFlows.map(fid =>
-      `<div class="legend-item"><span class="legend-swatch" style="background:${flowColor(fid)}"></span><span style="font-size:0.62rem;">${fid}</span></div>`
+    // Group by type
+    const lidarFlows = seenFlows.filter(f => f.includes('lidar'));
+    const radarFlows = seenFlows.filter(f => f.includes('radar'));
+    let html = '<div style="font-size:0.65rem;font-weight:700;color:var(--text2);margin-bottom:4px;">LiDAR</div>';
+    html += lidarFlows.map(fid =>
+      `<div class="flow-item" style="padding:2px 0;"><span class="flow-dot" style="background:${flowColor(fid)}"></span><span style="font-size:0.62rem;">${fid.replace('f_','')}</span></div>`
     ).join('');
+    html += '<div style="font-size:0.65rem;font-weight:700;color:var(--text2);margin:6px 0 4px;">Radar</div>';
+    html += radarFlows.map(fid =>
+      `<div class="flow-item" style="padding:2px 0;"><span class="flow-dot" style="background:${flowColor(fid)}"></span><span style="font-size:0.62rem;">${fid.replace('f_','')}</span></div>`
+    ).join('');
+    el.innerHTML = html;
   }
 
   /* ═══════ Init ═══════ */
