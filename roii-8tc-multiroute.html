@@ -447,15 +447,24 @@
   const round3 = v => Math.round(v * 1000) / 1000;
 
   /* ════════════════════════════════════════════
+     Backbone Reverse Map (module-level)
+     ════════════════════════════════════════════ */
+  const BACKBONE_REVERSE = {
+    'l_swfl_swfr': 'l_swfr_swfl', 'l_swfr_swfl': 'l_swfl_swfr',
+    'l_swfl_swrear': 'l_swrear_swfl', 'l_swrear_swfl': 'l_swfl_swrear',
+    'l_swfr_swrear': 'l_swrear_swfr', 'l_swrear_swfr': 'l_swfr_swrear',
+  };
+
+  /* ════════════════════════════════════════════
      Scenario Definitions
      ════════════════════════════════════════════ */
   const SCENARIOS = [
     { id: 'normal',  name: 'Normal',       nameKo: '기본 경로',      desc: '모든 플로우 최단 경로 (정상 운영)',
-      flRoute: 0, frRoute: 0, color: '#3B82F6', failedLink: null },
+      color: '#3B82F6', failedLink: null },
     { id: 'fl_fail', name: 'FL Failover',  nameKo: 'FL→REAR 장애', desc: 'FL→REAR 링크 끊김 → FL 그룹 FR 경유 우회',
-      flRoute: 1, frRoute: 0, color: '#d97706', failedLink: 'l_swfl_swrear' },
+      color: '#d97706', failedLink: 'l_swfl_swrear' },
     { id: 'fr_fail', name: 'FR Failover',  nameKo: 'FR→REAR 장애', desc: 'FR→REAR 링크 끊김 → FR 그룹 FL 경유 우회',
-      flRoute: 0, frRoute: 1, color: '#059669', failedLink: 'l_swfr_swrear' }
+      color: '#059669', failedLink: 'l_swfr_swrear' }
   ];
 
   /* ════════════════════════════════════════════
@@ -470,7 +479,21 @@
 
   const flowPaths = {};
   for (const f of FLOW_DEFS) {
-    flowPaths[f.id] = generateKPaths(adj, f.src, f.dst, 2, base.nodes.length + 2);
+    flowPaths[f.id] = generateKPaths(adj, f.src, f.dst, 3, base.nodes.length + 2);
+  }
+
+  /* Link lookup: (from|to) → link_id for path validation */
+  const linkLookup = new Map();
+  for (const l of base.links) linkLookup.set(`${l.from}|${l.to}`, l.id);
+
+  /** Check if a path (array of node IDs) uses a given link or its reverse */
+  function pathUsesLink(path, linkId) {
+    const revId = BACKBONE_REVERSE[linkId];
+    for (let i = 0; i < path.length - 1; i++) {
+      const lid = linkLookup.get(`${path[i]}|${path[i+1]}`);
+      if (lid === linkId || lid === revId) return true;
+    }
+    return false;
   }
 
   /* ════════════════════════════════════════════
@@ -499,13 +522,31 @@
     m.processing_delay_us = procDelay;
     for (const lnk of m.links) lnk.rate_mbps = speed;
 
-    m.flows = FLOW_DEFS.map(f => {
-      let routeIdx = 0;
-      if (FL_FLOWS.includes(f.id)) routeIdx = scenario.flRoute;
-      else if (FR_FLOWS.includes(f.id)) routeIdx = scenario.frRoute;
+    // Remove failed link (and its reverse) from model — hard constraint
+    if (scenario.failedLink) {
+      const revId = BACKBONE_REVERSE[scenario.failedLink];
+      m.links = m.links.filter(l => l.id !== scenario.failedLink && l.id !== revId);
+    }
 
+    const pathErrors = [];
+    m.flows = FLOW_DEFS.map(f => {
       const paths = flowPaths[f.id];
-      const selectedPath = paths[Math.min(routeIdx, paths.length - 1)];
+
+      // Select path by content: pick shortest path that avoids the failed link
+      let selectedPath = null;
+      if (!scenario.failedLink || !paths.length) {
+        selectedPath = paths[0];
+      } else {
+        selectedPath = paths.find(p => !pathUsesLink(p, scenario.failedLink));
+        if (!selectedPath) {
+          pathErrors.push(f.id);
+          selectedPath = paths[0]; // fallback — ILP will detect infeasibility
+        }
+      }
+      if (!selectedPath) {
+        pathErrors.push(f.id);
+        selectedPath = [f.src, f.dst]; // emergency fallback
+      }
 
       return {
         id: f.id, PCP: f.pcp,
@@ -519,6 +560,9 @@
       };
     });
 
+    if (pathErrors.length) {
+      console.warn(`[${scenario.name}] No valid alternate path for: ${pathErrors.join(', ')}`);
+    }
     return m;
   }
 
@@ -573,19 +617,36 @@
         }
       }
 
-      // Summary status
+      // Summary status — per-scenario results (no cross-scenario "Best" since constraints differ)
       const solved = SCENARIOS.filter(sc => results[sc.id] && !results[sc.id].error);
       const failed = SCENARIOS.filter(sc => results[sc.id]?.error);
-      let statusHtml = `<span style="color:var(--green);font-weight:700;">${solved.length}/3 ILP scenarios solved.</span>`;
+      let statusHtml = `<span style="color:var(--green);font-weight:700;">${solved.length}/3 solved.</span>`;
       if (failed.length > 0) {
         statusHtml += ` <span style="color:var(--red);">Failed: ${failed.map(s => s.name).join(', ')}</span>`;
       }
-      const bestSc = solved.reduce((best, sc) => {
-        const obj = results[sc.id].objective;
-        return (!best || obj < best.obj) ? { name: sc.name, obj } : best;
-      }, null);
-      if (bestSc) {
-        statusHtml += ` | Best: <strong style="color:var(--green);">${bestSc.name}</strong> (${bestSc.obj} \u00b5s)`;
+      // Per-scenario timing
+      const scParts = solved.map(sc => {
+        const r = results[sc.id];
+        const stats = getE2EStats(r);
+        const warnIcon = stats && !stats.allOk ? ' \u26a0' : '';
+        return `<span style="color:${sc.color};font-weight:600;">${sc.name}</span>: ${r.objective}\u00b5s${warnIcon}`;
+      });
+      if (scParts.length) statusHtml += ' | ' + scParts.join(' | ');
+      // Min-window warning
+      let minWindow = Infinity;
+      for (const sc of solved) {
+        const r = results[sc.id];
+        if (!r.gcl?.links) continue;
+        for (const [, ldata] of Object.entries(r.gcl.links)) {
+          for (const e of ldata.entries || []) {
+            if (e.duration_us > 0 && !e.note.includes('all-gates-closed') && !e.note.includes('non-ST')) {
+              minWindow = Math.min(minWindow, e.duration_us);
+            }
+          }
+        }
+      }
+      if (minWindow < 1.0 && minWindow < Infinity) {
+        statusHtml += ` | <span style="color:var(--orange);" title="GCL window below 1\u00b5s may not be implementable on hardware">\u26a0 Min window: ${round3(minWindow)}\u00b5s</span>`;
       }
       setStatus(statusHtml);
 
@@ -682,6 +743,21 @@
         if (s === 5) return 'optimal';
         if (s === 2) return 'feasible';
         return s ?? '-';
+      }, noWinner: true },
+      { label: 'Min GCL Window (\u00b5s)', getter: r => {
+        if (!r.gcl?.links) return '-';
+        let minW = Infinity;
+        for (const [, ld] of Object.entries(r.gcl.links)) {
+          for (const e of ld.entries || []) {
+            if (e.duration_us > 0 && !e.note.includes('all-gates-closed') && !e.note.includes('non-ST'))
+              minW = Math.min(minW, e.duration_us);
+          }
+        }
+        return minW < Infinity ? round3(minW) : '-';
+      }, noWinner: true, warnBelow: 1.0 },
+      { label: 'Route Hops (max)', getter: r => {
+        if (!r.packetRows) return '-';
+        return Math.max(...r.packetRows.map(p => p.hops?.length ?? 0));
       }, noWinner: true }
     ];
 
@@ -713,6 +789,8 @@
           cls = ' class="cmp-miss"';
         } else if (!row.noWinner && !row.special && typeof v === 'number' && v === bestVal && bestVal < Infinity) {
           cls = ' class="cmp-winner"';
+        } else if (row.warnBelow && typeof v === 'number' && v < row.warnBelow) {
+          cls = ' style="color:var(--orange);font-weight:700;" title="Below hardware-safe threshold"';
         }
         const display = row.suffix ? v + row.suffix : v;
         html += `<td${cls}>${display}</td>`;
@@ -809,43 +887,55 @@
 
       for (const e of entries) {
         const xPos = x(e.start_us);
-        const w = Math.max(x(e.end_us) - xPos, 2);
+        const actualW = x(e.end_us) - xPos;
         const yPos = y(lnk.id);
         if (yPos === undefined) continue;
         const bw = y.bandwidth();
 
         if (e.note === 'guard') {
-          g.append('rect').attr('x', xPos).attr('y', yPos).attr('width', w).attr('height', bw)
+          g.append('rect').attr('x', xPos).attr('y', yPos)
+            .attr('width', Math.max(actualW, 1)).attr('height', bw)
             .attr('fill', `url(#${pId})`).attr('opacity', 0.7).attr('rx', 2);
         } else if (e.note.includes('all-gates-closed') || e.note.includes('non-ST')) {
           // skip
         } else {
           const fid = e.note.split('#')[0];
           const color = flowColor(fid) || '#3B82F6';
+          const displayW = Math.max(actualW, 1);
+
+          // Visible rect — true proportional width (min 1px)
           g.append('rect')
             .attr('x', xPos).attr('y', yPos)
-            .attr('width', w).attr('height', bw)
+            .attr('width', displayW).attr('height', bw)
             .attr('fill', color).attr('stroke', 'rgba(255,255,255,0.4)')
-            .attr('stroke-width', 0.8).attr('rx', 3).attr('opacity', 0.9)
+            .attr('stroke-width', 0.8).attr('rx', 3).attr('opacity', 0.9);
+
+          // Transparent hit area for hover (min 8px centered)
+          const hitW = Math.max(displayW, 8);
+          const hitOff = (hitW - displayW) / 2;
+          const showTooltip = (ev) => {
+            tooltip.innerHTML = `<div class="tt-title" style="color:${color}">${e.note}</div>`
+              + `<div class="tt-row"><span class="tt-k">Gate</span><span class="tt-v">${e.gate_mask}</span></div>`
+              + `<div class="tt-row"><span class="tt-k">Start</span><span class="tt-v">${e.start_us} \u00b5s</span></div>`
+              + `<div class="tt-row"><span class="tt-k">End</span><span class="tt-v">${e.end_us} \u00b5s</span></div>`
+              + `<div class="tt-row"><span class="tt-k">Duration</span><span class="tt-v">${e.duration_us} \u00b5s</span></div>`;
+            tooltip.classList.add('show');
+          };
+          g.append('rect')
+            .attr('x', xPos - hitOff).attr('y', yPos)
+            .attr('width', hitW).attr('height', bw)
+            .attr('fill', 'transparent')
             .style('cursor', 'pointer')
-            .on('mouseover', (ev) => {
-              tooltip.innerHTML = `<div class="tt-title" style="color:${color}">${e.note}</div>`
-                + `<div class="tt-row"><span class="tt-k">Gate</span><span class="tt-v">${e.gate_mask}</span></div>`
-                + `<div class="tt-row"><span class="tt-k">Start</span><span class="tt-v">${e.start_us} \u00b5s</span></div>`
-                + `<div class="tt-row"><span class="tt-k">End</span><span class="tt-v">${e.end_us} \u00b5s</span></div>`
-                + `<div class="tt-row"><span class="tt-k">Duration</span><span class="tt-v">${e.duration_us} \u00b5s</span></div>`;
-              tooltip.classList.add('show');
-            })
+            .on('mouseover', showTooltip)
             .on('mousemove', (ev) => {
               tooltip.style.left = (ev.clientX + 12) + 'px';
               tooltip.style.top = (ev.clientY - 20) + 'px';
             })
             .on('mouseout', () => tooltip.classList.remove('show'));
 
-          const pw = x(e.end_us) - x(e.start_us);
-          if (pw > 25) {
+          if (actualW > 25) {
             g.append('text').attr('class', 'gcl-label')
-              .attr('x', xPos + pw / 2).attr('y', yPos + bw / 2)
+              .attr('x', xPos + actualW / 2).attr('y', yPos + bw / 2)
               .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
               .text(e.note.replace('#', '.'));
           }
@@ -960,13 +1050,8 @@
     }
 
     // Also add reverse backbone links so bidirectional drawing works
-    const backboneReverse = {
-      'l_swfl_swfr': 'l_swfr_swfl', 'l_swfr_swfl': 'l_swfl_swfr',
-      'l_swfl_swrear': 'l_swrear_swfl', 'l_swrear_swfl': 'l_swfl_swrear',
-      'l_swfr_swrear': 'l_swrear_swfr', 'l_swrear_swfr': 'l_swfr_swrear',
-    };
     for (const lid of [...usedLinks]) {
-      if (backboneReverse[lid]) usedLinks.add(backboneReverse[lid]);
+      if (BACKBONE_REVERSE[lid]) usedLinks.add(BACKBONE_REVERSE[lid]);
     }
 
     // Backbone link IDs
@@ -997,11 +1082,7 @@
 
       // Check if this link (or its reverse) is the failed link
       const isFailed = failedLink && (lnk.id === failedLink ||
-        (isBackbone && (() => {
-          // Check if reverse direction is the failed link
-          const revId = 'l_' + lnk.to.toLowerCase().replace(/\s/g, '') + '_' + lnk.from.toLowerCase().replace(/\s/g, '');
-          return revId === failedLink;
-        })()));
+        (isBackbone && BACKBONE_REVERSE[lnk.id] === failedLink));
 
       const isUsed = usedLinks.has(lnk.id);
 
