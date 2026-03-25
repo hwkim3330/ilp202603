@@ -109,7 +109,44 @@
     .row-best { background: rgba(5,150,105,0.06); }
     .row-miss { background: rgba(220,38,38,0.04); }
 
-    /* Gantt Sections */
+    /* 6-Gantt Grid */
+    .gantt-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    }
+    @media (max-width: 1100px) { .gantt-grid { grid-template-columns: 1fr; } }
+    .gantt-cell {
+      border: 1px solid rgba(59,130,246,0.12); border-radius: 8px;
+      overflow: hidden; background: #fff;
+    }
+    .gantt-cell.cell-ok { border-left: 4px solid var(--green); }
+    .gantt-cell.cell-miss { border-left: 4px solid var(--red); }
+    .gantt-cell.cell-best { border-left: 4px solid var(--blue); box-shadow: 0 2px 12px rgba(59,130,246,0.15); }
+    .gantt-cell-header {
+      padding: 8px 12px; display: flex; justify-content: space-between; align-items: center;
+      background: rgba(59,130,246,0.03); border-bottom: 1px solid rgba(59,130,246,0.08);
+      font-size: 0.82rem;
+    }
+    .gantt-cell-header .strat-name { font-weight: 800; }
+    .gantt-cell-header .badge-ok {
+      padding: 2px 10px; border-radius: 10px; font-size: 0.68rem; font-weight: 700;
+      background: rgba(5,150,105,0.1); color: var(--green); border: 1px solid rgba(5,150,105,0.2);
+    }
+    .gantt-cell-header .badge-miss {
+      padding: 2px 10px; border-radius: 10px; font-size: 0.68rem; font-weight: 700;
+      background: rgba(220,38,38,0.08); color: var(--red); border: 1px solid rgba(220,38,38,0.2);
+    }
+    .gantt-cell-header .badge-best {
+      padding: 2px 10px; border-radius: 10px; font-size: 0.68rem; font-weight: 700;
+      background: rgba(59,130,246,0.1); color: var(--blue); border: 1px solid rgba(59,130,246,0.2);
+    }
+    .gantt-cell-stats {
+      padding: 4px 12px; font-size: 0.7rem; color: var(--text3);
+      background: rgba(248,250,252,0.8);
+    }
+    .gantt-cell-body { min-height: 160px; position: relative; padding: 2px; }
+    .gantt-cell-body svg { width: 100%; }
+
+    /* Gantt Sections (best) */
     .gantt-section { margin-bottom: 24px; }
     .gantt-header {
       padding: 10px 16px; font-size: 0.85rem;
@@ -183,8 +220,8 @@
       <img src="keti.png" onerror="this.style.display='none'" style="height:48px;width:auto;">
       <h1>8-TC Greedy Retry</h1>
       <div class="sub">
-        Greedy 스케줄링 실패(deadline miss) 시 패킷 정렬 순서를 바꿔 재시도합니다.<br>
-        6가지 정렬 전략을 비교하여 최적의 스케줄을 찾습니다.
+        부하를 높여(Load Scale) Greedy가 실패하는 조건을 만든 후,<br>
+        6가지 패킷 정렬 전략(PCP&darr;, EDF, LPT, SPT, PCP&uarr;, Release&uarr;)의 성공/실패를 비교합니다.
       </div>
     </div>
 
@@ -204,13 +241,23 @@
         <label>Proc Delay (&micro;s)
           <input type="number" id="paramProcDelay" value="5" min="0" step="0.5">
         </label>
+        <label>Load Scale
+          <select id="paramScale">
+            <option value="1">1x (15%)</option>
+            <option value="2">2x (31%)</option>
+            <option value="3">3x (47%)</option>
+            <option value="4">4x (62%)</option>
+            <option value="5" selected>5x (78%)</option>
+            <option value="6">6x (93%)</option>
+          </select>
+        </label>
         <button class="btn btn-primary" id="btnSolveAll" style="padding:8px 24px;font-size:0.88rem;">&#9654; Solve All Strategies</button>
       </div>
     </div>
 
     <!-- Status Bar -->
     <div class="status-bar" id="statusBar">
-      Press <strong>Solve All Strategies</strong> to run 6 greedy solves with different packet orderings.
+      Load Scale을 조절하여 부하를 높인 후 <strong>Solve All Strategies</strong>를 누르면 6가지 정렬 전략의 성공/실패를 비교합니다.
     </div>
 
     <!-- 3. Comparison Table -->
@@ -232,17 +279,10 @@
       </div>
     </div>
 
-    <!-- 4. Best Strategy Gantt -->
+    <!-- 4. All 6 Strategy Gantts -->
     <div class="card" id="ganttCard" style="display:none;">
-      <div class="card-title">Best Strategy Timeline</div>
-      <div class="gantt-section">
-        <div class="gantt-header" id="ganttHeader" style="border-left: 4px solid #059669;">
-          <strong id="ganttTitle">Best</strong>
-          <span class="gantt-stats" id="ganttStats"></span>
-        </div>
-        <div class="gantt-wrap" id="ganttBest"></div>
-        <div class="gantt-legend" id="ganttBestLegend"></div>
-      </div>
+      <div class="card-title">All 6 Strategy Schedules</div>
+      <div class="gantt-grid" id="ganttGrid"></div>
     </div>
 
     <!-- 5. Best Strategy Board GCL Config -->
@@ -327,12 +367,19 @@
     const guard = getParam('paramGuard');
     const speed = getParam('paramSpeed') || 1000;
     const procDelay = getParam('paramProcDelay') || 5;
+    const scale = parseInt(document.getElementById('paramScale').value) || 5;
 
     const base = JSON.parse(JSON.stringify(ROII_REAL_8TC));
     base.cycle_time_us = cycle;
     base.guard_band_us = guard;
     base.processing_delay_us = procDelay;
     for (const lnk of base.links) lnk.rate_mbps = speed;
+    // Load scaling: divide period → more packets per cycle
+    if (scale > 1) {
+      for (const f of base.flows) {
+        f.period_us = Math.max(1, Math.round(f.period_us / scale));
+      }
+    }
     return base;
   }
 
@@ -411,9 +458,16 @@
         statusHtml = '<span style="color:var(--red);">All strategies failed.</span>';
       }
 
-      // Count successes
-      const okCount = STRATEGIES.filter(s => results[s.id] && !results[s.id].error).length;
-      statusHtml += ` | ${okCount}/${STRATEGIES.length} solved`;
+      // Count successes & misses
+      const okCount = STRATEGIES.filter(s => {
+        const r = results[s.id];
+        if (!r || r.error) return false;
+        const st = getE2EStats(r);
+        return st && st.allOk;
+      }).length;
+      const failCount = STRATEGIES.length - okCount;
+      const scale = document.getElementById('paramScale').value;
+      statusHtml += ` | Scale: ${scale}x | <span style="color:var(--green);">${okCount} OK</span> / <span style="color:var(--red);">${failCount} FAIL</span>`;
       setStatus(statusHtml);
 
       renderAll(models, results, bestId);
@@ -437,19 +491,55 @@
 
     renderComparisonTable(results, bestId);
 
-    // Render best Gantt and GCL
+    // Render all 6 Gantt charts in grid
+    const grid = document.getElementById('ganttGrid');
+    grid.innerHTML = '';
+
+    for (const s of STRATEGIES) {
+      const r = results[s.id];
+      const m = models[s.id];
+      const stats = getE2EStats(r);
+      const isBest = s.id === bestId;
+      const hasMiss = stats && !stats.allOk;
+      const hasError = !r || r.error;
+
+      let cellCls = 'gantt-cell';
+      if (isBest) cellCls += ' cell-best';
+      else if (hasMiss || hasError) cellCls += ' cell-miss';
+      else cellCls += ' cell-ok';
+
+      const cell = document.createElement('div');
+      cell.className = cellCls;
+
+      // Header
+      let badgeHtml = '';
+      if (hasError) badgeHtml = '<span class="badge-miss">ERROR</span>';
+      else if (isBest) badgeHtml = '<span class="badge-best">\u2605 BEST</span>';
+      else if (hasMiss) badgeHtml = `<span class="badge-miss">MISS ${stats.missCount}</span>`;
+      else badgeHtml = '<span class="badge-ok">OK</span>';
+
+      cell.innerHTML = `
+        <div class="gantt-cell-header">
+          <span class="strat-name">${s.name}</span>
+          ${badgeHtml}
+        </div>
+        <div class="gantt-cell-stats">
+          ${hasError ? `<span style="color:var(--red);">${r?.error || 'Error'}</span>` :
+            `Obj: ${r.objective}\u00b5s | Worst: ${stats?.worst ?? '-'}\u00b5s | Util: ${r.worst_util_percent}% | Pkts: ${r.packetRows.length}`}
+        </div>
+        <div class="gantt-cell-body" id="gantt_${s.id}"></div>
+      `;
+      grid.appendChild(cell);
+
+      // Render Gantt into the cell
+      if (!hasError) {
+        requestAnimationFrame(() => renderGantt(m, r, `gantt_${s.id}`, null));
+      }
+    }
+
+    // Board GCL for best strategy only
     if (bestId) {
-      const bestStrategy = STRATEGIES.find(s => s.id === bestId);
-      const bestResult = results[bestId];
-      const bestModel = models[bestId];
-      const bestStats = getE2EStats(bestResult);
-
-      document.getElementById('ganttTitle').textContent = bestStrategy.name;
-      document.getElementById('ganttStats').textContent =
-        `Obj: ${bestResult.objective} \u00b5s | Worst: ${bestStats?.worst ?? '-'} \u00b5s | Util: ${bestResult.worst_util_percent}%`;
-
-      renderGantt(bestModel, bestResult, 'ganttBest', 'ganttBestLegend');
-      renderBoardConfig(bestModel, bestResult, 'gclBest');
+      renderBoardConfig(models[bestId], results[bestId], 'gclBest');
     }
   }
 
@@ -535,9 +625,12 @@
       return;
     }
 
-    const margin = { top: 28, right: 60, bottom: 40, left: 130 };
-    const rowH = 38;
-    const W = container.clientWidth || 900;
+    const isGrid = containerId.startsWith('gantt_');
+    const margin = isGrid
+      ? { top: 16, right: 36, bottom: 24, left: 80 }
+      : { top: 28, right: 60, bottom: 40, left: 130 };
+    const rowH = isGrid ? 22 : 38;
+    const W = container.clientWidth || (isGrid ? 500 : 900);
     const H = margin.top + activeLinks.length * rowH + margin.bottom;
     const innerW = W - margin.left - margin.right;
     const innerH = activeLinks.length * rowH;
@@ -568,15 +661,20 @@
 
     // X axis
     g.append('g').attr('class', 'gcl-axis').attr('transform', `translate(0,${innerH})`)
-      .call(d3.axisBottom(x).ticks(10).tickFormat(d => d + ' \u00b5s'));
+      .call(d3.axisBottom(x).ticks(isGrid ? 5 : 10).tickFormat(d => d + '\u00b5s'));
 
     // Y axis labels
     g.append('g').attr('class', 'gcl-axis')
-      .call(d3.axisLeft(y).tickSize(0).tickPadding(6))
+      .call(d3.axisLeft(y).tickSize(0).tickPadding(4))
       .selectAll('text').text(d => {
         const lnk = model.links.find(l => l.id === d);
-        return lnk ? `${lnk.from} \u2192 ${lnk.to}` : d;
-      }).attr('font-size', '9px');
+        if (!lnk) return d;
+        if (isGrid) {
+          const short = n => n.replace('LIDAR_','L_').replace('RADAR_','R_').replace('SW_','').replace('ACU_IT','ACU');
+          return `${short(lnk.from)}\u2192${short(lnk.to)}`;
+        }
+        return `${lnk.from} \u2192 ${lnk.to}`;
+      }).attr('font-size', isGrid ? '7px' : '9px');
 
     // Row backgrounds
     g.selectAll('.rbg').data(activeLinks).enter().append('rect')
@@ -638,7 +736,7 @@
             })
             .on('mouseout', () => tooltip.classList.remove('show'));
 
-          if (actualW > 25) {
+          if (!isGrid && actualW > 25) {
             g.append('text').attr('class', 'gcl-label')
               .attr('x', xPos + actualW / 2).attr('y', yPos + bw / 2)
               .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
@@ -649,16 +747,18 @@
       }
 
       // Utilization label
-      g.append('text').attr('x', innerW + 8).attr('y', y(lnk.id) + y.bandwidth() / 2)
+      const utilFs = isGrid ? '7px' : '10px';
+      g.append('text').attr('x', innerW + 4).attr('y', y(lnk.id) + y.bandwidth() / 2)
         .attr('text-anchor', 'start').attr('dominant-baseline', 'middle')
-        .attr('font-size', '10px').attr('fill', 'var(--text3)').attr('font-weight', '700')
+        .attr('font-size', utilFs).attr('fill', 'var(--text3)').attr('font-weight', '700')
         .text((used / model.cycle_time_us * 100).toFixed(1) + '%');
     }
 
-    // Header annotation
-    svg.append('text').attr('x', margin.left).attr('y', margin.top - 10)
-      .attr('fill', 'var(--text3)').attr('font-size', '9px')
-      .text(`Cycle: ${model.cycle_time_us} \u00b5s | Active: ${activeLinks.length}/${model.links.length} links`);
+    if (!isGrid) {
+      svg.append('text').attr('x', margin.left).attr('y', margin.top - 10)
+        .attr('fill', 'var(--text3)').attr('font-size', '9px')
+        .text(`Cycle: ${model.cycle_time_us} \u00b5s | Active: ${activeLinks.length}/${model.links.length} links`);
+    }
 
     // Legend
     if (legendEl) {
