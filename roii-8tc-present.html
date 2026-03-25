@@ -16,71 +16,57 @@
       --guard: #d97706; --be: #e2e8f0;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; overflow: hidden; background: #f0f2f5; }
+    html, body { height: 100%; overflow: hidden; background: #0f172a; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: var(--text); }
 
-    /* 16:9 viewport container */
+    /* 16:9 viewport — scales to any resolution */
     .viewport {
       width: 100vw; height: 56.25vw; /* 16:9 */
       max-height: 100vh; max-width: 177.78vh;
       margin: auto; position: absolute; inset: 0;
       display: grid;
-      grid-template-rows: 48px 1fr 32px;
+      grid-template-rows: min(48px, 5.5%) 1fr min(30px, 3.5%);
       grid-template-columns: 1fr;
       background: linear-gradient(135deg, #f8f9fa 0%, #edf0f5 50%, #e2e6eb 100%);
-      padding: 8px;
-      gap: 6px;
+      padding: min(8px, 0.6%);
+      gap: min(6px, 0.5%);
     }
 
     /* Top bar */
     .top-bar {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 0 16px; background: rgba(255,255,255,0.95);
-      border-radius: 8px; border: 1px solid rgba(59,130,246,0.12);
+      padding: 0 1.2%; background: rgba(255,255,255,0.95);
+      border-radius: 6px; border: 1px solid rgba(59,130,246,0.12);
     }
     .top-bar h1 {
-      font-size: 1.1rem; font-weight: 800; letter-spacing: -0.01em;
+      font-size: clamp(0.8rem, 1.2vmin, 1.3rem); font-weight: 800; letter-spacing: -0.01em;
       background: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
     }
-    .top-bar .stats {
-      display: flex; gap: 20px; font-size: 0.72rem; color: var(--text2);
-    }
-    .stat-val { font-weight: 800; color: var(--text); font-size: 0.82rem; }
-    .stat-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .top-bar .stats { display: flex; gap: clamp(10px, 1.5vmin, 24px); }
+    .stat-val { font-weight: 800; color: var(--text); font-size: clamp(0.65rem, 0.9vmin, 1rem); }
+    .stat-label { font-size: clamp(0.5rem, 0.6vmin, 0.72rem); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text2); }
     .stat-group { text-align: center; }
-    .top-bar .keti-logo { height: 28px; width: auto; }
+    .top-bar .keti-logo { height: clamp(20px, 3vmin, 36px); width: auto; }
 
-    /* Main content — 2-column: Topology left, Schedule+GCL right */
+    /* Main content — 3-column proportional */
     .main-content {
       display: grid;
-      grid-template-columns: 320px 1fr;
-      grid-template-rows: 1fr 140px;
-      gap: 6px;
+      grid-template-columns: 26% 1fr 22%;
+      gap: min(6px, 0.5%);
       min-height: 0;
-    }
-    .topo-panel { grid-row: 1 / 3; } /* Topology spans both rows */
-    .schedule-area {
-      display: grid;
-      grid-template-columns: 1fr 220px;
-      gap: 6px;
-    }
-    .gcl-area {
-      display: grid;
-      grid-template-columns: 1fr 220px;
-      gap: 6px;
     }
 
     /* Panel base */
     .panel {
       background: rgba(255,255,255,0.95);
       border: 1px solid rgba(59,130,246,0.12);
-      border-radius: 8px;
+      border-radius: 6px;
       display: flex; flex-direction: column;
       overflow: hidden;
     }
     .panel-title {
-      padding: 8px 12px; font-size: 0.72rem; font-weight: 700;
+      padding: 0.5vmin 1vmin; font-size: clamp(0.55rem, 0.7vmin, 0.78rem); font-weight: 700;
       color: var(--blue); text-transform: uppercase; letter-spacing: 0.06em;
       border-bottom: 1px solid rgba(59,130,246,0.1);
       background: rgba(59,130,246,0.03);
@@ -91,66 +77,60 @@
     }
 
     /* Topology panel */
-    .topo-body { padding: 4px; }
+    .topo-body { padding: 0.3vmin; }
     .topo-body svg { width: 100%; height: 100%; }
 
     /* Gantt panel */
-    .gantt-body { padding: 4px 4px 0; }
+    .gantt-body { padding: 0.3vmin 0.3vmin 0; }
     .gantt-body svg { width: 100%; height: 100%; }
 
-    /* Right panel — TAS + GCL */
+    /* Right panel — TAS + Flows + GCL */
     .right-panel { overflow-y: auto; }
-    .right-panel::-webkit-scrollbar { width: 4px; }
+    .right-panel::-webkit-scrollbar { width: 3px; }
     .right-panel::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.2); border-radius: 2px; }
 
     /* TAS settings table */
-    .tas-table { width: 100%; border-collapse: collapse; font-size: 0.68rem; }
+    .tas-table { width: 100%; border-collapse: collapse; font-size: clamp(0.55rem, 0.65vmin, 0.72rem); }
     .tas-table th {
-      background: rgba(59,130,246,0.06); padding: 4px 8px; text-align: left;
+      background: rgba(59,130,246,0.06); padding: 0.3vmin 0.6vmin; text-align: left;
       font-weight: 700; color: var(--text2); border-bottom: 1px solid rgba(59,130,246,0.12);
     }
     .tas-table td {
-      padding: 3px 8px; border-bottom: 1px solid rgba(59,130,246,0.06);
+      padding: 0.2vmin 0.6vmin; border-bottom: 1px solid rgba(59,130,246,0.06);
     }
     .tas-table td:last-child { font-family: 'Courier New', monospace; font-weight: 600; text-align: right; }
-    .tas-table tr:hover { background: rgba(59,130,246,0.04); }
 
     /* Flow list */
-    .flow-list { padding: 6px 10px; }
+    .flow-list { padding: 0.4vmin 0.8vmin; }
     .flow-item {
-      display: flex; align-items: center; gap: 6px;
-      padding: 3px 0; font-size: 0.68rem;
+      display: flex; align-items: center; gap: 0.4vmin;
+      padding: 0.15vmin 0; font-size: clamp(0.5rem, 0.62vmin, 0.7rem);
     }
-    .flow-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .flow-dot { width: clamp(5px, 0.7vmin, 10px); height: clamp(5px, 0.7vmin, 10px); border-radius: 50%; flex-shrink: 0; }
     .flow-name { font-weight: 600; color: var(--text); flex: 1; }
-    .flow-meta { color: var(--text3); font-size: 0.62rem; }
+    .flow-meta { color: var(--text3); font-size: clamp(0.45rem, 0.55vmin, 0.65rem); }
 
-    /* Board GCL mini */
-    .gcl-mini { padding: 6px 10px; }
-    .gcl-mini h4 {
-      font-size: 0.68rem; font-weight: 700; color: var(--blue);
-      margin: 6px 0 3px;
+    /* GCL compact */
+    .gcl-compact { padding: 0.4vmin 0.8vmin; }
+    .gcl-row {
+      display: flex; align-items: center; gap: 0.3vmin;
+      font-size: clamp(0.45rem, 0.55vmin, 0.62rem); font-family: 'Courier New', monospace;
+      padding: 0.1vmin 0; color: var(--text2);
     }
-    .gcl-mini h4:first-child { margin-top: 0; }
-    .gcl-entry-row {
-      display: flex; gap: 2px; align-items: center;
-      font-size: 0.58rem; font-family: 'Courier New', monospace;
-      padding: 1px 0; color: var(--text2);
-    }
-    .gcl-gate-bits { display: inline-flex; gap: 0.5px; }
+    .gcl-gate-bits { display: inline-flex; gap: 0; }
     .gcl-bit {
-      display: inline-block; width: 8px; height: 10px;
-      border-radius: 1px; font-size: 6px; text-align: center;
-      line-height: 10px; font-weight: 700;
+      display: inline-block; width: clamp(5px, 0.7vmin, 10px); height: clamp(7px, 0.9vmin, 12px);
+      border-radius: 1px; font-size: clamp(4px, 0.5vmin, 7px); text-align: center;
+      line-height: clamp(7px, 0.9vmin, 12px); font-weight: 700;
     }
     .gcl-bit.open { background: rgba(59,130,246,0.35); color: #1e40af; }
     .gcl-bit.closed { background: rgba(100,116,139,0.12); color: #94a3b8; }
-    .gcl-entry-time { min-width: 65px; text-align: right; }
-    .gcl-entry-note { color: var(--text3); margin-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px; }
+    .gcl-time { min-width: 5vmin; text-align: right; }
+    .gcl-note { color: var(--text3); margin-left: 0.3vmin; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 8vmin; }
 
     /* Section dividers in right panel */
     .section-divider {
-      padding: 6px 10px; font-size: 0.62rem; font-weight: 700;
+      padding: 0.3vmin 0.8vmin; font-size: clamp(0.48rem, 0.58vmin, 0.65rem); font-weight: 700;
       color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em;
       background: rgba(59,130,246,0.03);
       border-top: 1px solid rgba(59,130,246,0.08);
@@ -160,18 +140,19 @@
     /* Bottom bar */
     .bottom-bar {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 0 12px; font-size: 0.65rem; color: var(--text3);
+      padding: 0 1%; font-size: clamp(0.48rem, 0.6vmin, 0.68rem); color: var(--text3);
       background: rgba(255,255,255,0.8);
-      border-radius: 6px; border: 1px solid rgba(59,130,246,0.08);
+      border-radius: 4px; border: 1px solid rgba(59,130,246,0.08);
     }
     .bottom-bar a {
-      color: var(--blue); text-decoration: none; font-weight: 600;
-      margin: 0 6px;
+      color: var(--blue); text-decoration: none; font-weight: 600; margin: 0 0.4vmin;
     }
     .bottom-bar a:hover { text-decoration: underline; }
-    .legend-row { display: flex; gap: 12px; align-items: center; }
-    .legend-item { display: flex; align-items: center; gap: 4px; }
-    .legend-swatch { width: 10px; height: 10px; border-radius: 2px; }
+
+    /* Legend inline */
+    .legend-row { display: flex; gap: 0.6vmin; align-items: center; flex-wrap: wrap; }
+    .legend-item { display: flex; align-items: center; gap: 0.3vmin; font-size: clamp(0.45rem, 0.55vmin, 0.65rem); }
+    .legend-swatch { width: clamp(6px, 0.8vmin, 12px); height: clamp(6px, 0.8vmin, 12px); border-radius: 2px; }
 
     /* Tooltip */
     .tooltip {
@@ -188,16 +169,16 @@
 
     /* GCL grid/axis overrides */
     .gcl-grid line { stroke: rgba(59,130,246,0.06); stroke-width: 1; }
-    .gcl-axis text { fill: var(--text2) !important; font-size: 9px; }
+    .gcl-axis text { fill: var(--text2) !important; }
     .gcl-axis path, .gcl-axis line { stroke: rgba(59,130,246,0.15); }
-    .gcl-label { fill: rgba(0,0,0,0.75); font-size: 9px; font-weight: 700; pointer-events: none; }
+    .gcl-label { fill: rgba(0,0,0,0.75); font-weight: 700; pointer-events: none; }
   </style>
 </head>
 <body>
   <div class="viewport">
     <!-- Top Bar -->
     <div class="top-bar">
-      <div style="display:flex;align-items:center;gap:12px;">
+      <div style="display:flex;align-items:center;gap:1vmin;">
         <img src="keti.png" class="keti-logo" onerror="this.style.display='none'">
         <h1>TSN/GCL 802.1Qbv Schedule</h1>
       </div>
@@ -211,56 +192,51 @@
       </div>
     </div>
 
-    <!-- Main Layout -->
+    <!-- Main 3-Column -->
     <div class="main-content">
-      <!-- Left: Topology (spans both rows) -->
-      <div class="panel topo-panel">
+      <!-- Left: Topology -->
+      <div class="panel">
         <div class="panel-title">Network Topology</div>
         <div class="panel-body topo-body" id="topoContainer"></div>
       </div>
 
-      <!-- Right top: Gantt + TAS side by side -->
-      <div class="schedule-area">
-        <div class="panel">
-          <div class="panel-title">GCL Schedule Timeline</div>
-          <div class="panel-body gantt-body" id="ganttContainer"></div>
-        </div>
-        <div class="panel">
-          <div class="panel-title">TAS / Flows</div>
-          <div class="panel-body right-panel" id="rightPanel">
-            <table class="tas-table">
-              <thead><tr><th>Param</th><th>Value</th></tr></thead>
-              <tbody>
-                <tr><td>Cycle</td><td>1000 &micro;s</td></tr>
-                <tr><td>Guard</td><td>0 &micro;s</td></tr>
-                <tr><td>Speed</td><td>1000 Mbps</td></tr>
-                <tr><td>Proc Delay</td><td>5 &micro;s</td></tr>
-                <tr><td>Gate Mode</td><td>8-TC</td></tr>
-                <tr><td>Scheduler</td><td>Greedy</td></tr>
-              </tbody>
-            </table>
-            <div class="section-divider">Flows (9)</div>
-            <div class="flow-list" id="flowList"></div>
-          </div>
-        </div>
+      <!-- Center: Gantt -->
+      <div class="panel">
+        <div class="panel-title">GCL Schedule Timeline</div>
+        <div class="panel-body gantt-body" id="ganttContainer"></div>
       </div>
 
-      <!-- Right bottom: Board GCL (below schedule) -->
-      <div class="gcl-area">
-        <div class="panel">
-          <div class="panel-title">Board GCL Configuration</div>
-          <div class="panel-body" style="overflow-y:auto;padding:4px 8px;" id="gclMini"></div>
-        </div>
-        <div class="panel">
-          <div class="panel-title">Legend</div>
-          <div class="panel-body" style="padding:6px 10px;" id="legendPanel"></div>
+      <!-- Right: TAS + Flows + GCL + Legend -->
+      <div class="panel">
+        <div class="panel-title">TAS Configuration</div>
+        <div class="panel-body right-panel" id="rightPanel">
+          <table class="tas-table">
+            <thead><tr><th>Param</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>Cycle</td><td>1000 &micro;s</td></tr>
+              <tr><td>Guard</td><td>0 &micro;s</td></tr>
+              <tr><td>Speed</td><td>1000 Mbps</td></tr>
+              <tr><td>Proc Delay</td><td>5 &micro;s</td></tr>
+              <tr><td>Gate Mode</td><td>8-TC</td></tr>
+              <tr><td>Scheduler</td><td>Greedy</td></tr>
+            </tbody>
+          </table>
+
+          <div class="section-divider">Flows (9)</div>
+          <div class="flow-list" id="flowList"></div>
+
+          <div class="section-divider">GCL &mdash; SW_REAR &rarr; ACU_IT</div>
+          <div class="gcl-compact" id="gclMini"></div>
+
+          <div class="section-divider">Legend</div>
+          <div class="flow-list" id="legendPanel"></div>
         </div>
       </div>
     </div>
 
     <!-- Bottom Bar -->
     <div class="bottom-bar">
-      <div>KETI &mdash; IEEE 802.1Qbv TAS &mdash; Presentation Mode (Radar payload scaled for visibility)</div>
+      <div>KETI &mdash; IEEE 802.1Qbv TAS &mdash; Presentation (LiDAR 3000B, Radar 1200B)</div>
       <div>
         <a href="roii-8tc.html">8-TC</a>
         <a href="roii-8tc-ilp.html">ILP</a>
@@ -274,7 +250,7 @@
 
   <script src="vendor/d3.min.js"></script>
   <script type="module">
-  import { ROII_REAL_8TC, ROII_REAL_SWITCHES, getRealPositions, ROII_REAL_NODE_COLORS } from './js/roii-real-data.js';
+  import { ROII_REAL_8TC, ROII_REAL_SWITCHES, ROII_REAL_NODE_COLORS } from './js/roii-real-data.js';
   import { solveGreedy, initTooltip, flowColor } from './js/ilp-core.js';
 
   initTooltip();
@@ -287,8 +263,8 @@
     m.guard_band_us = 0;
     m.processing_delay_us = 5;
     for (const lnk of m.links) lnk.rate_mbps = 1000;
-    // Presentation: increase radar payload so bars are visible (similar to LiDAR)
     for (const f of m.flows) {
+      if (f.traffic_type === 'lidar') f.payload_bytes = 3000;
       if (f.traffic_type === 'radar') f.payload_bytes = 1200;
     }
     return m;
@@ -298,7 +274,6 @@
   function run() {
     const model = buildModel();
     const result = solveGreedy(model);
-
     updateStats(model, result);
     renderTopology(model);
     renderGantt(model, result);
@@ -312,7 +287,6 @@
     const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
     const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
     const missCount = stPkts.filter(p => p.status === 'MISS').length;
-
     document.getElementById('statCycle').textContent = model.cycle_time_us;
     document.getElementById('statPackets').textContent = result.packetRows.length;
     document.getElementById('statFlows').textContent = model.flows.length;
@@ -327,9 +301,10 @@
     const container = document.getElementById('topoContainer');
     container.innerHTML = '';
     const rect = container.getBoundingClientRect();
-    const W = rect.width || 310;
-    const H = rect.height || 450;
-    // Custom positions: more spacing for larger sensor nodes
+    const W = rect.width || 300;
+    const H = rect.height || 400;
+    const vmin = Math.min(W, H);
+
     const pos = {
       RADAR_FLC: { x: W * 0.04, y: H * 0.09 },
       LIDAR_FL:  { x: W * 0.22, y: H * 0.09 },
@@ -354,14 +329,6 @@
     const backboneIds = new Set(['l_swfl_swfr','l_swfr_swfl','l_swfl_swrear','l_swrear_swfl','l_swfr_swrear','l_swrear_swfr']);
     const drawnBi = new Set();
 
-    // Collect used links
-    const usedLinks = new Set();
-    for (const f of model.flows) {
-      if (f.candidate_paths) {
-        for (const p of f.candidate_paths) for (const lid of p) usedLinks.add(lid);
-      }
-    }
-
     // Draw links
     for (const lnk of topoBase.links) {
       const p1 = pos[lnk.from], p2 = pos[lnk.to];
@@ -374,9 +341,9 @@
       }
       const isGateway = lnk.id === 'l_swrear_acu';
       let color, width;
-      if (isBackbone) { color = 'rgba(59,130,246,0.4)'; width = 3; }
-      else if (isGateway) { color = 'rgba(6,182,212,0.55)'; width = 3.5; }
-      else { color = 'rgba(59,130,246,0.2)'; width = 1.5; }
+      if (isBackbone) { color = 'rgba(59,130,246,0.4)'; width = vmin * 0.008; }
+      else if (isGateway) { color = 'rgba(6,182,212,0.55)'; width = vmin * 0.01; }
+      else { color = 'rgba(59,130,246,0.2)'; width = vmin * 0.004; }
 
       svg.append('line')
         .attr('x1', p1.x).attr('y1', p1.y)
@@ -384,7 +351,7 @@
         .attr('stroke', color).attr('stroke-width', width);
     }
 
-    // Draw nodes
+    // Draw nodes — sizes proportional to container
     for (const node of topoBase.nodes) {
       const p = pos[node.id];
       if (!p) continue;
@@ -394,11 +361,11 @@
       const isLidar = node.id.startsWith('LIDAR');
       const isRadar = node.id.startsWith('RADAR');
       let r, sw, fs, fsLabel;
-      if (isACU)        { r = 24; sw = 2.5; fs = '8px'; fsLabel = '8.5px'; }
-      else if (isSwitch) { r = 22; sw = 2;   fs = '7px'; fsLabel = '8px'; }
-      else if (isLidar)  { r = 22; sw = 2;   fs = '8px'; fsLabel = '8px'; }
-      else if (isRadar)  { r = 18; sw = 1.8; fs = '7.5px'; fsLabel = '7.5px'; }
-      else               { r = 14; sw = 1.2; fs = '6px'; fsLabel = '7px'; }
+      if (isACU)         { r = vmin * 0.065; sw = vmin * 0.007; fs = vmin * 0.025; fsLabel = vmin * 0.023; }
+      else if (isSwitch) { r = vmin * 0.058; sw = vmin * 0.006; fs = vmin * 0.020; fsLabel = vmin * 0.022; }
+      else if (isLidar)  { r = vmin * 0.058; sw = vmin * 0.006; fs = vmin * 0.024; fsLabel = vmin * 0.022; }
+      else if (isRadar)  { r = vmin * 0.048; sw = vmin * 0.005; fs = vmin * 0.022; fsLabel = vmin * 0.020; }
+      else               { r = vmin * 0.035; sw = vmin * 0.004; fs = vmin * 0.018; fsLabel = vmin * 0.018; }
 
       svg.append('circle')
         .attr('cx', p.x).attr('cy', p.y).attr('r', r)
@@ -408,15 +375,15 @@
       svg.append('text')
         .attr('x', p.x).attr('y', p.y + 1)
         .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-        .attr('font-size', fs)
+        .attr('font-size', fs + 'px')
         .attr('font-weight', '800').attr('fill', nc.stroke)
         .style('pointer-events', 'none')
         .text(nc.shortLabel);
 
       svg.append('text')
-        .attr('x', p.x).attr('y', p.y + r + 11)
+        .attr('x', p.x).attr('y', p.y + r + vmin * 0.028)
         .attr('text-anchor', 'middle')
-        .attr('font-size', fsLabel).attr('font-weight', '700')
+        .attr('font-size', fsLabel + 'px').attr('font-weight', '700')
         .attr('fill', '#334155')
         .style('pointer-events', 'none')
         .text(nc.label || node.id);
@@ -436,18 +403,20 @@
     if (!activeLinks.length) return;
 
     const rect = container.getBoundingClientRect();
-    const W = rect.width || 700;
+    const W = rect.width || 600;
     const H = rect.height || 400;
-    const margin = { top: 20, right: 44, bottom: 24, left: 90 };
+    const vmin = Math.min(W, H);
+    const fontSize = Math.max(7, vmin * 0.022);
+
+    const margin = { top: H * 0.05, right: W * 0.06, bottom: H * 0.07, left: W * 0.14 };
     const innerW = W - margin.left - margin.right;
-    const rowH = Math.min(24, (H - margin.top - margin.bottom) / activeLinks.length);
+    const rowH = Math.min(H * 0.06, (H - margin.top - margin.bottom) / activeLinks.length);
     const innerH = activeLinks.length * rowH;
 
     const svg = d3.select(container).append('svg')
       .attr('viewBox', `0 0 ${W} ${Math.max(H, margin.top + innerH + margin.bottom)}`)
       .attr('preserveAspectRatio', 'xMidYMid meet');
 
-    // Hatch pattern
     const defs = svg.append('defs');
     const pId = 'guardHatch_present';
     const gp = defs.append('pattern').attr('id', pId)
@@ -464,12 +433,13 @@
 
     // Grid
     g.append('g').attr('class', 'gcl-grid')
-      .selectAll('line').data(x.ticks(10)).enter().append('line')
+      .selectAll('line').data(x.ticks(8)).enter().append('line')
       .attr('x1', d => x(d)).attr('x2', d => x(d)).attr('y1', 0).attr('y2', innerH);
 
     // X axis
     g.append('g').attr('class', 'gcl-axis').attr('transform', `translate(0,${innerH})`)
-      .call(d3.axisBottom(x).ticks(6).tickFormat(d => d + '\u00b5s'));
+      .call(d3.axisBottom(x).ticks(6).tickFormat(d => d + '\u00b5s'))
+      .selectAll('text').attr('font-size', fontSize * 0.85 + 'px');
 
     // Y axis
     g.append('g').attr('class', 'gcl-axis')
@@ -479,7 +449,7 @@
         if (!lnk) return d;
         const short = n => n.replace('LIDAR_','L_').replace('RADAR_','R_').replace('SW_','').replace('ACU_IT','ACU');
         return `${short(lnk.from)}\u2192${short(lnk.to)}`;
-      }).attr('font-size', '7px');
+      }).attr('font-size', fontSize * 0.8 + 'px');
 
     // Row backgrounds
     g.selectAll('.rbg').data(activeLinks).enter().append('rect')
@@ -535,11 +505,11 @@
             })
             .on('mouseout', () => tooltip.classList.remove('show'));
 
-          if (actualW > 18) {
+          if (actualW > fontSize * 2.5) {
             g.append('text').attr('class', 'gcl-label')
               .attr('x', xPos + actualW / 2).attr('y', yPos + bw / 2)
               .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-              .attr('font-size', '7px')
+              .attr('font-size', fontSize * 0.8 + 'px')
               .text(e.note.replace('#', '.'));
           }
           used += e.duration_us;
@@ -549,7 +519,7 @@
       // Utilization
       g.append('text').attr('x', innerW + 4).attr('y', y(lnk.id) + y.bandwidth() / 2)
         .attr('text-anchor', 'start').attr('dominant-baseline', 'middle')
-        .attr('font-size', '7px').attr('fill', 'var(--text3)').attr('font-weight', '700')
+        .attr('font-size', fontSize * 0.75 + 'px').attr('fill', 'var(--text3)').attr('font-weight', '700')
         .text((used / model.cycle_time_us * 100).toFixed(1) + '%');
     }
   }
@@ -568,39 +538,32 @@
     }).join('');
   }
 
-  /* ═══════ Board GCL (horizontal for bottom panel) ═══════ */
+  /* ═══════ GCL — bottleneck only, traffic entries only ═══════ */
   function renderGclMini(result) {
     const el = document.getElementById('gclMini');
-    if (!result.boardConfigs) { el.innerHTML = '<span style="color:var(--text3);font-size:0.65rem;">No GCL</span>'; return; }
+    if (!result.boardConfigs) { el.innerHTML = '<span style="color:var(--text3);">No GCL</span>'; return; }
 
-    let html = '<div style="display:flex;gap:16px;flex-wrap:wrap;">';
-    const switches = ROII_REAL_SWITCHES;
-    for (const sw of switches) {
-      const cfg = result.boardConfigs[sw.id];
-      if (!cfg) continue;
-      html += `<div style="flex:1;min-width:200px;">`;
-      html += `<div style="font-size:0.68rem;font-weight:700;color:var(--blue);margin-bottom:3px;">${sw.label}</div>`;
-      for (const [portId, port] of Object.entries(cfg.ports)) {
-        const hasTraffic = port.entries.some(e => !e.note.includes('all-gates-closed') && !e.note.includes('non-ST'));
-        if (!hasTraffic) continue;
-        html += `<div style="font-size:0.58rem;color:var(--text2);font-weight:600;margin:2px 0 1px;">&rarr; ${port.to}</div>`;
-        for (const e of port.entries) {
-          if (e.note === 'all-gates-closed' && e.duration_us > 500) continue;
-          const bits = e.gate_mask.split('');
-          let bitsHtml = '<span class="gcl-gate-bits">';
-          for (let b = 0; b < 8; b++) {
-            const cls = bits[b] === '1' ? 'open' : 'closed';
-            bitsHtml += `<span class="gcl-bit ${cls}">${7-b}</span>`;
-          }
-          bitsHtml += '</span>';
-          const noteShort = e.note.length > 12 ? e.note.slice(0, 12) + '..' : e.note;
-          html += `<div class="gcl-entry-row">${bitsHtml}<span class="gcl-entry-time">${e.start_us}-${e.end_us}</span><span class="gcl-entry-note" title="${e.note}">${noteShort}</span></div>`;
+    // Only show SW_REAR → ACU_IT (bottleneck)
+    const cfg = result.boardConfigs['SW_REAR'];
+    if (!cfg) { el.innerHTML = ''; return; }
+
+    let html = '';
+    for (const [portId, port] of Object.entries(cfg.ports)) {
+      if (!port.to || port.to !== 'ACU_IT') continue;
+      for (const e of port.entries) {
+        if (e.note === 'all-gates-closed' || e.note.includes('non-ST')) continue;
+        const bits = e.gate_mask.split('');
+        let bitsHtml = '<span class="gcl-gate-bits">';
+        for (let b = 0; b < 8; b++) {
+          const cls = bits[b] === '1' ? 'open' : 'closed';
+          bitsHtml += `<span class="gcl-bit ${cls}">${7-b}</span>`;
         }
+        bitsHtml += '</span>';
+        const noteShort = e.note.length > 16 ? e.note.slice(0, 16) + '..' : e.note;
+        html += `<div class="gcl-row">${bitsHtml}<span class="gcl-time">${e.start_us}\u2013${e.end_us}</span><span class="gcl-note" title="${e.note}">${noteShort}</span></div>`;
       }
-      html += '</div>';
     }
-    html += '</div>';
-    el.innerHTML = html;
+    el.innerHTML = html || '<span style="color:var(--text3);">No traffic on bottleneck</span>';
   }
 
   /* ═══════ Legend ═══════ */
@@ -611,18 +574,9 @@
     for (const pr of result.packetRows) {
       if (!seenFlows.includes(pr.flow_id)) seenFlows.push(pr.flow_id);
     }
-    // Group by type
-    const lidarFlows = seenFlows.filter(f => f.includes('lidar'));
-    const radarFlows = seenFlows.filter(f => f.includes('radar'));
-    let html = '<div style="font-size:0.65rem;font-weight:700;color:var(--text2);margin-bottom:4px;">LiDAR</div>';
-    html += lidarFlows.map(fid =>
-      `<div class="flow-item" style="padding:2px 0;"><span class="flow-dot" style="background:${flowColor(fid)}"></span><span style="font-size:0.62rem;">${fid.replace('f_','')}</span></div>`
+    el.innerHTML = seenFlows.map(fid =>
+      `<div class="flow-item" style="padding:0.15vmin 0;"><span class="flow-dot" style="background:${flowColor(fid)}"></span><span class="flow-name">${fid.replace('f_','')}</span></div>`
     ).join('');
-    html += '<div style="font-size:0.65rem;font-weight:700;color:var(--text2);margin:6px 0 4px;">Radar</div>';
-    html += radarFlows.map(fid =>
-      `<div class="flow-item" style="padding:2px 0;"><span class="flow-dot" style="background:${flowColor(fid)}"></span><span style="font-size:0.62rem;">${fid.replace('f_','')}</span></div>`
-    ).join('');
-    el.innerHTML = html;
   }
 
   /* ═══════ Init ═══════ */
