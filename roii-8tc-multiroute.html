@@ -482,18 +482,11 @@
     flowPaths[f.id] = generateKPaths(adj, f.src, f.dst, 3, base.nodes.length + 2);
   }
 
-  /* Link lookup: (from|to) → link_id for path validation */
-  const linkLookup = new Map();
-  for (const l of base.links) linkLookup.set(`${l.from}|${l.to}`, l.id);
-
-  /** Check if a path (array of node IDs) uses a given link or its reverse */
+  /** Check if a path (array of link IDs) uses a given link or its reverse */
   function pathUsesLink(path, linkId) {
+    if (path.includes(linkId)) return true;
     const revId = BACKBONE_REVERSE[linkId];
-    for (let i = 0; i < path.length - 1; i++) {
-      const lid = linkLookup.get(`${path[i]}|${path[i+1]}`);
-      if (lid === linkId || lid === revId) return true;
-    }
-    return false;
+    return revId ? path.includes(revId) : false;
   }
 
   /* ════════════════════════════════════════════
