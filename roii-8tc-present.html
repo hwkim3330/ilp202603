@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TSN/GCL Schedule &mdash; Presentation</title>
+  <title>TSN/GCL Schedule &mdash; Interactive Dashboard</title>
   <link rel="stylesheet" href="style.css" />
   <style>
     :root {
@@ -19,155 +19,145 @@
     html, body { height: 100%; overflow: hidden; background: #0f172a; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: var(--text); }
 
-    /* 16:9 viewport — scales to any resolution */
+    /* Full viewport */
     .viewport {
-      width: 100vw; height: 56.25vw; /* 16:9 */
-      max-height: 100vh; max-width: 177.78vh;
-      margin: auto; position: absolute; inset: 0;
+      width: 100vw; height: 100vh;
       display: grid;
-      grid-template-rows: min(48px, 5.5%) 1fr min(30px, 3.5%);
-      grid-template-columns: 1fr;
+      grid-template-rows: auto auto 1fr auto;
       background: linear-gradient(135deg, #f8f9fa 0%, #edf0f5 50%, #e2e6eb 100%);
-      padding: min(8px, 0.6%);
-      gap: min(6px, 0.5%);
+      padding: 6px; gap: 5px;
     }
 
     /* Top bar */
     .top-bar {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 0 1.2%; background: rgba(255,255,255,0.95);
+      padding: 0 14px; height: 42px;
+      background: rgba(255,255,255,0.95);
       border-radius: 6px; border: 1px solid rgba(59,130,246,0.12);
     }
     .top-bar h1 {
-      font-size: clamp(0.8rem, 1.2vmin, 1.3rem); font-weight: 800; letter-spacing: -0.01em;
+      font-size: clamp(0.85rem, 1.4vmin, 1.4rem); font-weight: 800;
       background: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
     }
-    .top-bar .stats { display: flex; gap: clamp(10px, 1.5vmin, 24px); }
-    .stat-val { font-weight: 800; color: var(--text); font-size: clamp(0.65rem, 0.9vmin, 1rem); }
-    .stat-label { font-size: clamp(0.5rem, 0.6vmin, 0.72rem); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text2); }
+    .top-bar .stats { display: flex; gap: clamp(10px, 2vmin, 28px); }
+    .stat-val { font-weight: 800; color: var(--text); font-size: clamp(0.7rem, 1vmin, 1.1rem); }
+    .stat-label { font-size: clamp(0.5rem, 0.7vmin, 0.72rem); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text2); }
     .stat-group { text-align: center; }
-    .top-bar .keti-logo { height: clamp(20px, 3vmin, 36px); width: auto; }
+    .keti-logo { height: clamp(20px, 3.5vmin, 36px); width: auto; }
 
-    /* Main content — 3-column proportional */
+    /* Params bar */
+    .params-bar {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      padding: 6px 14px;
+      background: rgba(255,255,255,0.92); border-radius: 6px;
+      border: 1px solid rgba(59,130,246,0.12);
+    }
+    .params-bar label {
+      font-size: clamp(0.6rem, 0.75vmin, 0.78rem); font-weight: 600; color: var(--text2);
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .params-bar input, .params-bar select {
+      padding: 4px 8px; border-radius: 5px; border: 1px solid var(--border);
+      font-size: clamp(0.65rem, 0.8vmin, 0.85rem); width: 80px;
+    }
+    .params-bar select { width: auto; min-width: 80px; }
+    .params-bar input:focus, .params-bar select:focus {
+      outline: none; border-color: var(--blue); box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+    }
+    .params-bar .sep { width: 1px; height: 28px; background: rgba(59,130,246,0.15); margin: 0 4px; }
+    .btn-solve {
+      padding: 6px 18px; border-radius: 6px; border: none; cursor: pointer;
+      font-size: clamp(0.65rem, 0.8vmin, 0.88rem); font-weight: 700;
+      background: linear-gradient(135deg, #3B82F6, #06B6D4); color: #fff;
+      transition: opacity 0.2s;
+    }
+    .btn-solve:hover { opacity: 0.9; }
+    .btn-solve:disabled { opacity: 0.5; cursor: default; }
+    .fail-select { border-color: rgba(220,38,38,0.3) !important; }
+    .fail-select option.fail-opt { color: var(--red); }
+
+    /* Main 3-column */
     .main-content {
       display: grid;
-      grid-template-columns: 26% 1fr 22%;
-      gap: min(6px, 0.5%);
-      min-height: 0;
+      grid-template-columns: 24% 1fr 20%;
+      gap: 5px; min-height: 0;
     }
 
-    /* Panel base */
+    /* Panel */
     .panel {
       background: rgba(255,255,255,0.95);
       border: 1px solid rgba(59,130,246,0.12);
-      border-radius: 6px;
-      display: flex; flex-direction: column;
-      overflow: hidden;
+      border-radius: 6px; display: flex; flex-direction: column; overflow: hidden;
     }
     .panel-title {
-      padding: 0.5vmin 1vmin; font-size: clamp(0.55rem, 0.7vmin, 0.78rem); font-weight: 700;
+      padding: 5px 10px; font-size: clamp(0.55rem, 0.72vmin, 0.78rem); font-weight: 700;
       color: var(--blue); text-transform: uppercase; letter-spacing: 0.06em;
       border-bottom: 1px solid rgba(59,130,246,0.1);
-      background: rgba(59,130,246,0.03);
-      flex-shrink: 0;
+      background: rgba(59,130,246,0.03); flex-shrink: 0;
     }
-    .panel-body {
-      flex: 1; min-height: 0; overflow: hidden; position: relative;
-    }
-
-    /* Topology panel */
-    .topo-body { padding: 0.3vmin; }
+    .panel-body { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+    .topo-body { padding: 3px; }
     .topo-body svg { width: 100%; height: 100%; }
-
-    /* Gantt panel */
-    .gantt-body { padding: 0.3vmin 0.3vmin 0; }
+    .gantt-body { padding: 3px 3px 0; }
     .gantt-body svg { width: 100%; height: 100%; }
 
-    /* Right panel — TAS + Flows + GCL */
+    /* Right panel */
     .right-panel { overflow-y: auto; }
     .right-panel::-webkit-scrollbar { width: 3px; }
     .right-panel::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.2); border-radius: 2px; }
-
-    /* TAS settings table */
-    .tas-table { width: 100%; border-collapse: collapse; font-size: clamp(0.55rem, 0.65vmin, 0.72rem); }
-    .tas-table th {
-      background: rgba(59,130,246,0.06); padding: 0.3vmin 0.6vmin; text-align: left;
-      font-weight: 700; color: var(--text2); border-bottom: 1px solid rgba(59,130,246,0.12);
-    }
-    .tas-table td {
-      padding: 0.2vmin 0.6vmin; border-bottom: 1px solid rgba(59,130,246,0.06);
-    }
+    .tas-table { width: 100%; border-collapse: collapse; font-size: clamp(0.55rem, 0.68vmin, 0.75rem); }
+    .tas-table th { background: rgba(59,130,246,0.06); padding: 3px 8px; text-align: left; font-weight: 700; color: var(--text2); }
+    .tas-table td { padding: 2px 8px; border-bottom: 1px solid rgba(59,130,246,0.06); }
     .tas-table td:last-child { font-family: 'Courier New', monospace; font-weight: 600; text-align: right; }
-
-    /* Flow list */
-    .flow-list { padding: 0.4vmin 0.8vmin; }
-    .flow-item {
-      display: flex; align-items: center; gap: 0.4vmin;
-      padding: 0.15vmin 0; font-size: clamp(0.5rem, 0.62vmin, 0.7rem);
-    }
-    .flow-dot { width: clamp(5px, 0.7vmin, 10px); height: clamp(5px, 0.7vmin, 10px); border-radius: 50%; flex-shrink: 0; }
+    .flow-list { padding: 4px 8px; }
+    .flow-item { display: flex; align-items: center; gap: 5px; padding: 2px 0; font-size: clamp(0.52rem, 0.65vmin, 0.72rem); }
+    .flow-dot { width: clamp(6px, 0.8vmin, 10px); height: clamp(6px, 0.8vmin, 10px); border-radius: 50%; flex-shrink: 0; }
     .flow-name { font-weight: 600; color: var(--text); flex: 1; }
-    .flow-meta { color: var(--text3); font-size: clamp(0.45rem, 0.55vmin, 0.65rem); }
-
-    /* GCL compact */
-    .gcl-compact { padding: 0.4vmin 0.8vmin; }
+    .flow-meta { color: var(--text3); font-size: clamp(0.48rem, 0.58vmin, 0.65rem); }
+    .gcl-compact { padding: 4px 8px; }
     .gcl-row {
-      display: flex; align-items: center; gap: 0.3vmin;
-      font-size: clamp(0.45rem, 0.55vmin, 0.62rem); font-family: 'Courier New', monospace;
-      padding: 0.1vmin 0; color: var(--text2);
+      display: flex; align-items: center; gap: 3px;
+      font-size: clamp(0.48rem, 0.58vmin, 0.65rem); font-family: 'Courier New', monospace;
+      padding: 1px 0; color: var(--text2);
     }
     .gcl-gate-bits { display: inline-flex; gap: 0; }
     .gcl-bit {
-      display: inline-block; width: clamp(5px, 0.7vmin, 10px); height: clamp(7px, 0.9vmin, 12px);
-      border-radius: 1px; font-size: clamp(4px, 0.5vmin, 7px); text-align: center;
-      line-height: clamp(7px, 0.9vmin, 12px); font-weight: 700;
+      display: inline-block; width: clamp(6px, 0.75vmin, 10px); height: clamp(8px, 1vmin, 13px);
+      border-radius: 1px; font-size: clamp(4px, 0.55vmin, 7px); text-align: center;
+      line-height: clamp(8px, 1vmin, 13px); font-weight: 700;
     }
     .gcl-bit.open { background: rgba(59,130,246,0.35); color: #1e40af; }
     .gcl-bit.closed { background: rgba(100,116,139,0.12); color: #94a3b8; }
-    .gcl-time { min-width: 5vmin; text-align: right; }
-    .gcl-note { color: var(--text3); margin-left: 0.3vmin; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 8vmin; }
-
-    /* Section dividers in right panel */
+    .gcl-time { text-align: right; }
+    .gcl-note { color: var(--text3); margin-left: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px; }
     .section-divider {
-      padding: 0.3vmin 0.8vmin; font-size: clamp(0.48rem, 0.58vmin, 0.65rem); font-weight: 700;
+      padding: 3px 8px; font-size: clamp(0.48rem, 0.6vmin, 0.68rem); font-weight: 700;
       color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em;
       background: rgba(59,130,246,0.03);
-      border-top: 1px solid rgba(59,130,246,0.08);
-      border-bottom: 1px solid rgba(59,130,246,0.08);
+      border-top: 1px solid rgba(59,130,246,0.08); border-bottom: 1px solid rgba(59,130,246,0.08);
     }
 
     /* Bottom bar */
     .bottom-bar {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 0 1%; font-size: clamp(0.48rem, 0.6vmin, 0.68rem); color: var(--text3);
-      background: rgba(255,255,255,0.8);
-      border-radius: 4px; border: 1px solid rgba(59,130,246,0.08);
+      padding: 0 12px; height: 26px;
+      font-size: clamp(0.5rem, 0.65vmin, 0.72rem); color: var(--text3);
+      background: rgba(255,255,255,0.8); border-radius: 4px; border: 1px solid rgba(59,130,246,0.08);
     }
-    .bottom-bar a {
-      color: var(--blue); text-decoration: none; font-weight: 600; margin: 0 0.4vmin;
-    }
+    .bottom-bar a { color: var(--blue); text-decoration: none; font-weight: 600; margin: 0 5px; }
     .bottom-bar a:hover { text-decoration: underline; }
-
-    /* Legend inline */
-    .legend-row { display: flex; gap: 0.6vmin; align-items: center; flex-wrap: wrap; }
-    .legend-item { display: flex; align-items: center; gap: 0.3vmin; font-size: clamp(0.45rem, 0.55vmin, 0.65rem); }
-    .legend-swatch { width: clamp(6px, 0.8vmin, 12px); height: clamp(6px, 0.8vmin, 12px); border-radius: 2px; }
 
     /* Tooltip */
     .tooltip {
-      background: rgba(255,255,255,0.97);
-      border: 1px solid rgba(59,130,246,0.25);
+      background: rgba(255,255,255,0.97); border: 1px solid rgba(59,130,246,0.25);
       color: var(--text); box-shadow: 0 8px 30px rgba(0,0,0,0.12);
     }
     .tooltip .tt-title { color: var(--blue); }
     .tooltip .tt-k { color: var(--text3); }
 
-    /* Loading spinner */
     @keyframes spin { to { transform: rotate(360deg); } }
     .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(59,130,246,0.2); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 4px; }
-
-    /* GCL grid/axis overrides */
     .gcl-grid line { stroke: rgba(59,130,246,0.06); stroke-width: 1; }
     .gcl-axis text { fill: var(--text2) !important; }
     .gcl-axis path, .gcl-axis line { stroke: rgba(59,130,246,0.15); }
@@ -178,68 +168,80 @@
   <div class="viewport">
     <!-- Top Bar -->
     <div class="top-bar">
-      <div style="display:flex;align-items:center;gap:1vmin;">
+      <div style="display:flex;align-items:center;gap:10px;">
         <img src="keti.png" class="keti-logo" onerror="this.style.display='none'">
-        <h1>TSN/GCL 802.1Qbv Schedule</h1>
+        <h1>TSN/GCL 802.1Qbv Interactive Dashboard</h1>
       </div>
       <div class="stats" id="topStats">
-        <div class="stat-group"><div class="stat-val" id="statCycle">1000</div><div class="stat-label">Cycle (&micro;s)</div></div>
+        <div class="stat-group"><div class="stat-val" id="statCycle">-</div><div class="stat-label">Cycle (&micro;s)</div></div>
         <div class="stat-group"><div class="stat-val" id="statPackets">-</div><div class="stat-label">Packets</div></div>
-        <div class="stat-group"><div class="stat-val" id="statFlows">9</div><div class="stat-label">Flows</div></div>
+        <div class="stat-group"><div class="stat-val" id="statFlows">-</div><div class="stat-label">Flows</div></div>
         <div class="stat-group"><div class="stat-val" id="statUtil">-</div><div class="stat-label">Max Util</div></div>
         <div class="stat-group"><div class="stat-val" id="statWorst">-</div><div class="stat-label">Worst E2E</div></div>
+        <div class="stat-group"><div class="stat-val" id="statSolver">-</div><div class="stat-label">Solver</div></div>
         <div class="stat-group"><div class="stat-val" id="statStatus"><span class="spinner"></span></div><div class="stat-label">Status</div></div>
       </div>
     </div>
 
+    <!-- Params Bar -->
+    <div class="params-bar">
+      <label>Cycle (&micro;s)<input type="number" id="pCycle" value="1000" min="100" step="100"></label>
+      <label>Guard (&micro;s)<input type="number" id="pGuard" value="0" min="0" step="0.5"></label>
+      <label>Speed (Mbps)<input type="number" id="pSpeed" value="1000" min="100" step="100"></label>
+      <label>Proc Delay (&micro;s)<input type="number" id="pDelay" value="5" min="0" step="0.5"></label>
+      <div class="sep"></div>
+      <label>Solver
+        <select id="pSolver">
+          <option value="greedy">Greedy</option>
+          <option value="ilp" selected>ILP (k=1)</option>
+        </select>
+      </label>
+      <label>ILP Limit (s)<input type="number" id="pTmlim" value="30" min="5" max="120" step="5" style="width:60px;"></label>
+      <div class="sep"></div>
+      <label>Link Failure
+        <select id="pFail" class="fail-select">
+          <option value="">None (Normal)</option>
+          <option value="l_swfl_swfr" class="fail-opt">SW_FL &harr; SW_FR</option>
+          <option value="l_swfl_swrear" class="fail-opt">SW_FL &harr; SW_REAR</option>
+          <option value="l_swfr_swrear" class="fail-opt">SW_FR &harr; SW_REAR</option>
+        </select>
+      </label>
+      <div class="sep"></div>
+      <button class="btn-solve" id="btnSolve">&#9654; Solve</button>
+    </div>
+
     <!-- Main 3-Column -->
     <div class="main-content">
-      <!-- Left: Topology -->
       <div class="panel">
         <div class="panel-title">Network Topology</div>
         <div class="panel-body topo-body" id="topoContainer"></div>
       </div>
-
-      <!-- Center: Gantt -->
       <div class="panel">
-        <div class="panel-title">GCL Schedule Timeline</div>
+        <div class="panel-title" id="ganttTitle">GCL Schedule Timeline</div>
         <div class="panel-body gantt-body" id="ganttContainer"></div>
       </div>
-
-      <!-- Right: TAS + Flows + GCL + Legend -->
       <div class="panel">
-        <div class="panel-title">TAS Configuration</div>
+        <div class="panel-title">Configuration</div>
         <div class="panel-body right-panel" id="rightPanel">
-          <table class="tas-table">
+          <table class="tas-table" id="tasTable">
             <thead><tr><th>Param</th><th>Value</th></tr></thead>
-            <tbody>
-              <tr><td>Cycle</td><td>1000 &micro;s</td></tr>
-              <tr><td>Guard</td><td>0 &micro;s</td></tr>
-              <tr><td>Speed</td><td>1000 Mbps</td></tr>
-              <tr><td>Proc Delay</td><td>5 &micro;s</td></tr>
-              <tr><td>Gate Mode</td><td>8-TC</td></tr>
-              <tr><td>Scheduler</td><td>Greedy</td></tr>
-            </tbody>
+            <tbody id="tasBody"></tbody>
           </table>
-
-          <div class="section-divider">Flows (9)</div>
+          <div class="section-divider">Flows</div>
           <div class="flow-list" id="flowList"></div>
-
-          <div class="section-divider">GCL &mdash; SW_REAR &rarr; ACU_IT</div>
+          <div class="section-divider">Board GCL</div>
           <div class="gcl-compact" id="gclMini"></div>
-
-          <div class="section-divider">Legend</div>
-          <div class="flow-list" id="legendPanel"></div>
         </div>
       </div>
     </div>
 
     <!-- Bottom Bar -->
     <div class="bottom-bar">
-      <div>KETI &mdash; IEEE 802.1Qbv TAS &mdash; Presentation (LiDAR 3000B, Radar 1200B)</div>
+      <div>KETI &mdash; IEEE 802.1Qbv TAS &mdash; LiDAR 3000B / Radar 1200B (presentation scale)</div>
       <div>
         <a href="roii-8tc.html">8-TC</a>
         <a href="roii-8tc-ilp.html">ILP</a>
+        <a href="roii-8tc-failover.html">Failover</a>
         <a href="roii-8tc-multiroute.html">Multi-Route</a>
         <a href="index.html">Home</a>
       </div>
@@ -251,39 +253,111 @@
   <script src="vendor/d3.min.js"></script>
   <script type="module">
   import { ROII_REAL_8TC, ROII_REAL_SWITCHES, ROII_REAL_NODE_COLORS } from './js/roii-real-data.js';
-  import { solveGreedy, initTooltip, flowColor } from './js/ilp-core.js';
+  import { solveGreedy, solveILP, initTooltip, flowColor } from './js/ilp-core.js';
 
   initTooltip();
   const round3 = v => Math.round(v * 1000) / 1000;
 
+  const BACKBONE_REVERSE = {
+    'l_swfl_swfr': 'l_swfr_swfl', 'l_swfr_swfl': 'l_swfl_swfr',
+    'l_swfl_swrear': 'l_swrear_swfl', 'l_swrear_swfl': 'l_swfl_swrear',
+    'l_swfr_swrear': 'l_swrear_swfr', 'l_swrear_swfr': 'l_swfr_swrear',
+  };
+
+  /* ═══════ GLPK Lazy Loader ═══════ */
+  let glpkInstance = null;
+  let glpkLoading = false;
+  async function ensureGLPK() {
+    if (glpkInstance) return glpkInstance;
+    if (glpkLoading) { while (glpkLoading) await new Promise(r => setTimeout(r, 80)); return glpkInstance; }
+    glpkLoading = true;
+    try { const GLPK = (await import('./vendor/glpk.js')).default; glpkInstance = await GLPK(); }
+    catch (e) { console.error('GLPK load error:', e); }
+    glpkLoading = false;
+    return glpkInstance;
+  }
+  ensureGLPK(); // preload
+
+  /* ═══════ Helpers ═══════ */
+  const getP = id => parseFloat(document.getElementById(id).value) || 0;
+
   /* ═══════ Build Model ═══════ */
   function buildModel() {
     const m = JSON.parse(JSON.stringify(ROII_REAL_8TC));
-    m.cycle_time_us = 1000;
-    m.guard_band_us = 0;
-    m.processing_delay_us = 5;
-    for (const lnk of m.links) lnk.rate_mbps = 1000;
+    m.cycle_time_us = getP('pCycle') || 1000;
+    m.guard_band_us = getP('pGuard');
+    m.processing_delay_us = getP('pDelay') || 5;
+    for (const lnk of m.links) lnk.rate_mbps = getP('pSpeed') || 1000;
     for (const f of m.flows) {
       if (f.traffic_type === 'lidar') f.payload_bytes = 3000;
       if (f.traffic_type === 'radar') f.payload_bytes = 1200;
+      f.k_paths = 1; // fixed-route for fast ILP
+    }
+
+    // Link failure
+    const failedLink = document.getElementById('pFail').value;
+    if (failedLink) {
+      const revId = BACKBONE_REVERSE[failedLink];
+      m.links = m.links.filter(l => l.id !== failedLink && l.id !== revId);
     }
     return m;
   }
 
-  /* ═══════ Solve & Render ═══════ */
-  function run() {
+  /* ═══════ Solve ═══════ */
+  let solving = false;
+  async function solve() {
+    if (solving) return;
+    solving = true;
+    const btn = document.getElementById('btnSolve');
+    btn.disabled = true;
+
+    const solver = document.getElementById('pSolver').value;
     const model = buildModel();
-    const result = solveGreedy(model);
-    updateStats(model, result);
-    renderTopology(model);
-    renderGantt(model, result);
-    renderFlowList(model);
-    renderGclMini(result);
-    renderLegend(result);
+    const failedLink = document.getElementById('pFail').value;
+
+    document.getElementById('statStatus').innerHTML = '<span class="spinner"></span>';
+    document.getElementById('statSolver').textContent = solver === 'ilp' ? 'ILP' : 'Greedy';
+
+    let result;
+    try {
+      if (solver === 'ilp') {
+        const glpk = await ensureGLPK();
+        if (!glpk) { document.getElementById('statStatus').textContent = 'GLPK ERR'; solving = false; btn.disabled = false; return; }
+        const tmlim = parseInt(document.getElementById('pTmlim').value) || 30;
+        result = await solveILP(model, glpk, { tmlim });
+      } else {
+        result = solveGreedy(model);
+      }
+
+      if (result.error) {
+        document.getElementById('statStatus').textContent = 'ERROR';
+        document.getElementById('statStatus').style.color = 'var(--red)';
+        console.error(result.error);
+      } else {
+        updateStats(model, result, solver);
+      }
+
+      renderTopology(model, failedLink);
+      renderGantt(model, result);
+      renderTasTable(model, solver, failedLink);
+      renderFlowList(model);
+      renderGclMini(result);
+
+      document.getElementById('ganttTitle').textContent =
+        `GCL Schedule — ${solver === 'ilp' ? 'ILP' : 'Greedy'}${failedLink ? ' [FAILOVER]' : ''}`;
+
+    } catch (e) {
+      document.getElementById('statStatus').textContent = 'ERROR';
+      document.getElementById('statStatus').style.color = 'var(--red)';
+      console.error(e);
+    }
+
+    btn.disabled = false;
+    solving = false;
   }
 
   /* ═══════ Stats ═══════ */
-  function updateStats(model, result) {
+  function updateStats(model, result, solver) {
     const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
     const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
     const missCount = stPkts.filter(p => p.status === 'MISS').length;
@@ -291,13 +365,33 @@
     document.getElementById('statPackets').textContent = result.packetRows.length;
     document.getElementById('statFlows').textContent = model.flows.length;
     document.getElementById('statUtil').textContent = result.worst_util_percent + '%';
-    document.getElementById('statWorst').textContent = round3(worst) + ' \u00b5s';
-    document.getElementById('statStatus').textContent = missCount === 0 ? 'ALL OK' : `${missCount} MISS`;
-    document.getElementById('statStatus').style.color = missCount === 0 ? 'var(--green)' : 'var(--red)';
+    document.getElementById('statWorst').textContent = round3(worst) + '\u00b5s';
+    document.getElementById('statSolver').textContent = solver === 'ilp' ? 'ILP' : 'Greedy';
+    const statusEl = document.getElementById('statStatus');
+    if (missCount === 0) {
+      statusEl.textContent = 'ALL OK';
+      statusEl.style.color = 'var(--green)';
+    } else {
+      statusEl.textContent = `${missCount} MISS`;
+      statusEl.style.color = 'var(--red)';
+    }
+  }
+
+  /* ═══════ TAS Table (dynamic) ═══════ */
+  function renderTasTable(model, solver, failedLink) {
+    document.getElementById('tasBody').innerHTML = `
+      <tr><td>Cycle</td><td>${model.cycle_time_us} &micro;s</td></tr>
+      <tr><td>Guard</td><td>${model.guard_band_us} &micro;s</td></tr>
+      <tr><td>Speed</td><td>${model.links[0]?.rate_mbps || 1000} Mbps</td></tr>
+      <tr><td>Proc Delay</td><td>${model.processing_delay_us} &micro;s</td></tr>
+      <tr><td>Gate Mode</td><td>8-TC</td></tr>
+      <tr><td>Solver</td><td>${solver === 'ilp' ? 'ILP (k=1)' : 'Greedy'}</td></tr>
+      ${failedLink ? `<tr style="color:var(--red);"><td>Failed Link</td><td>${failedLink}</td></tr>` : ''}
+    `;
   }
 
   /* ═══════ Topology ═══════ */
-  function renderTopology(model) {
+  function renderTopology(model, failedLink) {
     const container = document.getElementById('topoContainer');
     container.innerHTML = '';
     const rect = container.getBoundingClientRect();
@@ -326,10 +420,11 @@
       .attr('preserveAspectRatio', 'xMidYMid meet');
 
     const topoBase = JSON.parse(JSON.stringify(ROII_REAL_8TC));
-    const backboneIds = new Set(['l_swfl_swfr','l_swfr_swfl','l_swfl_swrear','l_swrear_swfl','l_swfr_swrear','l_swrear_swfr']);
+    const backboneIds = new Set(Object.keys(BACKBONE_REVERSE));
+    const failedSet = new Set();
+    if (failedLink) { failedSet.add(failedLink); const rv = BACKBONE_REVERSE[failedLink]; if (rv) failedSet.add(rv); }
     const drawnBi = new Set();
 
-    // Draw links
     for (const lnk of topoBase.links) {
       const p1 = pos[lnk.from], p2 = pos[lnk.to];
       if (!p1 || !p2) continue;
@@ -339,19 +434,27 @@
         if (drawnBi.has(biKey)) continue;
         drawnBi.add(biKey);
       }
+      const isFailed = failedSet.has(lnk.id);
       const isGateway = lnk.id === 'l_swrear_acu';
-      let color, width;
-      if (isBackbone) { color = 'rgba(59,130,246,0.4)'; width = vmin * 0.008; }
-      else if (isGateway) { color = 'rgba(6,182,212,0.55)'; width = vmin * 0.01; }
-      else { color = 'rgba(59,130,246,0.2)'; width = vmin * 0.004; }
+      let color, width, dash;
+      if (isFailed) { color = 'rgba(220,38,38,0.5)'; width = vmin * 0.008; dash = `${vmin*0.015},${vmin*0.008}`; }
+      else if (isBackbone) { color = 'rgba(59,130,246,0.4)'; width = vmin * 0.008; dash = 'none'; }
+      else if (isGateway) { color = 'rgba(6,182,212,0.55)'; width = vmin * 0.01; dash = 'none'; }
+      else { color = 'rgba(59,130,246,0.2)'; width = vmin * 0.004; dash = 'none'; }
 
-      svg.append('line')
-        .attr('x1', p1.x).attr('y1', p1.y)
-        .attr('x2', p2.x).attr('y2', p2.y)
+      const line = svg.append('line')
+        .attr('x1', p1.x).attr('y1', p1.y).attr('x2', p2.x).attr('y2', p2.y)
         .attr('stroke', color).attr('stroke-width', width);
+      if (dash !== 'none') line.attr('stroke-dasharray', dash);
+      if (isFailed) {
+        const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+        svg.append('text').attr('x', mx).attr('y', my)
+          .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+          .attr('font-size', vmin * 0.045 + 'px').attr('fill', '#dc2626')
+          .text('\u2716');
+      }
     }
 
-    // Draw nodes — sizes proportional to container
     for (const node of topoBase.nodes) {
       const p = pos[node.id];
       if (!p) continue;
@@ -361,36 +464,25 @@
       const isLidar = node.id.startsWith('LIDAR');
       const isRadar = node.id.startsWith('RADAR');
       let r, sw, fs, fsLabel;
-      if (isACU)         { r = vmin * 0.065; sw = vmin * 0.007; fs = vmin * 0.025; fsLabel = vmin * 0.023; }
-      else if (isSwitch) { r = vmin * 0.058; sw = vmin * 0.006; fs = vmin * 0.020; fsLabel = vmin * 0.022; }
-      else if (isLidar)  { r = vmin * 0.058; sw = vmin * 0.006; fs = vmin * 0.024; fsLabel = vmin * 0.022; }
-      else if (isRadar)  { r = vmin * 0.048; sw = vmin * 0.005; fs = vmin * 0.022; fsLabel = vmin * 0.020; }
-      else               { r = vmin * 0.035; sw = vmin * 0.004; fs = vmin * 0.018; fsLabel = vmin * 0.018; }
+      if (isACU)         { r = vmin*0.065; sw = vmin*0.007; fs = vmin*0.025; fsLabel = vmin*0.023; }
+      else if (isSwitch) { r = vmin*0.058; sw = vmin*0.006; fs = vmin*0.020; fsLabel = vmin*0.022; }
+      else if (isLidar)  { r = vmin*0.058; sw = vmin*0.006; fs = vmin*0.024; fsLabel = vmin*0.022; }
+      else if (isRadar)  { r = vmin*0.048; sw = vmin*0.005; fs = vmin*0.022; fsLabel = vmin*0.020; }
+      else               { r = vmin*0.035; sw = vmin*0.004; fs = vmin*0.018; fsLabel = vmin*0.018; }
 
-      svg.append('circle')
-        .attr('cx', p.x).attr('cy', p.y).attr('r', r)
-        .attr('fill', nc.fill).attr('stroke', nc.stroke)
-        .attr('stroke-width', sw);
-
-      svg.append('text')
-        .attr('x', p.x).attr('y', p.y + 1)
+      svg.append('circle').attr('cx', p.x).attr('cy', p.y).attr('r', r)
+        .attr('fill', nc.fill).attr('stroke', nc.stroke).attr('stroke-width', sw);
+      svg.append('text').attr('x', p.x).attr('y', p.y + 1)
         .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-        .attr('font-size', fs + 'px')
-        .attr('font-weight', '800').attr('fill', nc.stroke)
-        .style('pointer-events', 'none')
-        .text(nc.shortLabel);
-
-      svg.append('text')
-        .attr('x', p.x).attr('y', p.y + r + vmin * 0.028)
-        .attr('text-anchor', 'middle')
-        .attr('font-size', fsLabel + 'px').attr('font-weight', '700')
-        .attr('fill', '#334155')
-        .style('pointer-events', 'none')
-        .text(nc.label || node.id);
+        .attr('font-size', fs + 'px').attr('font-weight', '800').attr('fill', nc.stroke)
+        .style('pointer-events', 'none').text(nc.shortLabel);
+      svg.append('text').attr('x', p.x).attr('y', p.y + r + vmin * 0.028)
+        .attr('text-anchor', 'middle').attr('font-size', fsLabel + 'px').attr('font-weight', '700')
+        .attr('fill', '#334155').style('pointer-events', 'none').text(nc.label || node.id);
     }
   }
 
-  /* ═══════ Gantt Chart ═══════ */
+  /* ═══════ Gantt ═══════ */
   function renderGantt(model, result) {
     const container = document.getElementById('ganttContainer');
     container.innerHTML = '';
@@ -403,14 +495,13 @@
     if (!activeLinks.length) return;
 
     const rect = container.getBoundingClientRect();
-    const W = rect.width || 600;
-    const H = rect.height || 400;
+    const W = rect.width || 600; const H = rect.height || 400;
     const vmin = Math.min(W, H);
     const fontSize = Math.max(7, vmin * 0.022);
 
-    const margin = { top: H * 0.05, right: W * 0.06, bottom: H * 0.07, left: W * 0.14 };
+    const margin = { top: H * 0.04, right: W * 0.05, bottom: H * 0.06, left: W * 0.13 };
     const innerW = W - margin.left - margin.right;
-    const rowH = Math.min(H * 0.06, (H - margin.top - margin.bottom) / activeLinks.length);
+    const rowH = Math.min(H * 0.055, (H - margin.top - margin.bottom) / activeLinks.length);
     const innerH = activeLinks.length * rowH;
 
     const svg = d3.select(container).append('svg')
@@ -418,7 +509,7 @@
       .attr('preserveAspectRatio', 'xMidYMid meet');
 
     const defs = svg.append('defs');
-    const pId = 'guardHatch_present';
+    const pId = 'guardH';
     const gp = defs.append('pattern').attr('id', pId)
       .attr('patternUnits', 'userSpaceOnUse').attr('width', 6).attr('height', 6)
       .attr('patternTransform', 'rotate(45)');
@@ -427,21 +518,17 @@
       .attr('stroke', 'rgba(0,0,0,0.2)').attr('stroke-width', 2);
 
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
-
     const x = d3.scaleLinear().domain([0, model.cycle_time_us]).range([0, innerW]);
     const y = d3.scaleBand().domain(activeLinks.map(l => l.id)).range([0, innerH]).padding(0.12);
 
-    // Grid
     g.append('g').attr('class', 'gcl-grid')
       .selectAll('line').data(x.ticks(8)).enter().append('line')
       .attr('x1', d => x(d)).attr('x2', d => x(d)).attr('y1', 0).attr('y2', innerH);
 
-    // X axis
     g.append('g').attr('class', 'gcl-axis').attr('transform', `translate(0,${innerH})`)
       .call(d3.axisBottom(x).ticks(6).tickFormat(d => d + '\u00b5s'))
       .selectAll('text').attr('font-size', fontSize * 0.85 + 'px');
 
-    // Y axis
     g.append('g').attr('class', 'gcl-axis')
       .call(d3.axisLeft(y).tickSize(0).tickPadding(4))
       .selectAll('text').text(d => {
@@ -451,10 +538,8 @@
         return `${short(lnk.from)}\u2192${short(lnk.to)}`;
       }).attr('font-size', fontSize * 0.8 + 'px');
 
-    // Row backgrounds
     g.selectAll('.rbg').data(activeLinks).enter().append('rect')
-      .attr('x', 0).attr('y', d => y(d.id))
-      .attr('width', innerW).attr('height', y.bandwidth())
+      .attr('x', 0).attr('y', d => y(d.id)).attr('width', innerW).attr('height', y.bandwidth())
       .attr('fill', (_, i) => i % 2 === 0 ? 'rgba(59,130,246,0.03)' : 'transparent').attr('rx', 2);
 
     const tooltip = document.getElementById('tooltip');
@@ -462,12 +547,9 @@
     for (const lnk of activeLinks) {
       const entries = result.gcl.links[lnk.id]?.entries || [];
       let used = 0;
-
       for (const e of entries) {
-        const xPos = x(e.start_us);
-        const actualW = x(e.end_us) - xPos;
-        const yPos = y(lnk.id);
-        if (yPos === undefined) continue;
+        const xPos = x(e.start_us); const actualW = x(e.end_us) - xPos;
+        const yPos = y(lnk.id); if (yPos === undefined) continue;
         const bw = y.bandwidth();
 
         if (e.note === 'guard') {
@@ -480,44 +562,36 @@
           const fid = e.note.split('#')[0];
           const color = flowColor(fid) || '#3B82F6';
           const displayW = Math.max(actualW, 1);
-          g.append('rect')
-            .attr('x', xPos).attr('y', yPos)
+          g.append('rect').attr('x', xPos).attr('y', yPos)
             .attr('width', displayW).attr('height', bw)
             .attr('fill', color).attr('stroke', 'rgba(255,255,255,0.4)')
             .attr('stroke-width', 0.6).attr('rx', 2).attr('opacity', 0.9);
 
-          const hitW = Math.max(displayW, 8);
-          const hitOff = (hitW - displayW) / 2;
-          g.append('rect')
-            .attr('x', xPos - hitOff).attr('y', yPos)
+          const hitW = Math.max(displayW, 8); const hitOff = (hitW - displayW) / 2;
+          g.append('rect').attr('x', xPos - hitOff).attr('y', yPos)
             .attr('width', hitW).attr('height', bw)
             .attr('fill', 'transparent').style('cursor', 'pointer')
             .on('mouseover', () => {
               tooltip.innerHTML = `<div class="tt-title" style="color:${color}">${e.note}</div>`
-                + `<div class="tt-row"><span class="tt-k">Start</span><span class="tt-v">${e.start_us} \u00b5s</span></div>`
-                + `<div class="tt-row"><span class="tt-k">End</span><span class="tt-v">${e.end_us} \u00b5s</span></div>`
-                + `<div class="tt-row"><span class="tt-k">Duration</span><span class="tt-v">${e.duration_us} \u00b5s</span></div>`;
+                + `<div class="tt-row"><span class="tt-k">Start</span><span class="tt-v">${e.start_us}\u00b5s</span></div>`
+                + `<div class="tt-row"><span class="tt-k">End</span><span class="tt-v">${e.end_us}\u00b5s</span></div>`
+                + `<div class="tt-row"><span class="tt-k">Dur</span><span class="tt-v">${e.duration_us}\u00b5s</span></div>`;
               tooltip.classList.add('show');
             })
-            .on('mousemove', (ev) => {
-              tooltip.style.left = (ev.clientX + 10) + 'px';
-              tooltip.style.top = (ev.clientY - 16) + 'px';
-            })
+            .on('mousemove', ev => { tooltip.style.left = (ev.clientX+10)+'px'; tooltip.style.top = (ev.clientY-16)+'px'; })
             .on('mouseout', () => tooltip.classList.remove('show'));
 
           if (actualW > fontSize * 2.5) {
             g.append('text').attr('class', 'gcl-label')
-              .attr('x', xPos + actualW / 2).attr('y', yPos + bw / 2)
+              .attr('x', xPos + actualW/2).attr('y', yPos + bw/2)
               .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-              .attr('font-size', fontSize * 0.8 + 'px')
+              .attr('font-size', fontSize * 0.78 + 'px')
               .text(e.note.replace('#', '.'));
           }
           used += e.duration_us;
         }
       }
-
-      // Utilization
-      g.append('text').attr('x', innerW + 4).attr('y', y(lnk.id) + y.bandwidth() / 2)
+      g.append('text').attr('x', innerW + 4).attr('y', y(lnk.id) + y.bandwidth()/2)
         .attr('text-anchor', 'start').attr('dominant-baseline', 'middle')
         .attr('font-size', fontSize * 0.75 + 'px').attr('fill', 'var(--text3)').attr('font-weight', '700')
         .text((used / model.cycle_time_us * 100).toFixed(1) + '%');
@@ -526,61 +600,48 @@
 
   /* ═══════ Flow List ═══════ */
   function renderFlowList(model) {
-    const el = document.getElementById('flowList');
-    el.innerHTML = model.flows.map(f => {
+    document.getElementById('flowList').innerHTML = model.flows.map(f => {
       const color = flowColor(f.id) || '#3B82F6';
-      const name = f.id.replace('f_','');
-      return `<div class="flow-item">
-        <span class="flow-dot" style="background:${color}"></span>
-        <span class="flow-name">${name}</span>
-        <span class="flow-meta">P${f.PCP} ${f.payload_bytes}B</span>
-      </div>`;
+      return `<div class="flow-item"><span class="flow-dot" style="background:${color}"></span><span class="flow-name">${f.id.replace('f_','')}</span><span class="flow-meta">P${f.PCP} ${f.payload_bytes}B</span></div>`;
     }).join('');
   }
 
-  /* ═══════ GCL — bottleneck only, traffic entries only ═══════ */
+  /* ═══════ Board GCL — all 3 switches ═══════ */
   function renderGclMini(result) {
     const el = document.getElementById('gclMini');
-    if (!result.boardConfigs) { el.innerHTML = '<span style="color:var(--text3);">No GCL</span>'; return; }
-
-    // Only show SW_REAR → ACU_IT (bottleneck)
-    const cfg = result.boardConfigs['SW_REAR'];
-    if (!cfg) { el.innerHTML = ''; return; }
-
+    if (!result || !result.boardConfigs) { el.innerHTML = '<span style="color:var(--text3);">No GCL</span>'; return; }
     let html = '';
-    for (const [portId, port] of Object.entries(cfg.ports)) {
-      if (!port.to || port.to !== 'ACU_IT') continue;
-      for (const e of port.entries) {
-        if (e.note === 'all-gates-closed' || e.note.includes('non-ST')) continue;
-        const bits = e.gate_mask.split('');
-        let bitsHtml = '<span class="gcl-gate-bits">';
-        for (let b = 0; b < 8; b++) {
-          const cls = bits[b] === '1' ? 'open' : 'closed';
-          bitsHtml += `<span class="gcl-bit ${cls}">${7-b}</span>`;
+    for (const sw of ROII_REAL_SWITCHES) {
+      const cfg = result.boardConfigs[sw.id];
+      if (!cfg) continue;
+      let boardHtml = '';
+      for (const [portId, port] of Object.entries(cfg.ports)) {
+        let portEntries = '';
+        for (const e of port.entries) {
+          if (e.note === 'all-gates-closed' || e.note.includes('non-ST')) continue;
+          const bits = e.gate_mask.split('');
+          let bitsHtml = '<span class="gcl-gate-bits">';
+          for (let b = 0; b < 8; b++) bitsHtml += `<span class="gcl-bit ${bits[b]==='1'?'open':'closed'}">${7-b}</span>`;
+          bitsHtml += '</span>';
+          portEntries += `<div class="gcl-row">${bitsHtml}<span class="gcl-time">${e.start_us}\u2013${e.end_us}</span><span class="gcl-note" title="${e.note}">${e.note.length>14?e.note.slice(0,14)+'..':e.note}</span></div>`;
         }
-        bitsHtml += '</span>';
-        const noteShort = e.note.length > 16 ? e.note.slice(0, 16) + '..' : e.note;
-        html += `<div class="gcl-row">${bitsHtml}<span class="gcl-time">${e.start_us}\u2013${e.end_us}</span><span class="gcl-note" title="${e.note}">${noteShort}</span></div>`;
+        if (!portEntries) continue;
+        const portLabel = port.to ? `\u2192${port.to.replace('SW_','').replace('ACU_IT','ACU')}` : portId;
+        boardHtml += `<div style="font-size:clamp(0.45rem,0.55vmin,0.62rem);color:var(--text3);padding:1px 0;font-weight:600;margin-top:1px;">${portLabel}</div>`;
+        boardHtml += portEntries;
       }
+      if (!boardHtml) continue;
+      html += `<div style="font-size:clamp(0.5rem,0.62vmin,0.7rem);color:var(--blue);font-weight:800;padding:3px 0 1px;border-top:1px solid rgba(59,130,246,0.08);margin-top:3px;">${sw.label || sw.id}</div>`;
+      html += boardHtml;
     }
-    el.innerHTML = html || '<span style="color:var(--text3);">No traffic on bottleneck</span>';
+    el.innerHTML = html || '<span style="color:var(--text3);">No GCL data</span>';
   }
 
-  /* ═══════ Legend ═══════ */
-  function renderLegend(result) {
-    const el = document.getElementById('legendPanel');
-    if (!el) return;
-    const seenFlows = [];
-    for (const pr of result.packetRows) {
-      if (!seenFlows.includes(pr.flow_id)) seenFlows.push(pr.flow_id);
-    }
-    el.innerHTML = seenFlows.map(fid =>
-      `<div class="flow-item" style="padding:0.15vmin 0;"><span class="flow-dot" style="background:${flowColor(fid)}"></span><span class="flow-name">${fid.replace('f_','')}</span></div>`
-    ).join('');
-  }
+  /* ═══════ Events ═══════ */
+  document.getElementById('btnSolve').addEventListener('click', solve);
 
   /* ═══════ Init ═══════ */
-  requestAnimationFrame(() => run());
+  solve();
   </script>
 </body>
 </html>
