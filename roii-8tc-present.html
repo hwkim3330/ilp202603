@@ -361,6 +361,8 @@
     const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
     const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
     const missCount = stPkts.filter(p => p.status === 'MISS').length;
+    const overlapCount = stPkts.filter(p => p.status === 'OVERLAP').length;
+    const failCount = missCount + overlapCount;
     document.getElementById('statCycle').textContent = model.cycle_time_us;
     document.getElementById('statPackets').textContent = result.packetRows.length;
     document.getElementById('statFlows').textContent = model.flows.length;
@@ -368,9 +370,12 @@
     document.getElementById('statWorst').textContent = round3(worst) + '\u00b5s';
     document.getElementById('statSolver').textContent = solver === 'ilp' ? 'ILP' : 'Greedy';
     const statusEl = document.getElementById('statStatus');
-    if (missCount === 0) {
+    if (failCount === 0) {
       statusEl.textContent = 'ALL OK';
       statusEl.style.color = 'var(--green)';
+    } else if (overlapCount > 0) {
+      statusEl.textContent = `${overlapCount} OVERLAP`;
+      statusEl.style.color = 'var(--red)';
     } else {
       statusEl.textContent = `${missCount} MISS`;
       statusEl.style.color = 'var(--red)';

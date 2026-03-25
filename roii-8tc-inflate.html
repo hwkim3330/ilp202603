@@ -483,7 +483,7 @@
         const lnk = model.links.find(l => l.id === h.link_id);
         return lnk ? lnk.to : h.link_id;
       }).join(' &rarr; ');
-      const statusCls = pr.status === 'OK' ? 'color:var(--green)' : pr.status === 'MISS' ? 'color:var(--red)' : 'color:var(--text3)';
+      const statusCls = pr.status === 'OK' ? 'color:var(--green)' : (pr.status === 'MISS' || pr.status === 'OVERLAP') ? 'color:var(--red)' : 'color:var(--text3)';
       html += `<tr><td>${pr.packet_id}</td><td>${pr.flow_id}</td>
         <td style="font-size:0.7rem;">${route}</td>
         <td class="calc result">${pr.e2e_delay_us} &micro;s</td>
@@ -687,7 +687,7 @@
       const lastHop = pr.hops[pr.hops.length - 1];
       if (lastHop) { const ll = model.links.find(l => l.id === lastHop.link_id); if (ll) route.push(ll.to); }
       const color = flowColor(pr.flow_id);
-      const statusCls = pr.status === 'OK' ? 'color:var(--green)' : pr.status === 'MISS' ? 'color:var(--red)' : 'color:var(--text3)';
+      const statusCls = pr.status === 'OK' ? 'color:var(--green)' : (pr.status === 'MISS' || pr.status === 'OVERLAP') ? 'color:var(--red)' : 'color:var(--text3)';
       html += `<tr>
         <td>${pr.packet_id}</td>
         <td><span class="pcp-dot" style="background:${color}"></span>${pr.flow_id}</td>

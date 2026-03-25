@@ -628,7 +628,7 @@
      ════════════════════════════════════════════ */
   function extractStats(model, result) {
     const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
-    const allOk = stPkts.every(p => p.status === 'OK');
+    const allOk = stPkts.every(p => p.status === 'OK') && (result.stats?.overlap_conflicts ?? 0) === 0;
     const e2es = stPkts.map(p => p.e2e_delay_us);
     const worstE2E = e2es.length ? Math.max(...e2es) : 0;
     const avgE2E = e2es.length ? round3(e2es.reduce((a, b) => a + b, 0) / e2es.length) : 0;
@@ -766,7 +766,7 @@
       const routeCls = a.changed ? 'route-path changed' : 'route-path';
       const deltaCls = a.delta === '-' ? '' : a.delta > 0 ? 'delta-worse' : a.delta < 0 ? 'delta-better' : 'delta-same';
       const deltaStr = a.delta === '-' ? '-' : (a.delta > 0 ? '+' : '') + a.delta + ' \u00b5s';
-      const statusCls = a.status === 'OK' ? 'status-ok' : a.status === 'MISS' ? 'status-miss' : 'delta-worse';
+      const statusCls = a.status === 'OK' ? 'status-ok' : (a.status === 'MISS' || a.status === 'OVERLAP') ? 'status-miss' : 'delta-worse';
       html += `<tr class="${a.changed ? 'route-changed' : ''}">
         <td><span class="pcp-dot" style="background:${a.color}"></span>${a.fid}</td>
         <td style="font-size:0.72rem;">${a.sensor}</td>

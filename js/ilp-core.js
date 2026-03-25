@@ -391,12 +391,25 @@ function buildResult(model, pkts, schedHops, method, stats) {
     worstUtil = Math.max(worstUtil, act / model.cycle_time_us * 100);
   }
 
-  // Structural validity check independent from deadline checks.
+  // Structural validity check — detect physical overlaps on each link
   let overlapConflicts = 0;
+  const overlapPids = new Set();
   for (const lnk of model.links) {
     const rows = linkRows[lnk.id].slice().sort((a, b) => a.start_us - b.start_us);
     for (let i = 1; i < rows.length; i++) {
-      if (rows[i].start_us < rows[i - 1].end_us - 1e-9) overlapConflicts++;
+      if (rows[i].start_us < rows[i - 1].end_us - 1e-9) {
+        overlapConflicts++;
+        overlapPids.add(rows[i].note);
+        overlapPids.add(rows[i - 1].note);
+      }
+    }
+  }
+  // Mark overlapping packets — overrides OK status
+  if (overlapPids.size > 0) {
+    for (const pr of pktRows) {
+      if (overlapPids.has(pr.packet_id) && pr.status === 'OK') {
+        pr.status = 'OVERLAP';
+      }
     }
   }
   const outStats = { ...(stats || {}), overlap_conflicts: overlapConflicts };

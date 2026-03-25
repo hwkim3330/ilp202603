@@ -486,12 +486,13 @@
   /* ── Extract E2E stats from result ── */
   function getE2EStats(result) {
     const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
-    if (!stPkts.length) return { worst: 0, avg: 0, allOk: true, missCount: 0 };
+    if (!stPkts.length) return { worst: 0, avg: 0, allOk: true, missCount: 0, overlapCount: 0 };
     const delays = stPkts.map(p => p.e2e_delay_us);
     const worst = Math.max(...delays);
     const avg = round3(delays.reduce((a, b) => a + b, 0) / delays.length);
     const missCount = stPkts.filter(p => p.status === 'MISS').length;
-    return { worst, avg, allOk: missCount === 0, missCount };
+    const overlapCount = stPkts.filter(p => p.status === 'OVERLAP').length;
+    return { worst, avg, allOk: (missCount + overlapCount) === 0, missCount, overlapCount };
   }
 
   /* ── Per-flow worst E2E ── */
@@ -565,9 +566,9 @@
 
     rows.push({ label: 'Packet Count', g: greedyResult ? greedyResult.packetRows.length : '-', i: ilpResult ? ilpResult.packetRows.length : '-', cls: ['', ''] });
 
-    const gOk = gStats ? (gStats.allOk ? 'OK' : 'MISS (' + gStats.missCount + ')') : '-';
-    const iOk = iStats ? (iStats.allOk ? 'OK' : 'MISS (' + iStats.missCount + ')') : '-';
-    const dlCls = [gOk.includes('MISS') ? 'cmp-miss' : '', iOk.includes('MISS') ? 'cmp-miss' : ''];
+    const gOk = gStats ? (gStats.allOk ? 'OK' : 'MISS (' + gStats.missCount + ')' + (gStats.overlapCount ? ' OVERLAP (' + gStats.overlapCount + ')' : '')) : '-';
+    const iOk = iStats ? (iStats.allOk ? 'OK' : 'MISS (' + iStats.missCount + ')' + (iStats.overlapCount ? ' OVERLAP (' + iStats.overlapCount + ')' : '')) : '-';
+    const dlCls = [gOk.includes('MISS') || gOk.includes('OVERLAP') ? 'cmp-miss' : '', iOk.includes('MISS') || iOk.includes('OVERLAP') ? 'cmp-miss' : ''];
     rows.push({ label: 'Deadlines Met', g: gOk, i: iOk, cls: dlCls });
 
     rows.push({ label: 'Overlap Conflicts', g: greedyResult ? (greedyResult.stats.overlap_conflicts ?? 0) : '-', i: ilpResult ? (ilpResult.stats.overlap_conflicts ?? 0) : '-', cls: ['', ''] });
@@ -1025,6 +1026,7 @@
       statusHtml += stats.allOk
         ? '<span style="color:var(--green);">All deadlines met</span>'
         : `<span style="color:var(--red);">MISS (${stats.missCount} packets)</span>`;
+      if (stats.overlapCount > 0) statusHtml += ` <span style="color:var(--red);">OVERLAP (${stats.overlapCount})</span>`;
       statusHtml += ` | Obj: ${greedyResult.objective} \u00b5s | ${elapsed} ms`;
 
       if (!ilpResult) {
@@ -1088,6 +1090,7 @@
       statusHtml += stats.allOk
         ? '<span style="color:var(--green);">All deadlines met</span>'
         : `<span style="color:var(--red);">MISS (${stats.missCount} packets)</span>`;
+      if (stats.overlapCount > 0) statusHtml += ` <span style="color:var(--red);">OVERLAP (${stats.overlapCount})</span>`;
       statusHtml += ` | Obj: ${ilpResult.objective} \u00b5s | ${elapsed} ms`;
       statusHtml += ` | Status: ${ilpResult.stats.status || 'unknown'}`;
 

@@ -230,7 +230,7 @@
             <th>Objective (&micro;s)</th>
             <th>Worst E2E (&micro;s)</th>
             <th>Avg E2E (&micro;s)</th>
-            <th>Miss Count</th>
+            <th>Fail (OVL/MISS)</th>
             <th>Worst Util (%)</th>
             <th>Runtime (ms)</th>
           </tr></thead>
@@ -428,7 +428,9 @@
     const worst = Math.max(...delays);
     const avg = round3(delays.reduce((a, b) => a + b, 0) / delays.length);
     const missCount = stPkts.filter(p => p.status === 'MISS').length;
-    return { worst, avg, allOk: missCount === 0, missCount };
+    const overlapCount = stPkts.filter(p => p.status === 'OVERLAP').length;
+    const failCount = missCount + overlapCount;
+    return { worst, avg, allOk: failCount === 0, missCount: failCount, overlapCount };
   }
 
   /* ════════════════════════════════════════════
@@ -535,7 +537,7 @@
       let badgeHtml = '';
       if (hasError) badgeHtml = '<span class="badge-miss">ERROR</span>';
       else if (isBest) badgeHtml = '<span class="badge-best">\u2605 BEST</span>';
-      else if (hasMiss) badgeHtml = `<span class="badge-miss">MISS ${stats.missCount}</span>`;
+      else if (hasMiss) badgeHtml = `<span class="badge-miss">${stats.overlapCount ? 'OVL ' + stats.overlapCount : 'MISS ' + stats.missCount}</span>`;
       else badgeHtml = '<span class="badge-ok">OK</span>';
 
       cell.innerHTML = `
@@ -586,7 +588,7 @@
       html += `<td${isBest ? ' class="cmp-winner"' : ''}>${r.objective}</td>`;
       html += `<td${isBest ? ' class="cmp-winner"' : ''}>${stats ? stats.worst : '-'}</td>`;
       html += `<td${isBest ? ' class="cmp-winner"' : ''}>${stats ? stats.avg : '-'}</td>`;
-      if (hasMiss) html += `<td class="cmp-miss">${stats.missCount}</td>`;
+      if (hasMiss) html += `<td class="cmp-miss">${stats.overlapCount ? stats.overlapCount + ' OVL' : ''} ${stats.missCount - (stats.overlapCount||0) > 0 ? (stats.missCount - (stats.overlapCount||0)) + ' MISS' : ''}</td>`;
       else html += `<td style="color:var(--green);font-weight:700;">0</td>`;
       html += `<td>${r.worst_util_percent}%</td>`;
       html += `<td>${r.stats?.runtime_ms ?? '<1'}</td>`;

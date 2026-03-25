@@ -583,12 +583,12 @@
       }
 
       const stPkts = baseResult.packetRows.filter(p => p.status !== 'NON-ST');
-      const missCount = stPkts.filter(p => p.status === 'MISS').length;
+      const missCount = stPkts.filter(p => p.status === 'MISS' || p.status === 'OVERLAP').length;
       const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
 
       let statusHtml = `<span style="color:var(--green);font-weight:700;">Base ILP solved.</span>`;
       statusHtml += ` | Obj: ${baseResult.objective} &micro;s | Worst E2E: ${worst} &micro;s | Util: ${baseResult.worst_util_percent}%`;
-      if (missCount > 0) statusHtml += ` | <span style="color:var(--red);">MISS: ${missCount}</span>`;
+      if (missCount > 0) statusHtml += ` | <span style="color:var(--red);">MISS/OVERLAP: ${missCount}</span>`;
       statusHtml += ` | Runtime: ${baseResult.stats?.runtime_ms ?? '<1'} ms`;
       const statusStr = baseResult.stats?.status;
       if (statusStr === 5) statusHtml += ' (optimal)';
@@ -632,13 +632,13 @@
       }
 
       const stPkts = greedyResult.packetRows.filter(p => p.status !== 'NON-ST');
-      const missCount = stPkts.filter(p => p.status === 'MISS').length;
+      const missCount = stPkts.filter(p => p.status === 'MISS' || p.status === 'OVERLAP').length;
       const greedyPkts = greedyResult.packetRows.length;
 
       let statusHtml = `<span style="color:var(--green);font-weight:700;">Hybrid schedule complete.</span>`;
       statusHtml += ` | <span style="color:var(--purple);">ILP: ${baseResult.packetRows.length} pkts</span>`;
       statusHtml += ` | <span style="color:var(--green);">Greedy: ${greedyPkts} pkts</span>`;
-      if (missCount > 0) statusHtml += ` | <span style="color:var(--red);">New MISS: ${missCount}</span>`;
+      if (missCount > 0) statusHtml += ` | <span style="color:var(--red);">New MISS/OVERLAP: ${missCount}</span>`;
       const fb = greedyResult.stats?.fallback_packets || 0;
       if (fb > 0) statusHtml += ` | <span style="color:var(--orange);">Fallback: ${fb}</span>`;
       setStatus(statusHtml);
@@ -708,14 +708,14 @@
 
     // Base stats
     const baseStPkts = baseResult.packetRows.filter(p => p.status !== 'NON-ST');
-    const baseMiss = baseStPkts.filter(p => p.status === 'MISS').length;
+    const baseMiss = baseStPkts.filter(p => p.status === 'MISS' || p.status === 'OVERLAP').length;
     const baseWorst = baseStPkts.length ? round3(Math.max(...baseStPkts.map(p => p.e2e_delay_us))) : 0;
 
     // Greedy stats
     let greedyMiss = 0, greedyWorst = 0;
     if (greedyResult) {
       const grStPkts = greedyResult.packetRows.filter(p => p.status !== 'NON-ST');
-      greedyMiss = grStPkts.filter(p => p.status === 'MISS').length;
+      greedyMiss = grStPkts.filter(p => p.status === 'MISS' || p.status === 'OVERLAP').length;
       greedyWorst = grStPkts.length ? round3(Math.max(...grStPkts.map(p => p.e2e_delay_us))) : 0;
     }
 
