@@ -38,21 +38,21 @@
       white-space: nowrap;
     }
     .top-bar label {
-      font-size: 0.7rem; font-weight: 600; color: var(--text2);
+      font-size: 0.82rem; font-weight: 600; color: var(--text2);
       display: flex; flex-direction: column; gap: 2px;
     }
     .top-bar input, .top-bar select {
-      padding: 3px 6px; border-radius: 5px; border: 1px solid var(--border);
-      font-size: 0.78rem; width: 70px;
+      padding: 4px 7px; border-radius: 5px; border: 1px solid var(--border);
+      font-size: 0.85rem; width: 75px;
     }
-    .top-bar select { width: auto; min-width: 70px; }
+    .top-bar select { width: auto; min-width: 75px; }
     .top-bar input:focus, .top-bar select:focus {
       outline: none; border-color: var(--blue); box-shadow: 0 0 0 2px rgba(59,130,246,0.12);
     }
     .tsep { width: 1px; height: 28px; background: rgba(59,130,246,0.15); flex-shrink: 0; }
     .fail-select { border-color: rgba(220,38,38,0.3) !important; }
     .btn-solve {
-      padding: 5px 18px; font-size: 0.82rem; font-weight: 700;
+      padding: 6px 20px; font-size: 0.9rem; font-weight: 700;
       background: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%);
       color: #fff; border: none; border-radius: 6px; cursor: pointer;
       white-space: nowrap;
@@ -63,8 +63,8 @@
     /* ── Status Bar ── */
     .status-bar {
       background: rgba(255,255,255,0.95); border-bottom: 1px solid rgba(59,130,246,0.1);
-      padding: 5px 20px; font-size: 0.78rem; color: var(--text2); flex-shrink: 0;
-      min-height: 28px; display: flex; align-items: center;
+      padding: 6px 20px; font-size: 0.85rem; color: var(--text2); flex-shrink: 0;
+      min-height: 30px; display: flex; align-items: center;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     .spinner-sm {
@@ -93,32 +93,42 @@
     }
     .pane-card:hover { border-color: rgba(59,130,246,0.25); }
     .pane-title {
-      font-size: 0.75rem; font-weight: 800; color: var(--text3);
+      font-size: 0.88rem; font-weight: 800; color: var(--text3);
       text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px;
       display: flex; align-items: center; gap: 6px;
     }
     .pane-title::before {
-      content: ''; width: 3px; height: 14px; border-radius: 2px; background: var(--blue);
+      content: ''; width: 3px; height: 16px; border-radius: 2px; background: var(--blue);
     }
 
+    /* ── Add/Remove Buttons ── */
+    .btn-add, .btn-del {
+      padding: 4px 14px; font-size: 0.8rem; font-weight: 700;
+      border-radius: 5px; border: none; cursor: pointer; white-space: nowrap;
+    }
+    .btn-add { background: rgba(5,150,105,0.12); color: #059669; }
+    .btn-add:hover { background: rgba(5,150,105,0.22); }
+    .btn-del { background: rgba(220,38,38,0.1); color: #dc2626; }
+    .btn-del:hover { background: rgba(220,38,38,0.2); }
+
     /* ── Flow Table ── */
-    .flow-table { width: 100%; border-collapse: collapse; font-size: 0.73rem; }
+    .flow-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
     .flow-table th {
-      background: rgba(59,130,246,0.05); padding: 4px 6px; text-align: left;
-      font-weight: 700; color: var(--text3); font-size: 0.65rem;
+      background: rgba(59,130,246,0.05); padding: 5px 8px; text-align: left;
+      font-weight: 700; color: var(--text3); font-size: 0.76rem;
       text-transform: uppercase; letter-spacing: 0.03em;
     }
-    .flow-table td { padding: 3px 6px; border-bottom: 1px solid rgba(59,130,246,0.05); }
+    .flow-table td { padding: 4px 8px; border-bottom: 1px solid rgba(59,130,246,0.05); }
     .flow-table td input {
-      width: 58px; padding: 2px 4px; border-radius: 3px;
-      border: 1px solid rgba(59,130,246,0.12); font-size: 0.72rem;
+      width: 64px; padding: 3px 5px; border-radius: 4px;
+      border: 1px solid rgba(59,130,246,0.12); font-size: 0.84rem;
       font-family: 'Courier New', monospace; text-align: right;
     }
     .flow-table td input:focus { outline: none; border-color: var(--blue); }
     .flow-table tr:hover { background: rgba(59,130,246,0.03); }
-    .flow-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
-    .flow-type { font-size: 0.62rem; color: var(--text3); font-weight: 600; }
-    .flow-tx { font-family: 'Courier New', monospace; font-size: 0.68rem; color: var(--text3); }
+    .flow-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+    .flow-type { font-size: 0.76rem; color: var(--text3); font-weight: 600; }
+    .flow-tx { font-family: 'Courier New', monospace; font-size: 0.82rem; color: var(--text3); }
 
     /* ── Topology ── */
     #topoContainer { background: #fff; border-radius: 6px; min-height: 320px; }
@@ -136,27 +146,27 @@
       border: 1px solid rgba(59,130,246,0.1); border-radius: 8px;
       background: rgba(59,130,246,0.02);
     }
-    .board-section h3 { font-size: 0.8rem; font-weight: 700; color: var(--blue); margin: 0 0 8px 0; }
+    .board-section h3 { font-size: 0.95rem; font-weight: 700; color: var(--blue); margin: 0 0 8px 0; }
     .board-port { margin-bottom: 10px; }
-    .board-port h4 { font-size: 0.72rem; font-weight: 600; color: var(--text2); margin: 0 0 4px 0; }
-    .board-port .port-meta { font-size: 0.65rem; color: var(--text3); margin-bottom: 4px; }
-    .gcl-table { width: 100%; border-collapse: collapse; font-size: 0.67rem; font-family: 'Courier New', monospace; }
-    .gcl-table th { background: rgba(59,130,246,0.05); color: var(--text2); padding: 3px 6px; text-align: left; font-weight: 700; border-bottom: 1px solid rgba(59,130,246,0.12); }
-    .gcl-table td { padding: 2px 6px; border-bottom: 1px solid rgba(59,130,246,0.05); }
+    .board-port h4 { font-size: 0.85rem; font-weight: 600; color: var(--text2); margin: 0 0 5px 0; }
+    .board-port .port-meta { font-size: 0.78rem; color: var(--text3); margin-bottom: 5px; }
+    .gcl-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; font-family: 'Courier New', monospace; }
+    .gcl-table th { background: rgba(59,130,246,0.05); color: var(--text2); padding: 4px 8px; text-align: left; font-weight: 700; border-bottom: 1px solid rgba(59,130,246,0.12); }
+    .gcl-table td { padding: 3px 8px; border-bottom: 1px solid rgba(59,130,246,0.05); }
     .gcl-table tr:hover { background: rgba(59,130,246,0.04); }
     .gate-bits { display: inline-flex; gap: 1px; }
-    .gate-bit { display: inline-block; width: 11px; height: 14px; border-radius: 2px; font-size: 7px; text-align: center; line-height: 14px; font-weight: 700; }
+    .gate-bit { display: inline-block; width: 14px; height: 18px; border-radius: 2px; font-size: 9px; text-align: center; line-height: 18px; font-weight: 700; }
     .gate-bit.open { background: rgba(59,130,246,0.35); color: #1e40af; }
     .gate-bit.closed { background: rgba(100,116,139,0.12); color: #94a3b8; }
-    .pcp-map { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
-    .pcp-badge { font-size: 0.62rem; padding: 1px 7px; border-radius: 3px; background: rgba(59,130,246,0.08); color: var(--blue); font-weight: 600; }
+    .pcp-map { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
+    .pcp-badge { font-size: 0.76rem; padding: 2px 9px; border-radius: 4px; background: rgba(59,130,246,0.08); color: var(--blue); font-weight: 600; }
 
     /* ── Tooltip ── */
     .tooltip {
       position: fixed; z-index: 1000; pointer-events: none; display: none;
       background: rgba(255,255,255,0.97); border: 1px solid rgba(59,130,246,0.25);
       color: var(--text); box-shadow: 0 8px 30px rgba(0,0,0,0.12);
-      border-radius: 8px; padding: 10px 14px; font-size: 0.78rem; max-width: 260px;
+      border-radius: 8px; padding: 10px 14px; font-size: 0.85rem; max-width: 280px;
     }
     .tooltip.show { display: block; }
     .tooltip .tt-title { font-weight: 800; margin-bottom: 6px; color: var(--blue); }
@@ -171,7 +181,7 @@
       flex-wrap: wrap;
     }
     .nav-btn {
-      font-size: 0.7rem; padding: 3px 10px; border-radius: 5px;
+      font-size: 0.82rem; padding: 4px 12px; border-radius: 5px;
       background: rgba(248,250,252,0.8); color: var(--text2); text-decoration: none;
       border: 1px solid rgba(59,130,246,0.15); font-weight: 600;
     }
@@ -221,7 +231,13 @@
     <!-- Left Pane: Flow Config + Topology -->
     <div class="pane pane-left">
       <div class="pane-card" id="flowCard">
-        <div class="pane-title">Flow Configuration</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div class="pane-title" style="margin-bottom:0;">Flow Configuration</div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn-add" id="btnAddFlow">+ Add Flow</button>
+            <button class="btn-del" id="btnDelFlow">&minus; Remove Last</button>
+          </div>
+        </div>
         <div style="overflow-x:auto;">
           <table class="flow-table" id="flowTable">
             <thead><tr>
@@ -256,13 +272,7 @@
 
   <!-- Bottom Nav -->
   <div class="bottom-nav">
-    <a href="roii-8tc.html" class="nav-btn">8-TC</a>
-    <a href="roii-8tc-ilp.html" class="nav-btn">ILP</a>
-    <a href="roii-8tc-failover.html" class="nav-btn">Failover</a>
-    <a href="roii-8tc-multiroute.html" class="nav-btn">Multi-Route</a>
-    <a href="roii-8tc-retry2.html" class="nav-btn">Heavy Retry</a>
-    <a href="roii-debug.html" class="nav-btn">Debugger</a>
-    <a href="index.html" class="nav-btn" style="margin-left:auto;">Home</a>
+    <a href="index.html" class="nav-btn">Home</a>
   </div>
 
   <div class="tooltip" id="tooltip"></div>
@@ -302,11 +312,13 @@
   }
 
   /* ═══════ Flow Table — editable ═══════ */
+  const NODE_IDS = ROII_REAL_8TC.nodes.map(n => n.id);
+  let addCounter = 0;
+
   const baseFlows = JSON.parse(JSON.stringify(ROII_REAL_8TC.flows));
-  // Override defaults: larger payloads for presentation
   for (const f of baseFlows) {
-    if (f.traffic_type === 'lidar') f.payload_bytes = 3000;
-    if (f.traffic_type === 'radar') f.payload_bytes = 500;
+    if (f.traffic_type === 'lidar') f.payload_bytes = 4500;
+    if (f.traffic_type === 'radar') f.payload_bytes = 1500;
   }
 
   function renderFlowTable() {
@@ -320,30 +332,52 @@
       const pkts = Math.round(cycle / f.period_us);
       const color = flowColor(f.id) || '#7b61ff';
       const type = f.traffic_type === 'lidar' ? 'LiDAR' : f.traffic_type === 'radar' ? 'Radar' : 'BG';
+      const srcOpts = NODE_IDS.map(n => `<option${n===f.src?' selected':''}>${n}</option>`).join('');
+      const dstOpts = NODE_IDS.map(n => `<option${n===f.dst?' selected':''}>${n}</option>`).join('');
       html += `<tr>`;
       html += `<td><span class="flow-dot" style="background:${color}"></span>${f.id.replace('f_','')}</td>`;
       html += `<td><span class="flow-type">${type}</span></td>`;
-      html += `<td><input type="number" value="${f.PCP}" min="0" max="7" data-idx="${i}" data-field="PCP" style="width:38px;"></td>`;
+      html += `<td><input type="number" value="${f.PCP}" min="0" max="7" data-idx="${i}" data-field="PCP" style="width:42px;"></td>`;
       html += `<td><input type="number" value="${f.payload_bytes}" min="1" data-idx="${i}" data-field="payload_bytes"></td>`;
       html += `<td class="flow-tx">${tx}</td>`;
       html += `<td><input type="number" value="${f.period_us}" min="1" data-idx="${i}" data-field="period_us"></td>`;
-      html += `<td style="text-align:center;font-family:'Courier New',monospace;font-size:0.7rem;">${pkts}</td>`;
+      html += `<td style="text-align:center;font-family:'Courier New',monospace;font-size:0.82rem;">${pkts}</td>`;
       html += `<td><input type="number" value="${f.deadline_us || ''}" min="0" data-idx="${i}" data-field="deadline_us" placeholder="—"></td>`;
-      html += `<td style="font-size:0.65rem;color:var(--text3);">${f.src}</td>`;
-      html += `<td style="font-size:0.65rem;color:var(--text3);">${f.dst}</td>`;
+      html += `<td><select data-idx="${i}" data-field="src" style="font-size:0.78rem;padding:2px 3px;border:1px solid rgba(59,130,246,0.12);border-radius:3px;">${srcOpts}</select></td>`;
+      html += `<td><select data-idx="${i}" data-field="dst" style="font-size:0.78rem;padding:2px 3px;border:1px solid rgba(59,130,246,0.12);border-radius:3px;">${dstOpts}</select></td>`;
       html += `</tr>`;
     }
     tbody.innerHTML = html;
-    tbody.querySelectorAll('input').forEach(inp => {
-      inp.addEventListener('change', () => {
-        const idx = parseInt(inp.dataset.idx);
-        const field = inp.dataset.field;
-        const val = inp.value === '' ? null : parseFloat(inp.value);
-        baseFlows[idx][field] = val;
+    tbody.querySelectorAll('input, select').forEach(el => {
+      el.addEventListener('change', () => {
+        const idx = parseInt(el.dataset.idx);
+        const field = el.dataset.field;
+        if (field === 'src' || field === 'dst') {
+          baseFlows[idx][field] = el.value;
+        } else {
+          baseFlows[idx][field] = el.value === '' ? null : parseFloat(el.value);
+        }
         renderFlowTable();
       });
     });
   }
+
+  document.getElementById('btnAddFlow').addEventListener('click', () => {
+    addCounter++;
+    baseFlows.push({
+      id: `f_custom_${addCounter}`, PCP: 3, payload_bytes: 1500,
+      period_us: 500, deadline_us: 1000, traffic_type: 'radar',
+      src: 'RADAR_F', dst: 'ACU_IT', k_paths: 1
+    });
+    renderFlowTable();
+  });
+
+  document.getElementById('btnDelFlow').addEventListener('click', () => {
+    if (baseFlows.length > 1) {
+      baseFlows.pop();
+      renderFlowTable();
+    }
+  });
 
   /* ═══════ Build Model ═══════ */
   function buildModel() {
@@ -488,10 +522,10 @@
         .attr('fill', nc.fill).attr('stroke', nc.stroke).attr('stroke-width', 2);
       svg.append('text').attr('x', p.x).attr('y', p.y + 1)
         .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-        .attr('font-size', '10px').attr('font-weight', '800').attr('fill', nc.stroke)
+        .attr('font-size', '11px').attr('font-weight', '800').attr('fill', nc.stroke)
         .style('pointer-events', 'none').text(nc.shortLabel);
-      svg.append('text').attr('x', p.x).attr('y', p.y + r + 12)
-        .attr('text-anchor', 'middle').attr('font-size', '9px').attr('font-weight', '700')
+      svg.append('text').attr('x', p.x).attr('y', p.y + r + 13)
+        .attr('text-anchor', 'middle').attr('font-size', '10px').attr('font-weight', '700')
         .attr('fill', '#334155').style('pointer-events', 'none').text(nc.label || node.id);
     }
   }
@@ -539,14 +573,14 @@
 
     g.append('g').attr('class', 'gcl-axis').attr('transform', `translate(0,${innerH})`)
       .call(d3.axisBottom(x).ticks(8).tickFormat(d => d + '\u00b5s'))
-      .selectAll('text').attr('font-size', '9px');
+      .selectAll('text').attr('font-size', '11px');
 
     g.append('g').attr('class', 'gcl-axis')
-      .call(d3.axisLeft(y).tickSize(0).tickPadding(5))
+      .call(d3.axisLeft(y).tickSize(0).tickPadding(6))
       .selectAll('text').text(d => {
         const lnk = model.links.find(l => l.id === d);
         return lnk ? `${lnk.from} \u2192 ${lnk.to}` : d;
-      }).attr('font-size', '8px');
+      }).attr('font-size', '10px');
 
     g.selectAll('.rbg').data(activeLinks).enter().append('rect')
       .attr('x', 0).attr('y', d => y(d.id)).attr('width', innerW).attr('height', y.bandwidth())
@@ -596,7 +630,7 @@
             g.append('text').attr('class', 'gcl-label')
               .attr('x', xPos + actualW/2).attr('y', yPos + bw/2)
               .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-              .attr('font-size', '9px')
+              .attr('font-size', '10px')
               .text(e.note.replace('#', '.'));
           }
           used += e.duration_us;
@@ -604,12 +638,12 @@
       }
       g.append('text').attr('x', innerW + 4).attr('y', y(lnk.id) + y.bandwidth()/2)
         .attr('text-anchor', 'start').attr('dominant-baseline', 'middle')
-        .attr('font-size', '9px').attr('fill', 'var(--text3)').attr('font-weight', '700')
+        .attr('font-size', '10px').attr('fill', 'var(--text3)').attr('font-weight', '700')
         .text((used / model.cycle_time_us * 100).toFixed(1) + '%');
     }
 
     svg.append('text').attr('x', margin.left).attr('y', margin.top - 8)
-      .attr('fill', 'var(--text3)').attr('font-size', '8px')
+      .attr('fill', 'var(--text3)').attr('font-size', '9px')
       .text(`Cycle: ${model.cycle_time_us}\u00b5s | Active: ${activeLinks.length}/${model.links.length} links`);
   }
 
