@@ -449,9 +449,14 @@
         const tmlim = parseInt(document.getElementById('pTmlim').value) || 30;
         result = await solveILP(model, glpk, { tmlim, onProgress: info => {
           if (info.phase === 'building') {
-            setStatus(`<span class="spinner-sm"></span> <strong>ILP</strong> — expanding ${info.pkts} packets from ${info.flows} flows...`);
+            setStatus(`<span class="spinner-sm"></span> <strong>ILP</strong> — ${info.pkts} pkts from ${info.flows} flows...`);
           } else if (info.phase === 'solving') {
-            setStatus(`<span class="spinner-sm"></span> <strong>ILP</strong> — GLPK solving: ${info.pkts} pkts, ${info.bins} binaries, ${info.constraints} constraints (max ${tmlim}s)...`);
+            const p = info.pruning || {};
+            let detail = `${info.bins} bins, ${info.constraints} cstr`;
+            if (p.window || p.dominance || p.symmetry) {
+              detail += ` (pruned: ${p.window||0} win, ${p.dominance||0} dom, ${p.symmetry||0} sym)`;
+            }
+            setStatus(`<span class="spinner-sm"></span> <strong>ILP</strong> — GLPK: ${info.pkts} pkts, ${detail}...`);
           }
         }});
       } else {

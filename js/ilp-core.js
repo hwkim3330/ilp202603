@@ -701,6 +701,7 @@ export async function solveILP(model, glpk, opts = {}) {
 
     // Pairwise non-overlap constraints with binary reduction optimizations
     const ordFixed = new Set();
+    var dbg = { window: 0, dominance: 0, symmetry: 0, binary: 0 };
     // Phase 1: Fix same-flow ordering (always safe — same route, same direction)
     for (const lnk of model.links) {
       const lo = ops.filter(o => o.lid === lnk.id);
@@ -715,10 +716,11 @@ export async function solveILP(model, glpk, opts = {}) {
            { type: glpk.GLP_LO, lb: first.blk, ub: 0 });
       }
     }
-    // Phase 2: Window pruning → PCP ordering → earliest-dominance → symmetry → binary
-    // All pruning in one pass per link. Window pruning MUST come first — PCP ordering
-    // only applies to packets whose time windows overlap (cross-period packets are
-    // naturally separated and must NOT be forced into priority ordering).
+    // Phase 2: Non-overlap constraints with progressive pruning
+    // Order: window pruning → earliest-dominance → symmetry → binary variable
+    // No forced PCP ordering — natural timing handles it:
+    //   Radar (small payload, 12µs) arrives earlier at bottleneck than LiDAR (36µs)
+    //   → earliest-dominance automatically orders Radar first where appropriate
     for (const lnk of model.links) {
       const lo = ops.filter(o => o.lid === lnk.id);
       if (lo.length < 2) continue;
@@ -726,43 +728,37 @@ export async function solveILP(model, glpk, opts = {}) {
         const oa = lo[a], ob = lo[b];
         const key = Math.min(oa.oi, ob.oi) + '_' + Math.max(oa.oi, ob.oi);
         if (ordFixed.has(key)) continue;
-        // 1. Window pruning: time windows can't overlap → no constraint needed
-        if (oa.latest + oa.blk <= ob.earliest || ob.latest + ob.blk <= oa.earliest) continue;
-        // 2. PCP ordering: higher PCP first (only for overlapping-window pairs)
-        if (pkts[oa.p].pri !== pkts[ob.p].pri) {
-          ordFixed.add(key);
-          const [hi, lo2] = pkts[oa.p].pri > pkts[ob.p].pri ? [oa, ob] : [ob, oa];
-          ac('pc', [{ name: lo2.sn, coef: 1 }, { name: hi.sn, coef: -1 }],
-             { type: glpk.GLP_LO, lb: hi.blk, ub: 0 });
-          continue;
-        }
-        // 3. Earliest-dominance: A finishes before B can start → fix A-before-B
+        // 1. Window pruning: time windows can't overlap → skip
+        if (oa.latest + oa.blk <= ob.earliest || ob.latest + ob.blk <= oa.earliest) { dbg.window++; continue; }
+        // 2. Earliest-dominance: A always finishes before B starts → fix order
         if (oa.earliest + oa.blk <= ob.earliest) {
           ordFixed.add(key);
           ac('ed', [{ name: ob.sn, coef: 1 }, { name: oa.sn, coef: -1 }],
              { type: glpk.GLP_LO, lb: oa.blk, ub: 0 });
-          continue;
+          dbg.dominance++; continue;
         }
         if (ob.earliest + ob.blk <= oa.earliest) {
           ordFixed.add(key);
           ac('ed', [{ name: oa.sn, coef: 1 }, { name: ob.sn, coef: -1 }],
              { type: glpk.GLP_LO, lb: ob.blk, ub: 0 });
-          continue;
+          dbg.dominance++; continue;
         }
-        // 4. Symmetry: same PCP, same tx, same release → fix by index
+        // 3. Symmetry: same tx time + same release → fix by index
         if (Math.abs(oa.blk - ob.blk) < 0.01 && pkts[oa.p].rel === pkts[ob.p].rel) {
           ordFixed.add(key);
           ac('sy', [{ name: ob.sn, coef: 1 }, { name: oa.sn, coef: -1 }],
              { type: glpk.GLP_LO, lb: oa.blk, ub: 0 });
-          continue;
+          dbg.symmetry++; continue;
         }
-        // 5. Binary ordering variable — ILP decides optimal order
+        // 4. Binary ordering variable — ILP decides optimal order
         const y = av(yv(lnk.id, oa.oi, ob.oi)); bins.push(y);
         const Mab = Math.max(oa.latest - ob.earliest + oa.blk, ob.latest - oa.earliest + ob.blk);
         ac('na', [{ name: ob.sn, coef: 1 }, { name: oa.sn, coef: -1 }, { name: y, coef: -Mab }], { type: glpk.GLP_LO, lb: oa.blk - Mab, ub: 0 });
         ac('nb', [{ name: oa.sn, coef: 1 }, { name: ob.sn, coef: -1 }, { name: y, coef: Mab }], { type: glpk.GLP_LO, lb: ob.blk, ub: 0 });
+        dbg.binary++;
       }
     }
+    console.log('[ILP pruning]', dbg, `→ ${bins.length} binaries`);
   } else {
     /* ── Multi-route formulation: big-M with z-variables ── */
     const M = model.cycle_time_us + model.processing_delay_us + 100;
@@ -849,7 +845,7 @@ export async function solveILP(model, glpk, opts = {}) {
     }
   }
 
-  if (opts.onProgress) opts.onProgress({ phase: 'solving', pkts: pkts.length, bins: bins.length, constraints: sub.length, vars: vars.size });
+  if (opts.onProgress) opts.onProgress({ phase: 'solving', pkts: pkts.length, bins: bins.length, constraints: sub.length, vars: vars.size, pruning: dbg });
 
   // GLPK.js tmlim only applies to MIP solver, NOT LP simplex.
   // For pure LP (0 binaries), add a JavaScript-level timeout as safety net.
