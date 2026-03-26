@@ -823,15 +823,17 @@ export async function solveILP(model, glpk, opts = {}) {
   const lp = {
     name: 'tsn_ilp',
     objective: { direction: glpk.GLP_MIN, name: 'obj', vars: obj.length ? obj : [{ name: av('dum'), coef: 0 }] },
-    subjectTo: sub, binaries: bins,
+    subjectTo: sub,
     bounds: Array.from(vars).map(n => ({ name: n, type: glpk.GLP_LO, lb: 0, ub: 0 }))
   };
+  // Only pass binaries when non-empty — empty array still triggers MIP solver in GLPK.js
+  if (bins.length > 0) lp.binaries = bins;
 
   const solved = await glpk.solve(lp, { msglev: glpk.GLP_MSG_OFF, presol: true, tmlim });
   if (!solved?.result || ![glpk.GLP_OPT, glpk.GLP_FEAS].includes(solved.result.status)) {
     const st = solved?.result?.status ?? '?';
     const msg = st === 1 ? `ILP timeout (${tmlim}s) — ${pkts.length} pkts, ${bins.length} binaries. Increase time limit or use Greedy.`
-              : st === 3 || st === 4 ? `ILP infeasible — constraints cannot be satisfied`
+              : st === 3 || st === 4 ? `ILP infeasible — constraints cannot be satisfied. ${lpFallback ? 'LP-relaxed ordering may conflict — try Greedy.' : ''}`
               : `ILP failed (status=${st})`;
     throw new Error(msg);
   }
