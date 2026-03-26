@@ -715,8 +715,25 @@ export async function solveILP(model, glpk, opts = {}) {
            { type: glpk.GLP_LO, lb: first.blk, ub: 0 });
       }
     }
-    // Phase 2: Earliest-dominance pruning + window pruning + binary variables
-    // If A.earliest + A.blk ≤ B.earliest → A always finishes before B starts → fix A-before-B (no binary)
+    // Phase 2: PCP-based ordering — higher PCP scheduled before lower PCP
+    // Consistent with TSN priority: TC7 (LiDAR) before TC6 (Radar) before lower TCs
+    // Eliminates all cross-PCP binary variables (biggest reduction)
+    for (const lnk of model.links) {
+      const lo = ops.filter(o => o.lid === lnk.id);
+      if (lo.length < 2) continue;
+      for (let a = 0; a < lo.length; a++) for (let b = a + 1; b < lo.length; b++) {
+        const oa = lo[a], ob = lo[b];
+        if (pkts[oa.p].pri === pkts[ob.p].pri) continue;
+        const key = Math.min(oa.oi, ob.oi) + '_' + Math.max(oa.oi, ob.oi);
+        if (ordFixed.has(key)) continue;
+        ordFixed.add(key);
+        const [hi, lo2] = pkts[oa.p].pri > pkts[ob.p].pri ? [oa, ob] : [ob, oa];
+        ac('pc', [{ name: lo2.sn, coef: 1 }, { name: hi.sn, coef: -1 }],
+           { type: glpk.GLP_LO, lb: hi.blk, ub: 0 });
+      }
+    }
+    // Phase 3: Window pruning + earliest-dominance + symmetry + binary variables
+    // Only same-PCP pairs remain — much fewer binary variables
     for (const lnk of model.links) {
       const lo = ops.filter(o => o.lid === lnk.id);
       if (lo.length < 2) continue;
