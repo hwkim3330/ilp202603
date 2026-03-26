@@ -129,6 +129,25 @@
     .flow-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
     .flow-type { font-size: 0.76rem; color: var(--text3); font-weight: 600; }
     .flow-tx { font-family: 'Courier New', monospace; font-size: 0.82rem; color: var(--text3); }
+    .flow-color-input {
+      width: 22px; height: 22px; padding: 0; border: 1px solid rgba(59,130,246,0.15);
+      border-radius: 4px; cursor: pointer; vertical-align: middle;
+    }
+    .flow-name-input {
+      width: 90px; padding: 2px 4px; border: 1px solid rgba(59,130,246,0.12);
+      border-radius: 3px; font-size: 0.8rem; font-weight: 600; color: var(--text);
+    }
+    .flow-name-input:focus { border-color: var(--blue); outline: none; }
+    .btn-row-del {
+      width: 20px; height: 20px; border: none; border-radius: 3px; cursor: pointer;
+      background: rgba(220,38,38,0.08); color: #dc2626; font-size: 0.75rem;
+      font-weight: 700; line-height: 20px; text-align: center; padding: 0;
+    }
+    .btn-row-del:hover { background: rgba(220,38,38,0.2); }
+    .flow-table select {
+      font-size: 0.78rem; padding: 2px 3px;
+      border: 1px solid rgba(59,130,246,0.12); border-radius: 3px;
+    }
 
     /* ── Topology ── */
     #topoContainer { background: #fff; border-radius: 6px; min-height: 320px; }
@@ -223,15 +242,14 @@
           <div class="pane-title" style="margin-bottom:0;">Flow Configuration</div>
           <div style="display:flex;gap:6px;">
             <button class="btn-add" id="btnAddFlow">+ Add Flow</button>
-            <button class="btn-del" id="btnDelFlow">&minus; Remove Last</button>
           </div>
         </div>
         <div style="overflow-x:auto;">
           <table class="flow-table" id="flowTable">
             <thead><tr>
-              <th>Flow</th><th>Type</th><th>PCP</th><th>Payload</th>
+              <th style="width:28px;"></th><th>Flow</th><th>Type</th><th>PCP</th><th>Payload</th>
               <th>TX</th><th>Period</th><th>Pkts</th>
-              <th>Deadline</th><th>Src</th><th>Dst</th>
+              <th>Deadline</th><th>Src</th><th>Dst</th><th style="width:24px;"></th>
             </tr></thead>
             <tbody id="flowBody"></tbody>
           </table>
@@ -263,7 +281,7 @@
   <script src="vendor/d3.min.js"></script>
   <script type="module">
   import { ROII_REAL_8TC, ROII_REAL_SWITCHES, getRealPositions, ROII_REAL_NODE_COLORS } from './js/roii-real-data.js';
-  import { solveGreedy, solveILP, initTooltip, flowColor } from './js/ilp-core.js';
+  import { solveGreedy, solveILP, initTooltip, flowColor, getFlowColorsHex } from './js/ilp-core.js';
 
   initTooltip();
   const round3 = v => Math.round(v * 1000) / 1000;
@@ -298,11 +316,17 @@
   const NODE_IDS = ROII_REAL_8TC.nodes.map(n => n.id);
   let addCounter = 0;
 
+  const CUSTOM_COLORS = ['#e11d48','#f97316','#84cc16','#06b6d4','#8b5cf6','#ec4899','#14b8a6','#f59e0b'];
   const baseFlows = JSON.parse(JSON.stringify(ROII_REAL_8TC.flows));
   for (const f of baseFlows) {
     if (f.traffic_type === 'lidar') f.payload_bytes = 4500;
     if (f.traffic_type === 'radar') f.payload_bytes = 1500;
-    f.deadline_us = null; // relax for large payloads — user can set manually
+    f.deadline_us = f.period_us; // period-based deadline (tighter ILP bounds)
+    f.color = flowColor(f.id);
+  }
+  function syncColors() {
+    const map = getFlowColorsHex();
+    for (const f of baseFlows) map[f.id] = f.color;
   }
 
   function renderFlowTable() {
@@ -314,33 +338,48 @@
       const f = baseFlows[i];
       const tx = round3((f.payload_bytes + 38) * 8 / speed);
       const pkts = Math.round(cycle / f.period_us);
-      const color = flowColor(f.id) || '#7b61ff';
-      const type = f.traffic_type === 'lidar' ? 'LiDAR' : f.traffic_type === 'radar' ? 'Radar' : 'BG';
+      const c = f.color || '#7b61ff';
+      const typeLabel = f.traffic_type === 'lidar' ? 'LiDAR' : f.traffic_type === 'radar' ? 'Radar' : 'BG';
       const srcOpts = NODE_IDS.map(n => `<option${n===f.src?' selected':''}>${n}</option>`).join('');
       const dstOpts = NODE_IDS.map(n => `<option${n===f.dst?' selected':''}>${n}</option>`).join('');
+      const typeOpts = ['lidar','radar','bg'].map(t => `<option value="${t}"${t===f.traffic_type?' selected':''}>${t==='lidar'?'LiDAR':t==='radar'?'Radar':'BG'}</option>`).join('');
       html += `<tr>`;
-      html += `<td><span class="flow-dot" style="background:${color}"></span>${f.id.replace('f_','')}</td>`;
-      html += `<td><span class="flow-type">${type}</span></td>`;
+      html += `<td><input type="color" value="${c}" class="flow-color-input" data-idx="${i}" data-field="color"></td>`;
+      html += `<td><input type="text" value="${f.id.replace('f_','')}" class="flow-name-input" data-idx="${i}" data-field="name"></td>`;
+      html += `<td><select data-idx="${i}" data-field="traffic_type">${typeOpts}</select></td>`;
       html += `<td><input type="number" value="${f.PCP}" min="0" max="7" data-idx="${i}" data-field="PCP" style="width:42px;"></td>`;
       html += `<td><input type="number" value="${f.payload_bytes}" min="1" data-idx="${i}" data-field="payload_bytes"></td>`;
       html += `<td class="flow-tx">${tx}</td>`;
       html += `<td><input type="number" value="${f.period_us}" min="1" data-idx="${i}" data-field="period_us"></td>`;
       html += `<td style="text-align:center;font-family:'Courier New',monospace;font-size:0.82rem;">${pkts}</td>`;
       html += `<td><input type="number" value="${f.deadline_us || ''}" min="0" data-idx="${i}" data-field="deadline_us" placeholder="—"></td>`;
-      html += `<td><select data-idx="${i}" data-field="src" style="font-size:0.78rem;padding:2px 3px;border:1px solid rgba(59,130,246,0.12);border-radius:3px;">${srcOpts}</select></td>`;
-      html += `<td><select data-idx="${i}" data-field="dst" style="font-size:0.78rem;padding:2px 3px;border:1px solid rgba(59,130,246,0.12);border-radius:3px;">${dstOpts}</select></td>`;
+      html += `<td><select data-idx="${i}" data-field="src">${srcOpts}</select></td>`;
+      html += `<td><select data-idx="${i}" data-field="dst">${dstOpts}</select></td>`;
+      html += `<td><button class="btn-row-del" data-idx="${i}" title="Remove">&times;</button></td>`;
       html += `</tr>`;
     }
     tbody.innerHTML = html;
+    syncColors();
     tbody.querySelectorAll('input, select').forEach(el => {
       el.addEventListener('change', () => {
         const idx = parseInt(el.dataset.idx);
         const field = el.dataset.field;
-        if (field === 'src' || field === 'dst') {
+        if (field === 'color') {
+          baseFlows[idx].color = el.value;
+        } else if (field === 'name') {
+          baseFlows[idx].id = 'f_' + el.value.replace(/^f_/, '');
+        } else if (field === 'src' || field === 'dst' || field === 'traffic_type') {
           baseFlows[idx][field] = el.value;
         } else {
           baseFlows[idx][field] = el.value === '' ? null : parseFloat(el.value);
         }
+        renderFlowTable();
+      });
+    });
+    tbody.querySelectorAll('.btn-row-del').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (baseFlows.length <= 1) return;
+        baseFlows.splice(parseInt(btn.dataset.idx), 1);
         renderFlowTable();
       });
     });
@@ -350,17 +389,11 @@
     addCounter++;
     baseFlows.push({
       id: `f_custom_${addCounter}`, PCP: 3, payload_bytes: 1500,
-      period_us: 500, deadline_us: 1000, traffic_type: 'radar',
-      src: 'RADAR_F', dst: 'ACU_IT', k_paths: 1
+      period_us: 500, deadline_us: 500, traffic_type: 'radar',
+      src: 'RADAR_F', dst: 'ACU_IT', k_paths: 1,
+      color: CUSTOM_COLORS[(addCounter - 1) % CUSTOM_COLORS.length]
     });
     renderFlowTable();
-  });
-
-  document.getElementById('btnDelFlow').addEventListener('click', () => {
-    if (baseFlows.length > 1) {
-      baseFlows.pop();
-      renderFlowTable();
-    }
   });
 
   /* ═══════ Build Model ═══════ */
@@ -389,6 +422,7 @@
     btn.disabled = true;
 
     const solver = document.getElementById('pSolver').value;
+    syncColors();
     const model = buildModel();
     const failedLink = document.getElementById('pFail').value;
 
