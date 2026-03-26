@@ -613,6 +613,8 @@ export async function solveILP(model, glpk, opts = {}) {
   const pkts = expandPackets(model);
   if (pkts.length > 200) throw new Error(`Too many packets (${pkts.length}). Reduce flows or increase period.`);
 
+  if (opts.onProgress) opts.onProgress({ phase: 'building', pkts: pkts.length, flows: model.flows.length });
+
   // Check if all packets have exactly 1 route → use tight formulation
   const allSingleRoute = pkts.every(pk => pk.routes.length === 1);
 
@@ -637,7 +639,6 @@ export async function solveILP(model, glpk, opts = {}) {
   const av = n => { vars.add(n); return n; };
   const ac = (pre, terms, bnd) => { sub.push({ name: `${pre}_${ci++}`, vars: terms, bnds: bnd }); };
   const ops = [];
-  // (removed lpFallback — earliest-dominance pruning replaces LP fallback)
 
   if (allSingleRoute) {
     /* ── Fixed-route formulation: NO z-variables, per-pair tight M ── */
@@ -824,12 +825,36 @@ export async function solveILP(model, glpk, opts = {}) {
   };
   if (bins.length > 0) lp.binaries = bins;
 
+  // Pre-solve: check per-link utilization — detect obvious overload before GLPK
+  if (allSingleRoute) {
+    const linkLoad = {};
+    for (const op of ops) {
+      linkLoad[op.lid] = (linkLoad[op.lid] || 0) + op.blk;
+    }
+    for (const [lid, total] of Object.entries(linkLoad)) {
+      if (total > model.cycle_time_us) {
+        const pct = (total / model.cycle_time_us * 100).toFixed(1);
+        throw new Error(`Link ${lid} overloaded: ${total.toFixed(1)}µs traffic in ${model.cycle_time_us}µs cycle (${pct}%). Remove flows or increase cycle time.`);
+      }
+    }
+  }
+
+  if (opts.onProgress) opts.onProgress({ phase: 'solving', pkts: pkts.length, bins: bins.length, constraints: sub.length, vars: vars.size });
+
   const solved = await glpk.solve(lp, { msglev: glpk.GLP_MSG_OFF, presol: true, tmlim });
   if (!solved?.result || ![glpk.GLP_OPT, glpk.GLP_FEAS].includes(solved.result.status)) {
     const st = solved?.result?.status ?? '?';
-    const msg = st === 1 ? `ILP timeout (${tmlim}s) — ${pkts.length} pkts, ${bins.length} binaries. Increase time limit or use Greedy.`
-              : st === 3 || st === 4 ? `ILP infeasible — constraints cannot be satisfied`
-              : `ILP failed (status=${st})`;
+    let msg;
+    if (st === 1) {
+      msg = `ILP timeout (${tmlim}s) — ${pkts.length} pkts, ${bins.length} binaries. Increase time limit or use Greedy.`;
+    } else if (st === 4 && bins.length > 0) {
+      // NOFEAS with binaries: solver couldn't find integer solution in time (not necessarily infeasible)
+      msg = `ILP: no feasible integer solution found — ${pkts.length} pkts, ${bins.length} binaries. Try increasing time limit or use Greedy.`;
+    } else if (st === 3 || st === 4) {
+      msg = `ILP infeasible — ${pkts.length} pkts cannot fit in ${model.cycle_time_us}µs cycle. Remove flows or increase cycle time.`;
+    } else {
+      msg = `ILP failed (status=${st})`;
+    }
     throw new Error(msg);
   }
 

@@ -437,7 +437,7 @@
     const model = buildModel();
     const failedLink = document.getElementById('pFail').value;
 
-    setStatus(`<span class="spinner-sm"></span> Solving with <strong>${solver === 'ilp' ? 'ILP' : 'Greedy'}</strong>...`);
+    setStatus(`<span class="spinner-sm"></span> Solving with <strong>${solver === 'ilp' ? 'ILP' : 'Greedy'}</strong> &nbsp;|&nbsp; ${model.flows.length} flows &nbsp;|&nbsp; cycle ${model.cycle_time_us}µs`);
 
     let result;
     try {
@@ -445,7 +445,13 @@
         const glpk = await ensureGLPK();
         if (!glpk) { setStatus('<span style="color:var(--red);">GLPK failed to load</span>'); solving = false; btn.disabled = false; return; }
         const tmlim = parseInt(document.getElementById('pTmlim').value) || 30;
-        result = await solveILP(model, glpk, { tmlim });
+        result = await solveILP(model, glpk, { tmlim, onProgress: info => {
+          if (info.phase === 'building') {
+            setStatus(`<span class="spinner-sm"></span> <strong>ILP</strong> — expanding ${info.pkts} packets from ${info.flows} flows...`);
+          } else if (info.phase === 'solving') {
+            setStatus(`<span class="spinner-sm"></span> <strong>ILP</strong> — GLPK solving: ${info.pkts} pkts, ${info.bins} binaries, ${info.constraints} constraints (max ${tmlim}s)...`);
+          }
+        }});
       } else {
         result = solveGreedy(model);
       }
@@ -462,8 +468,10 @@
         s += ` &nbsp;|&nbsp; Pkts: ${result.packetRows.length} &nbsp;|&nbsp; Flows: ${model.flows.length}`;
         s += ` &nbsp;|&nbsp; Util: ${result.worst_util_percent}%`;
         s += ` &nbsp;|&nbsp; Worst E2E: ${round3(worst)}\u00b5s`;
-        if (result.stats) s += ` &nbsp;|&nbsp; ${result.stats.binaries} bins, ${Math.round(result.stats.runtime_ms)}ms`;
-        if (result.method && result.method.includes('LP-relaxed')) s += ` &nbsp;|&nbsp; <span style="color:var(--purple);font-weight:600;">LP-relaxed</span>`;
+        if (result.stats) {
+          s += ` &nbsp;|&nbsp; ${result.stats.binaries} bins, ${Math.round(result.stats.runtime_ms)}ms`;
+          if (result.method && result.method.includes('optimal')) s += ` <span style="color:var(--green);">✓</span>`;
+        }
         if (failCount === 0) s += ` &nbsp;|&nbsp; <span style="color:var(--green);font-weight:700;">ALL OK</span>`;
         else if (overlapCount > 0) s += ` &nbsp;|&nbsp; <span style="color:var(--red);font-weight:700;">${overlapCount} OVERLAP</span>`;
         else s += ` &nbsp;|&nbsp; <span style="color:var(--red);font-weight:700;">${missCount} MISS</span>`;
