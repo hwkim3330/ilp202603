@@ -112,42 +112,51 @@
     .btn-del:hover { background: rgba(220,38,38,0.2); }
 
     /* ── Flow Table ── */
-    .flow-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .flow-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
     .flow-table th {
-      background: rgba(59,130,246,0.05); padding: 5px 8px; text-align: left;
-      font-weight: 700; color: var(--text3); font-size: 0.76rem;
-      text-transform: uppercase; letter-spacing: 0.03em;
+      background: rgba(59,130,246,0.05); padding: 4px 5px; text-align: left;
+      font-weight: 700; color: var(--text3); font-size: 0.72rem;
+      text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap;
     }
-    .flow-table td { padding: 4px 8px; border-bottom: 1px solid rgba(59,130,246,0.05); }
-    .flow-table td input {
-      width: 64px; padding: 3px 5px; border-radius: 4px;
-      border: 1px solid rgba(59,130,246,0.12); font-size: 0.84rem;
+    .flow-table td { padding: 3px 5px; border-bottom: 1px solid rgba(59,130,246,0.05); white-space: nowrap; }
+    .flow-table td input[type="number"] {
+      width: 56px; padding: 2px 4px; border-radius: 3px;
+      border: 1px solid rgba(59,130,246,0.12); font-size: 0.8rem;
       font-family: 'Courier New', monospace; text-align: right;
     }
-    .flow-table td input:focus { outline: none; border-color: var(--blue); }
-    .flow-table tr:hover { background: rgba(59,130,246,0.03); }
-    .flow-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
-    .flow-type { font-size: 0.76rem; color: var(--text3); font-weight: 600; }
-    .flow-tx { font-family: 'Courier New', monospace; font-size: 0.82rem; color: var(--text3); }
-    .flow-color-input {
-      width: 22px; height: 22px; padding: 0; border: 1px solid rgba(59,130,246,0.15);
-      border-radius: 4px; cursor: pointer; vertical-align: middle;
-    }
-    .flow-name-input {
-      width: 90px; padding: 2px 4px; border: 1px solid rgba(59,130,246,0.12);
-      border-radius: 3px; font-size: 0.8rem; font-weight: 600; color: var(--text);
-    }
-    .flow-name-input:focus { border-color: var(--blue); outline: none; }
-    .btn-row-del {
-      width: 20px; height: 20px; border: none; border-radius: 3px; cursor: pointer;
-      background: rgba(220,38,38,0.08); color: #dc2626; font-size: 0.75rem;
-      font-weight: 700; line-height: 20px; text-align: center; padding: 0;
-    }
-    .btn-row-del:hover { background: rgba(220,38,38,0.2); }
+    .flow-table td input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 1.5px rgba(59,130,246,0.15); }
+    .flow-table tr:hover { background: rgba(59,130,246,0.04); }
     .flow-table select {
-      font-size: 0.78rem; padding: 2px 3px;
+      font-size: 0.76rem; padding: 2px 2px; max-width: 88px;
       border: 1px solid rgba(59,130,246,0.12); border-radius: 3px;
+      background: #fff;
     }
+    .flow-name-cell { display: flex; align-items: center; gap: 4px; }
+    .flow-color-dot {
+      width: 14px; height: 14px; min-width: 14px; padding: 0; border: none;
+      border-radius: 50%; cursor: pointer; flex-shrink: 0;
+      -webkit-appearance: none; appearance: none; background: none;
+    }
+    .flow-color-dot::-webkit-color-swatch-wrapper { padding: 0; border-radius: 50%; }
+    .flow-color-dot::-webkit-color-swatch { border: 1.5px solid rgba(0,0,0,0.12); border-radius: 50%; }
+    .flow-color-dot::-moz-color-swatch { border: 1.5px solid rgba(0,0,0,0.12); border-radius: 50%; }
+    .flow-name-input {
+      width: 100%; min-width: 70px; padding: 2px 4px;
+      border: 1px solid transparent; border-radius: 3px;
+      font-size: 0.8rem; font-weight: 600; color: var(--text);
+      background: transparent;
+    }
+    .flow-name-input:hover { border-color: rgba(59,130,246,0.2); background: rgba(59,130,246,0.02); }
+    .flow-name-input:focus { border-color: var(--blue); outline: none; background: #fff; }
+    .flow-tx { font-family: 'Courier New', monospace; font-size: 0.78rem; color: var(--text3); text-align: right; }
+    .flow-pkts { font-family: 'Courier New', monospace; font-size: 0.78rem; text-align: center; color: var(--text2); }
+    .btn-row-del {
+      width: 18px; height: 18px; border: none; border-radius: 50%; cursor: pointer;
+      background: transparent; color: #cbd5e1; font-size: 0.8rem;
+      font-weight: 700; line-height: 18px; text-align: center; padding: 0;
+      transition: all 0.15s;
+    }
+    .btn-row-del:hover { background: rgba(220,38,38,0.12); color: #dc2626; }
 
     /* ── Topology ── */
     #topoContainer { background: #fff; border-radius: 6px; min-height: 320px; }
@@ -247,9 +256,9 @@
         <div style="overflow-x:auto;">
           <table class="flow-table" id="flowTable">
             <thead><tr>
-              <th style="width:28px;"></th><th>Flow</th><th>Type</th><th>PCP</th><th>Payload</th>
-              <th>TX</th><th>Period</th><th>Pkts</th>
-              <th>Deadline</th><th>Src</th><th>Dst</th><th style="width:24px;"></th>
+              <th>Flow</th><th>Type</th><th>PCP</th><th>Bytes</th>
+              <th>TX&micro;s</th><th>Period</th><th>#</th>
+              <th>DL</th><th>Src</th><th>Dst</th><th></th>
             </tr></thead>
             <tbody id="flowBody"></tbody>
           </table>
@@ -339,20 +348,19 @@
       const tx = round3((f.payload_bytes + 38) * 8 / speed);
       const pkts = Math.round(cycle / f.period_us);
       const c = f.color || '#7b61ff';
-      const typeLabel = f.traffic_type === 'lidar' ? 'LiDAR' : f.traffic_type === 'radar' ? 'Radar' : 'BG';
+      const name = f.id.replace(/^f_/, '');
       const srcOpts = NODE_IDS.map(n => `<option${n===f.src?' selected':''}>${n}</option>`).join('');
       const dstOpts = NODE_IDS.map(n => `<option${n===f.dst?' selected':''}>${n}</option>`).join('');
       const typeOpts = ['lidar','radar','bg'].map(t => `<option value="${t}"${t===f.traffic_type?' selected':''}>${t==='lidar'?'LiDAR':t==='radar'?'Radar':'BG'}</option>`).join('');
       html += `<tr>`;
-      html += `<td><input type="color" value="${c}" class="flow-color-input" data-idx="${i}" data-field="color"></td>`;
-      html += `<td><input type="text" value="${f.id.replace('f_','')}" class="flow-name-input" data-idx="${i}" data-field="name"></td>`;
-      html += `<td><select data-idx="${i}" data-field="traffic_type">${typeOpts}</select></td>`;
-      html += `<td><input type="number" value="${f.PCP}" min="0" max="7" data-idx="${i}" data-field="PCP" style="width:42px;"></td>`;
-      html += `<td><input type="number" value="${f.payload_bytes}" min="1" data-idx="${i}" data-field="payload_bytes"></td>`;
+      html += `<td><div class="flow-name-cell"><input type="color" value="${c}" class="flow-color-dot" data-idx="${i}" data-field="color"><input type="text" value="${name}" class="flow-name-input" data-idx="${i}" data-field="name"></div></td>`;
+      html += `<td><select data-idx="${i}" data-field="traffic_type" style="width:58px;">${typeOpts}</select></td>`;
+      html += `<td><input type="number" value="${f.PCP}" min="0" max="7" data-idx="${i}" data-field="PCP" style="width:36px;"></td>`;
+      html += `<td><input type="number" value="${f.payload_bytes}" min="1" data-idx="${i}" data-field="payload_bytes" style="width:56px;"></td>`;
       html += `<td class="flow-tx">${tx}</td>`;
-      html += `<td><input type="number" value="${f.period_us}" min="1" data-idx="${i}" data-field="period_us"></td>`;
-      html += `<td style="text-align:center;font-family:'Courier New',monospace;font-size:0.82rem;">${pkts}</td>`;
-      html += `<td><input type="number" value="${f.deadline_us || ''}" min="0" data-idx="${i}" data-field="deadline_us" placeholder="—"></td>`;
+      html += `<td><input type="number" value="${f.period_us}" min="1" data-idx="${i}" data-field="period_us" style="width:52px;"></td>`;
+      html += `<td class="flow-pkts">${pkts}</td>`;
+      html += `<td><input type="number" value="${f.deadline_us || ''}" min="0" data-idx="${i}" data-field="deadline_us" placeholder="—" style="width:52px;"></td>`;
       html += `<td><select data-idx="${i}" data-field="src">${srcOpts}</select></td>`;
       html += `<td><select data-idx="${i}" data-field="dst">${dstOpts}</select></td>`;
       html += `<td><button class="btn-row-del" data-idx="${i}" title="Remove">&times;</button></td>`;
@@ -367,7 +375,10 @@
         if (field === 'color') {
           baseFlows[idx].color = el.value;
         } else if (field === 'name') {
+          const old = baseFlows[idx].id;
           baseFlows[idx].id = 'f_' + el.value.replace(/^f_/, '');
+          const map = getFlowColorsHex();
+          if (map[old]) { map[baseFlows[idx].id] = map[old]; delete map[old]; }
         } else if (field === 'src' || field === 'dst' || field === 'traffic_type') {
           baseFlows[idx][field] = el.value;
         } else {

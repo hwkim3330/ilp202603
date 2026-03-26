@@ -611,7 +611,7 @@ export async function solveILP(model, glpk, opts = {}) {
   const tmlim = opts.tmlim || 30;
 
   const pkts = expandPackets(model);
-  if (pkts.length > 70) throw new Error(`Too many packets (${pkts.length}). Reduce flows or increase period.`);
+  if (pkts.length > 200) throw new Error(`Too many packets (${pkts.length}). Reduce flows or increase period.`);
 
   // Check if all packets have exactly 1 route → use tight formulation
   const allSingleRoute = pkts.every(pk => pk.routes.length === 1);
@@ -826,14 +826,25 @@ export async function solveILP(model, glpk, opts = {}) {
     subjectTo: sub,
     bounds: Array.from(vars).map(n => ({ name: n, type: glpk.GLP_LO, lb: 0, ub: 0 }))
   };
-  // Only pass binaries when non-empty — empty array still triggers MIP solver in GLPK.js
   if (bins.length > 0) lp.binaries = bins;
 
-  const solved = await glpk.solve(lp, { msglev: glpk.GLP_MSG_OFF, presol: true, tmlim });
+  // LP fallback: use short timeout since pure LP is instant; auto-fallback to Greedy on failure
+  const effectiveTmlim = (lpFallback && bins.length === 0) ? Math.min(tmlim, 10) : tmlim;
+  let solved;
+  try {
+    solved = await glpk.solve(lp, { msglev: glpk.GLP_MSG_OFF, presol: true, tmlim: effectiveTmlim });
+  } catch (e) {
+    if (lpFallback) return solveGreedy(model);
+    throw e;
+  }
   if (!solved?.result || ![glpk.GLP_OPT, glpk.GLP_FEAS].includes(solved.result.status)) {
+    if (lpFallback) {
+      // LP-relaxed ordering failed (likely conflicting constraints) — auto-fallback to Greedy
+      return solveGreedy(model);
+    }
     const st = solved?.result?.status ?? '?';
     const msg = st === 1 ? `ILP timeout (${tmlim}s) — ${pkts.length} pkts, ${bins.length} binaries. Increase time limit or use Greedy.`
-              : st === 3 || st === 4 ? `ILP infeasible — constraints cannot be satisfied. ${lpFallback ? 'LP-relaxed ordering may conflict — try Greedy.' : ''}`
+              : st === 3 || st === 4 ? `ILP infeasible — constraints cannot be satisfied`
               : `ILP failed (status=${st})`;
     throw new Error(msg);
   }
