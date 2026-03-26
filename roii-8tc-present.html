@@ -489,8 +489,24 @@
       renderBoardGCL(model, result);
 
     } catch (e) {
-      setStatus(`<span style="color:var(--red);">Error: ${e.message}</span>`);
       console.error(e);
+      // On ILP failure, auto-fallback to Greedy and show both error + result
+      if (solver === 'ilp') {
+        try {
+          result = solveGreedy(model);
+          renderTopology(model, failedLink, result);
+          renderGantt(model, result);
+          renderBoardGCL(model, result);
+          const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
+          const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
+          setStatus(`<span style="color:var(--red);">ILP failed</span> → Greedy fallback &nbsp;|&nbsp; Pkts: ${result.packetRows.length} &nbsp;|&nbsp; Util: ${result.worst_util_percent}% &nbsp;|&nbsp; Worst E2E: ${round3(worst)}µs &nbsp;|&nbsp; <span style="color:var(--text3);font-size:0.78rem;">${e.message}</span>`);
+          document.getElementById('ganttTitle').textContent = 'GCL Schedule — Greedy (ILP fallback)';
+        } catch (e2) {
+          setStatus(`<span style="color:var(--red);">Error: ${e.message}</span>`);
+        }
+      } else {
+        setStatus(`<span style="color:var(--red);">Error: ${e.message}</span>`);
+      }
     }
 
     btn.disabled = false;

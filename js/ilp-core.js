@@ -715,25 +715,10 @@ export async function solveILP(model, glpk, opts = {}) {
            { type: glpk.GLP_LO, lb: first.blk, ub: 0 });
       }
     }
-    // Phase 2: PCP-based ordering — higher PCP scheduled before lower PCP
-    // Consistent with TSN priority: TC7 (LiDAR) before TC6 (Radar) before lower TCs
-    // Eliminates all cross-PCP binary variables (biggest reduction)
-    for (const lnk of model.links) {
-      const lo = ops.filter(o => o.lid === lnk.id);
-      if (lo.length < 2) continue;
-      for (let a = 0; a < lo.length; a++) for (let b = a + 1; b < lo.length; b++) {
-        const oa = lo[a], ob = lo[b];
-        if (pkts[oa.p].pri === pkts[ob.p].pri) continue;
-        const key = Math.min(oa.oi, ob.oi) + '_' + Math.max(oa.oi, ob.oi);
-        if (ordFixed.has(key)) continue;
-        ordFixed.add(key);
-        const [hi, lo2] = pkts[oa.p].pri > pkts[ob.p].pri ? [oa, ob] : [ob, oa];
-        ac('pc', [{ name: lo2.sn, coef: 1 }, { name: hi.sn, coef: -1 }],
-           { type: glpk.GLP_LO, lb: hi.blk, ub: 0 });
-      }
-    }
-    // Phase 3: Window pruning + earliest-dominance + symmetry + binary variables
-    // Only same-PCP pairs remain — much fewer binary variables
+    // Phase 2: Window pruning → PCP ordering → earliest-dominance → symmetry → binary
+    // All pruning in one pass per link. Window pruning MUST come first — PCP ordering
+    // only applies to packets whose time windows overlap (cross-period packets are
+    // naturally separated and must NOT be forced into priority ordering).
     for (const lnk of model.links) {
       const lo = ops.filter(o => o.lid === lnk.id);
       if (lo.length < 2) continue;
@@ -741,9 +726,17 @@ export async function solveILP(model, glpk, opts = {}) {
         const oa = lo[a], ob = lo[b];
         const key = Math.min(oa.oi, ob.oi) + '_' + Math.max(oa.oi, ob.oi);
         if (ordFixed.has(key)) continue;
-        // Window pruning: execution windows can't overlap at all → no constraint needed
+        // 1. Window pruning: time windows can't overlap → no constraint needed
         if (oa.latest + oa.blk <= ob.earliest || ob.latest + ob.blk <= oa.earliest) continue;
-        // Earliest-dominance: A finishes before B can start → fix ordering (no binary)
+        // 2. PCP ordering: higher PCP first (only for overlapping-window pairs)
+        if (pkts[oa.p].pri !== pkts[ob.p].pri) {
+          ordFixed.add(key);
+          const [hi, lo2] = pkts[oa.p].pri > pkts[ob.p].pri ? [oa, ob] : [ob, oa];
+          ac('pc', [{ name: lo2.sn, coef: 1 }, { name: hi.sn, coef: -1 }],
+             { type: glpk.GLP_LO, lb: hi.blk, ub: 0 });
+          continue;
+        }
+        // 3. Earliest-dominance: A finishes before B can start → fix A-before-B
         if (oa.earliest + oa.blk <= ob.earliest) {
           ordFixed.add(key);
           ac('ed', [{ name: ob.sn, coef: 1 }, { name: oa.sn, coef: -1 }],
@@ -756,14 +749,14 @@ export async function solveILP(model, glpk, opts = {}) {
              { type: glpk.GLP_LO, lb: ob.blk, ub: 0 });
           continue;
         }
-        // Symmetry: same PCP, same tx, same release → fix by index (no binary)
-        if (pkts[oa.p].pri === pkts[ob.p].pri && Math.abs(oa.blk - ob.blk) < 0.01 && pkts[oa.p].rel === pkts[ob.p].rel) {
+        // 4. Symmetry: same PCP, same tx, same release → fix by index
+        if (Math.abs(oa.blk - ob.blk) < 0.01 && pkts[oa.p].rel === pkts[ob.p].rel) {
           ordFixed.add(key);
           ac('sy', [{ name: ob.sn, coef: 1 }, { name: oa.sn, coef: -1 }],
              { type: glpk.GLP_LO, lb: oa.blk, ub: 0 });
           continue;
         }
-        // Binary ordering variable — ILP decides optimal order
+        // 5. Binary ordering variable — ILP decides optimal order
         const y = av(yv(lnk.id, oa.oi, ob.oi)); bins.push(y);
         const Mab = Math.max(oa.latest - ob.earliest + oa.blk, ob.latest - oa.earliest + ob.blk);
         ac('na', [{ name: ob.sn, coef: 1 }, { name: oa.sn, coef: -1 }, { name: y, coef: -Mab }], { type: glpk.GLP_LO, lb: oa.blk - Mab, ub: 0 });
@@ -884,15 +877,16 @@ export async function solveILP(model, glpk, opts = {}) {
 
   if (!solved?.result || ![glpk.GLP_OPT, glpk.GLP_FEAS].includes(solved.result.status)) {
     const st = solved?.result?.status ?? '?';
+    const info = `${pkts.length} pkts, ${bins.length} bins, ${sub.length} constraints, ${vars.size} vars`;
     let msg;
     if (st === 1) {
-      msg = `ILP timeout (${tmlim}s) — ${pkts.length} pkts, ${bins.length} binaries. Increase time limit or use Greedy.`;
+      msg = `ILP timeout (${tmlim}s) — ${info}. Increase time limit or use Greedy.`;
     } else if (st === 4 && bins.length > 0) {
-      msg = `ILP: no feasible integer solution found — ${pkts.length} pkts, ${bins.length} binaries. Try increasing time limit or use Greedy.`;
+      msg = `ILP: no feasible integer solution found — ${info}. Try increasing time limit or use Greedy.`;
     } else if (st === 3 || st === 4) {
-      msg = `ILP infeasible — ${pkts.length} pkts cannot fit in ${model.cycle_time_us}µs cycle. Remove flows or increase cycle time.`;
+      msg = `ILP infeasible (status=${st}) — ${info}. Check deadlines or use Greedy.`;
     } else {
-      msg = `ILP failed (status=${st})`;
+      msg = `ILP failed (status=${st}) — ${info}`;
     }
     throw new Error(msg);
   }
