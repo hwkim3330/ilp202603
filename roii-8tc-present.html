@@ -417,6 +417,8 @@
         s += ` &nbsp;|&nbsp; Pkts: ${result.packetRows.length} &nbsp;|&nbsp; Flows: ${model.flows.length}`;
         s += ` &nbsp;|&nbsp; Util: ${result.worst_util_percent}%`;
         s += ` &nbsp;|&nbsp; Worst E2E: ${round3(worst)}\u00b5s`;
+        if (result.stats) s += ` &nbsp;|&nbsp; ${result.stats.binaries} bins, ${Math.round(result.stats.runtime_ms)}ms`;
+        if (result.method && result.method.includes('LP-relaxed')) s += ` &nbsp;|&nbsp; <span style="color:var(--purple);font-weight:600;">LP-relaxed</span>`;
         if (failCount === 0) s += ` &nbsp;|&nbsp; <span style="color:var(--green);font-weight:700;">ALL OK</span>`;
         else if (overlapCount > 0) s += ` &nbsp;|&nbsp; <span style="color:var(--red);font-weight:700;">${overlapCount} OVERLAP</span>`;
         else s += ` &nbsp;|&nbsp; <span style="color:var(--red);font-weight:700;">${missCount} MISS</span>`;

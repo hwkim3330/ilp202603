@@ -637,6 +637,7 @@ export async function solveILP(model, glpk, opts = {}) {
   const av = n => { vars.add(n); return n; };
   const ac = (pre, terms, bnd) => { sub.push({ name: `${pre}_${ci++}`, vars: terms, bnds: bnd }); };
   const ops = [];
+  let lpFallback = false;
 
   if (allSingleRoute) {
     /* ── Fixed-route formulation: NO z-variables, per-pair tight M ── */
@@ -697,20 +698,62 @@ export async function solveILP(model, glpk, opts = {}) {
       if (pk.tsn) obj.push({ name: sL, coef: 1 });
     }
 
-    // Pairwise ordering with per-pair tight M and window pruning
+    // Pairwise non-overlap constraints with binary reduction optimizations
+    const ordFixed = new Set();
+    // Phase 1: Fix same-flow ordering (always safe — same route, same direction)
     for (const lnk of model.links) {
       const lo = ops.filter(o => o.lid === lnk.id);
       for (let a = 0; a < lo.length; a++) for (let b = a + 1; b < lo.length; b++) {
         const oa = lo[a], ob = lo[b];
-        // Tight window pruning: skip if execution windows can't overlap
+        if (pkts[oa.p].fid !== pkts[ob.p].fid) continue;
+        const key = Math.min(oa.oi, ob.oi) + '_' + Math.max(oa.oi, ob.oi);
+        if (ordFixed.has(key)) continue;
+        ordFixed.add(key);
+        const [first, second] = pkts[oa.p].rel <= pkts[ob.p].rel ? [oa, ob] : [ob, oa];
+        ac('sf', [{ name: second.sn, coef: 1 }, { name: first.sn, coef: -1 }],
+           { type: glpk.GLP_LO, lb: first.blk, ub: 0 });
+      }
+    }
+    // Phase 2: Count potential binary variables after fixed-order pruning
+    let potentialBins = 0;
+    for (const lnk of model.links) {
+      const lo = ops.filter(o => o.lid === lnk.id);
+      for (let a = 0; a < lo.length; a++) for (let b = a + 1; b < lo.length; b++) {
+        const oa = lo[a], ob = lo[b];
+        const key = Math.min(oa.oi, ob.oi) + '_' + Math.max(oa.oi, ob.oi);
+        if (ordFixed.has(key)) continue;
         if (oa.latest + oa.blk <= ob.earliest || ob.latest + ob.blk <= oa.earliest) continue;
-        const y = av(yv(lnk.id, oa.oi, ob.oi)); bins.push(y);
-        // Per-pair tight M: just enough to make constraint trivial when inactive
-        const Mab = Math.max(oa.latest - ob.earliest + oa.blk, ob.latest - oa.earliest + ob.blk);
-        // y=0: a before b → s_b >= s_a + blk_a  (with -Mab*y relaxation)
-        // y=1: b before a → s_a >= s_b + blk_b  (with +Mab*y relaxation)
-        ac('na', [{ name: ob.sn, coef: 1 }, { name: oa.sn, coef: -1 }, { name: y, coef: -Mab }], { type: glpk.GLP_LO, lb: oa.blk - Mab, ub: 0 });
-        ac('nb', [{ name: oa.sn, coef: 1 }, { name: ob.sn, coef: -1 }, { name: y, coef: Mab }], { type: glpk.GLP_LO, lb: ob.blk, ub: 0 });
+        potentialBins++;
+      }
+    }
+    // Phase 3: If too many binaries, fix ordering by earliest arrival → pure LP
+    lpFallback = potentialBins > 150;
+    for (const lnk of model.links) {
+      const lo = ops.filter(o => o.lid === lnk.id);
+      if (lo.length < 2) continue;
+      if (lpFallback) {
+        // Sort by earliest start → fix consecutive ordering → 0 binary variables
+        const sorted = [...lo].sort((a, b) => a.earliest - b.earliest || b.blk - a.blk);
+        for (let i = 0; i < sorted.length - 1; i++) {
+          const oa = sorted[i], ob = sorted[i + 1];
+          const key = Math.min(oa.oi, ob.oi) + '_' + Math.max(oa.oi, ob.oi);
+          if (ordFixed.has(key)) continue;
+          ordFixed.add(key);
+          ac('so', [{ name: ob.sn, coef: 1 }, { name: oa.sn, coef: -1 }],
+             { type: glpk.GLP_LO, lb: oa.blk, ub: 0 });
+        }
+      } else {
+        // Normal: create binary ordering variables with window pruning
+        for (let a = 0; a < lo.length; a++) for (let b = a + 1; b < lo.length; b++) {
+          const oa = lo[a], ob = lo[b];
+          const key = Math.min(oa.oi, ob.oi) + '_' + Math.max(oa.oi, ob.oi);
+          if (ordFixed.has(key)) continue;
+          if (oa.latest + oa.blk <= ob.earliest || ob.latest + ob.blk <= oa.earliest) continue;
+          const y = av(yv(lnk.id, oa.oi, ob.oi)); bins.push(y);
+          const Mab = Math.max(oa.latest - ob.earliest + oa.blk, ob.latest - oa.earliest + ob.blk);
+          ac('na', [{ name: ob.sn, coef: 1 }, { name: oa.sn, coef: -1 }, { name: y, coef: -Mab }], { type: glpk.GLP_LO, lb: oa.blk - Mab, ub: 0 });
+          ac('nb', [{ name: oa.sn, coef: 1 }, { name: ob.sn, coef: -1 }, { name: y, coef: Mab }], { type: glpk.GLP_LO, lb: ob.blk, ub: 0 });
+        }
       }
     }
   } else {
@@ -814,7 +857,8 @@ export async function solveILP(model, glpk, opts = {}) {
     }
   }
 
-  const statusLabel = solved.result.status === glpk.GLP_OPT ? 'optimal' : 'feasible (time limit)';
+  const statusLabel = lpFallback ? 'LP-relaxed, ordering fixed by earliest arrival'
+    : solved.result.status === glpk.GLP_OPT ? 'optimal' : 'feasible (time limit)';
   return buildResult(model, pkts, schedHops,
     'ILP (GLPK v' + (typeof glpk.version === 'function' ? glpk.version() : (glpk.version || '?')) + ', ' + statusLabel + ')',
     { constraints: sub.length, variables: vars.size, binaries: bins.length, status: solved.result.status, runtime_ms: Math.round(solved.time * 1000) }
