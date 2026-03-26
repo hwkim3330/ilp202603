@@ -858,14 +858,36 @@ export async function solveILP(model, glpk, opts = {}) {
 
   if (opts.onProgress) opts.onProgress({ phase: 'solving', pkts: pkts.length, bins: bins.length, constraints: sub.length, vars: vars.size });
 
-  const solved = await glpk.solve(lp, { msglev: glpk.GLP_MSG_OFF, presol: true, tmlim });
+  // GLPK.js tmlim only applies to MIP solver, NOT LP simplex.
+  // For pure LP (0 binaries), add a JavaScript-level timeout as safety net.
+  const glpkOpts = { msglev: glpk.GLP_MSG_OFF, tmlim };
+  if (bins.length === 0) {
+    // Pure LP: presolver not needed, simplex should finish in <1s
+    glpkOpts.presol = false;
+  } else {
+    glpkOpts.presol = true;
+  }
+
+  let solved;
+  if (bins.length === 0) {
+    // JS-level timeout for pure LP (GLPK tmlim doesn't apply to simplex)
+    const lpTimeout = Math.min(tmlim, 10);
+    solved = await Promise.race([
+      glpk.solve(lp, glpkOpts),
+      new Promise((_, rej) => setTimeout(() => rej(new Error(
+        `LP timeout (${lpTimeout}s) — pure LP with 0 binaries should be instant. Try Greedy or reload page (Ctrl+Shift+R).`
+      )), lpTimeout * 1000))
+    ]);
+  } else {
+    solved = await glpk.solve(lp, glpkOpts);
+  }
+
   if (!solved?.result || ![glpk.GLP_OPT, glpk.GLP_FEAS].includes(solved.result.status)) {
     const st = solved?.result?.status ?? '?';
     let msg;
     if (st === 1) {
       msg = `ILP timeout (${tmlim}s) — ${pkts.length} pkts, ${bins.length} binaries. Increase time limit or use Greedy.`;
     } else if (st === 4 && bins.length > 0) {
-      // NOFEAS with binaries: solver couldn't find integer solution in time (not necessarily infeasible)
       msg = `ILP: no feasible integer solution found — ${pkts.length} pkts, ${bins.length} binaries. Try increasing time limit or use Greedy.`;
     } else if (st === 3 || st === 4) {
       msg = `ILP infeasible — ${pkts.length} pkts cannot fit in ${model.cycle_time_us}µs cycle. Remove flows or increase cycle time.`;

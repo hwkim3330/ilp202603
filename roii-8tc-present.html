@@ -220,11 +220,11 @@
     <div class="tsep"></div>
     <label>Solver
       <select id="pSolver">
-        <option value="greedy" selected>Greedy</option>
-        <option value="ilp">ILP (k=1)</option>
+        <option value="greedy">Greedy</option>
+        <option value="ilp" selected>ILP (GLPK)</option>
       </select>
     </label>
-    <label>ILP Limit (s)<input type="number" id="pTmlim" value="120" min="5" max="600" step="10" style="width:55px;"></label>
+    <label>ILP Limit (s)<input type="number" id="pTmlim" value="30" min="5" max="600" step="10" style="width:55px;"></label>
     <div class="tsep"></div>
     <label>Link Failure
       <select id="pFail" class="fail-select">
@@ -289,8 +289,9 @@
 
   <script src="vendor/d3.min.js"></script>
   <script type="module">
-  import { ROII_REAL_8TC, ROII_REAL_SWITCHES, getRealPositions, ROII_REAL_NODE_COLORS } from './js/roii-real-data.js';
-  import { solveGreedy, solveILP, initTooltip, flowColor, getFlowColorsHex } from './js/ilp-core.js';
+  const _v = '?v=' + Date.now();
+  const { ROII_REAL_8TC, ROII_REAL_SWITCHES, getRealPositions, ROII_REAL_NODE_COLORS } = await import('./js/roii-real-data.js' + _v);
+  const { solveGreedy, solveILP, initTooltip, flowColor, getFlowColorsHex } = await import('./js/ilp-core.js' + _v);
 
   initTooltip();
   const round3 = v => Math.round(v * 1000) / 1000;
@@ -308,7 +309,7 @@
     if (glpkInstance) return glpkInstance;
     if (glpkLoading) { while (glpkLoading) await new Promise(r => setTimeout(r, 80)); return glpkInstance; }
     glpkLoading = true;
-    try { const GLPK = (await import('./vendor/glpk.js')).default; glpkInstance = await GLPK(); }
+    try { const GLPK = (await import('./vendor/glpk.js' + _v)).default; glpkInstance = await GLPK(); }
     catch (e) { console.error('GLPK load error:', e); }
     glpkLoading = false;
     return glpkInstance;
@@ -328,8 +329,9 @@
   const CUSTOM_COLORS = ['#e11d48','#f97316','#84cc16','#06b6d4','#8b5cf6','#ec4899','#14b8a6','#f59e0b'];
   const baseFlows = JSON.parse(JSON.stringify(ROII_REAL_8TC.flows));
   for (const f of baseFlows) {
-    if (f.traffic_type === 'lidar') f.payload_bytes = 4500;
-    if (f.traffic_type === 'radar') f.payload_bytes = 1500;
+    // Normalize PCPs: same traffic type → same PCP (ILP can optimize within-PCP ordering)
+    if (f.traffic_type === 'lidar') { f.payload_bytes = 4500; f.PCP = 7; }
+    if (f.traffic_type === 'radar') { f.payload_bytes = 1500; f.PCP = 6; }
     f.deadline_us = f.period_us; // period-based deadline (tighter ILP bounds)
     f.color = flowColor(f.id);
   }
@@ -821,10 +823,19 @@
   document.getElementById('pCycle').addEventListener('change', renderFlowTable);
   document.getElementById('pFail').addEventListener('change', () => { renderFlowTable(); solve(); });
 
-  /* ═══════ Init: Greedy first ═══════ */
+  /* ═══════ Init: Greedy first, then ILP when GLPK ready ═══════ */
   renderFlowTable();
-  solve();
-  ensureGLPK();
+  // Run Greedy immediately for instant feedback
+  const initSolver = document.getElementById('pSolver').value;
+  document.getElementById('pSolver').value = 'greedy';
+  solve().then(async () => {
+    // Pre-load GLPK, then auto-solve with ILP if it was selected
+    await ensureGLPK();
+    if (initSolver === 'ilp') {
+      document.getElementById('pSolver').value = 'ilp';
+      solve();
+    }
+  });
   </script>
 </body>
 </html>
