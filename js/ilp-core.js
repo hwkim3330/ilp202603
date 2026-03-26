@@ -785,8 +785,13 @@ export async function solveILP(model, glpk, opts = {}) {
   };
 
   const solved = await glpk.solve(lp, { msglev: glpk.GLP_MSG_OFF, presol: true, tmlim });
-  if (!solved?.result || ![glpk.GLP_OPT, glpk.GLP_FEAS].includes(solved.result.status))
-    throw new Error('ILP infeasible (status=' + (solved?.result?.status ?? '?') + ')');
+  if (!solved?.result || ![glpk.GLP_OPT, glpk.GLP_FEAS].includes(solved.result.status)) {
+    const st = solved?.result?.status ?? '?';
+    const msg = st === 1 ? `ILP timeout (${tmlim}s) — ${pkts.length} pkts, ${bins.length} binaries. Increase time limit or use Greedy.`
+              : st === 3 || st === 4 ? `ILP infeasible — constraints cannot be satisfied`
+              : `ILP failed (status=${st})`;
+    throw new Error(msg);
+  }
 
   const rv = solved.result.vars;
 
