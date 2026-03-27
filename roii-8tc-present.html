@@ -329,6 +329,8 @@
   const CUSTOM_COLORS = ['#e11d48','#f97316','#84cc16','#06b6d4','#8b5cf6','#ec4899','#14b8a6','#f59e0b'];
   const baseFlows = JSON.parse(JSON.stringify(ROII_REAL_8TC.flows));
   for (const f of baseFlows) {
+    if (f.traffic_type === 'lidar') f.payload_bytes = 4500;
+    if (f.traffic_type === 'radar') f.payload_bytes = 1500;
     f.color = flowColor(f.id);
   }
   function syncColors() {
