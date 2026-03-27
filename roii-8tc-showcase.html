@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>8-TC Showcase &mdash; Greedy vs ILP &mdash; KETI</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    :root {
+      --bg: #f8f9fa; --bg2: #f0f2f5;
+      --card: #ffffff; --card-hi: #f8fafc;
+      --border: rgba(59,130,246,0.2); --border-hi: rgba(59,130,246,0.4);
+      --text: #1e293b; --text2: #475569; --text3: #64748b;
+      --cyan: #0891b2; --blue: #3B82F6; --purple: #7c3aed;
+      --orange: #d97706; --red: #dc2626; --green: #059669; --pink: #db2777;
+      --guard: #d97706; --be: #e2e8f0;
+    }
+    body { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 50%, #dee2e6 100%); }
+    .bg-grid {
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59,130,246,0.06), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(6,182,212,0.04), transparent),
+        linear-gradient(rgba(59,130,246,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.06) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+    }
+    .card {
+      background: rgba(255,255,255,0.95);
+      border: 1px solid rgba(59,130,246,0.15);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    }
+    .card:hover { border-color: rgba(59,130,246,0.3); }
+    .card-title { color: var(--text2); }
+    .card-title::before { background: var(--blue); }
+    .tooltip {
+      background: rgba(255,255,255,0.97);
+      border: 1px solid rgba(59,130,246,0.25);
+      color: var(--text); box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
+    .tooltip .tt-title { color: var(--blue); }
+    .tooltip .tt-k { color: var(--text3); }
+    .btn-primary { background: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%); color: #fff; }
+    .btn-ilp { background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); color: #fff; }
+    .btn-compare { background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); color: #fff; }
+    .btn-secondary { background: rgba(248,250,252,0.8); color: var(--text); border: 1px solid rgba(59,130,246,0.2); }
+    .btn-secondary:hover { border-color: var(--blue); background: #fff; }
+    .btn-preset { background: rgba(248,250,252,0.9); color: var(--text2); border: 1px solid rgba(59,130,246,0.15); font-size: 0.74rem !important; padding: 5px 14px !important; }
+    .btn-preset:hover { border-color: var(--purple); color: var(--purple); background: rgba(124,58,237,0.05); }
+    .btn-preset.active { border-color: var(--purple); color: #fff; background: var(--purple); }
+
+    /* Light theme overrides for GCL/chart elements */
+    .gcl-grid line { stroke: rgba(59,130,246,0.06); stroke-width: 1; }
+    .gcl-axis text { fill: var(--text2) !important; font-size: 11px; }
+    .gcl-axis path, .gcl-axis line { stroke: rgba(59,130,246,0.15); }
+    .gcl-label { fill: rgba(0,0,0,0.75); font-size: 11px; font-weight: 700; pointer-events: none; }
+    .delay-axis text { fill: var(--text3) !important; font-size: 10px; }
+    .delay-axis line, .delay-axis path { stroke: rgba(59,130,246,0.15); }
+    .deadline-line { stroke: var(--red); stroke-width: 1.5; stroke-dasharray: 5,4; }
+    .util-label { fill: var(--text) !important; }
+    .util-name { fill: var(--text3) !important; }
+
+    /* Header */
+    .keti-header {
+      display: flex; align-items: center; justify-content: center;
+      gap: 16px; margin-bottom: 8px;
+    }
+    .keti-header img { height: 40px; width: auto; }
+    .keti-header h1 {
+      font-size: 2rem; font-weight: 800; letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+
+    /* Params */
+    .global-params {
+      display: flex; gap: 16px; flex-wrap: wrap; align-items: center;
+      margin-bottom: 10px;
+    }
+    .global-params label {
+      font-size: 0.78rem; font-weight: 600; color: var(--text2);
+    }
+    .global-params input[type="number"], .global-params select {
+      width: 90px; padding: 4px 8px; border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 6px; font-size: 0.82rem; font-family: 'Courier New', monospace;
+      text-align: right; background: #fff;
+    }
+    .global-params input:focus, .global-params select:focus {
+      outline: none; border-color: var(--blue);
+      box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+    }
+    .global-params select { text-align: left; }
+    .fail-select { border-color: rgba(220,38,38,0.3) !important; }
+
+    /* Status */
+    .status-bar {
+      display: flex; gap: 16px; flex-wrap: wrap; align-items: center;
+      padding: 10px 16px; border-radius: 8px;
+      background: rgba(59,130,246,0.04);
+      border: 1px solid rgba(59,130,246,0.1);
+      font-size: 0.82rem; color: var(--text2);
+      margin-bottom: 14px; min-height: 42px;
+    }
+    .status-bar .spinner-sm {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid rgba(59,130,246,0.2); border-top-color: var(--blue);
+      border-radius: 50%; animation: spin 0.6s linear infinite;
+      vertical-align: middle; margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Preset group */
+    .preset-group {
+      display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+      padding-top: 8px; border-top: 1px solid rgba(59,130,246,0.08);
+    }
+    .preset-group span {
+      font-size: 0.72rem; font-weight: 700; color: var(--text3);
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px; margin-bottom: 14px;
+    }
+    .stat-card {
+      background: rgba(255,255,255,0.95); border: 1px solid rgba(59,130,246,0.12);
+      border-radius: 10px; padding: 14px 16px; position: relative; overflow: hidden;
+    }
+    .stat-card::after {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, var(--blue), transparent);
+    }
+    .stat-card.warn::after { background: linear-gradient(90deg, var(--orange), transparent); }
+    .stat-card.ok::after { background: linear-gradient(90deg, var(--green), transparent); }
+    .stat-card.purple::after { background: linear-gradient(90deg, var(--purple), transparent); }
+    .stat-val { font-size: 1.4rem; font-weight: 800; color: var(--blue); font-variant-numeric: tabular-nums; }
+    .stat-card.warn .stat-val { color: var(--orange); }
+    .stat-card.ok .stat-val { color: var(--green); }
+    .stat-card.purple .stat-val { color: var(--purple); }
+    .stat-label { font-size: 0.7rem; color: var(--text3); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-sub { font-size: 0.68rem; color: var(--text2); margin-top: 2px; }
+
+    /* Comparison Table */
+    .cmp-table {
+      width: 100%; border-collapse: collapse; font-size: 0.82rem;
+    }
+    .cmp-table th {
+      background: rgba(59,130,246,0.06); color: var(--text2);
+      padding: 8px 12px; text-align: center; font-weight: 700;
+      border-bottom: 2px solid rgba(59,130,246,0.15);
+    }
+    .cmp-table th:first-child { text-align: left; }
+    .cmp-table td {
+      padding: 6px 12px; border-bottom: 1px solid rgba(59,130,246,0.08);
+      text-align: center; font-family: 'Courier New', monospace;
+    }
+    .cmp-table td:first-child {
+      text-align: left; font-family: inherit; font-weight: 600; color: var(--text2);
+    }
+    .cmp-table tr:hover { background: rgba(59,130,246,0.04); }
+    .cmp-winner { color: var(--green); font-weight: 700; }
+    .cmp-loser { color: var(--text3); }
+    .cmp-miss { color: var(--red); font-weight: 700; }
+    .cmp-improvement { background: rgba(5,150,105,0.06); font-weight: 700; color: var(--green); }
+
+    /* Dual Gantt Layout */
+    .dual-gantt { display: grid; grid-template-columns: 1fr; gap: 0; }
+    .gantt-section { margin-bottom: 6px; }
+    .gantt-section-title {
+      font-size: 0.82rem; font-weight: 700; padding: 6px 14px;
+      border-radius: 8px 8px 0 0;
+    }
+    .gantt-section-title.greedy-title { color: var(--blue); background: rgba(59,130,246,0.06); }
+    .gantt-section-title.ilp-title { color: var(--purple); background: rgba(124,58,237,0.06); }
+
+    /* Chart containers */
+    .chart-container { min-height: 280px; position: relative; }
+    .gantt-wrap { min-height: 250px; position: relative; }
+    .gantt-legend {
+      display: flex; flex-wrap: wrap; gap: 8px 16px;
+      padding: 10px 16px; border-top: 1px solid rgba(59,130,246,0.1);
+      background: rgba(248,250,252,0.8); border-radius: 0 0 8px 8px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text2); }
+    .legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+
+    /* Delay chart: dual grouped bars */
+    .delay-grouped-bar { cursor: pointer; rx: 3; }
+    .delay-grouped-bar:hover { filter: brightness(1.15); }
+
+    /* Utilization bars */
+    .util-bar { rx: 4; cursor: pointer; }
+    .util-bar:hover { filter: brightness(1.15); }
+
+    /* Flow table */
+    .param-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .param-table th {
+      background: rgba(59,130,246,0.06); color: var(--text2);
+      padding: 6px 10px; text-align: left; font-weight: 700;
+      border-bottom: 2px solid rgba(59,130,246,0.15); font-size: 0.75rem;
+    }
+    .param-table td {
+      padding: 4px 6px; border-bottom: 1px solid rgba(59,130,246,0.08);
+      vertical-align: middle;
+    }
+    .param-table tr:hover { background: rgba(59,130,246,0.04); }
+    .param-table .calc {
+      color: var(--blue); font-family: 'Courier New', monospace;
+      font-weight: 600; font-size: 0.78rem;
+    }
+    .pcp-dot {
+      display: inline-block; width: 10px; height: 10px;
+      border-radius: 50%; margin-right: 6px; vertical-align: middle;
+    }
+
+    /* Packet table light */
+    .pkt-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    .pkt-table th {
+      text-align: left; padding: 8px 10px; color: var(--text3);
+      font-weight: 600; font-size: 0.72rem; text-transform: uppercase;
+      letter-spacing: 0.05em; border-bottom: 2px solid rgba(59,130,246,0.15);
+      background: rgba(59,130,246,0.04);
+    }
+    .pkt-table td { padding: 6px 10px; border-bottom: 1px solid rgba(59,130,246,0.06); font-variant-numeric: tabular-nums; }
+    .pkt-table tr:hover td { background: rgba(59,130,246,0.04); }
+    .pkt-table .ok { color: var(--green); font-weight: 700; }
+    .pkt-table .miss { color: var(--red); font-weight: 700; }
+    .pkt-table .be { color: var(--text3); }
+    .pkt-table .flow-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 10px;
+      font-size: 0.7rem; font-weight: 600;
+    }
+
+    /* Switch GCL cards */
+    .gcl-switch-card {
+      background: rgba(255,255,255,0.95); border: 1px solid rgba(59,130,246,0.1);
+      border-radius: 10px; padding: 14px 16px; margin-bottom: 10px;
+    }
+    .sw-header {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .sw-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .sw-name { font-weight: 700; font-size: 0.95rem; color: var(--text); }
+    .sw-chip { font-size: 0.72rem; color: var(--text3); padding: 2px 8px; border-radius: 6px; background: rgba(59,130,246,0.06); }
+    .sw-stats { font-size: 0.75rem; color: var(--text3); margin-left: auto; }
+    .link-label-dir { font-size: 0.78rem; font-weight: 600; color: var(--text2); margin-bottom: 4px; }
+
+    /* H/W Specs */
+    .hw-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .hw-table th {
+      background: rgba(59,130,246,0.06); color: var(--text2);
+      padding: 6px 10px; text-align: left; font-weight: 700;
+      border-bottom: 2px solid rgba(59,130,246,0.15); font-size: 0.72rem;
+      text-transform: uppercase; letter-spacing: 0.03em;
+    }
+    .hw-table td { padding: 5px 10px; border-bottom: 1px solid rgba(59,130,246,0.06); }
+    .hw-table tr:hover { background: rgba(59,130,246,0.04); }
+
+    /* Collapsible */
+    .card-toggle { cursor: pointer; user-select: none; }
+    .card-toggle .arrow { display: inline-block; transition: transform 0.2s; font-size: 0.7rem; margin-left: 6px; }
+    .card-toggle.open .arrow { transform: rotate(90deg); }
+    .collapse-content { display: none; }
+    .collapse-content.show { display: block; }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="wrap">
+    <!-- Header -->
+    <div class="header">
+      <div class="keti-header">
+        <img src="keti.png" alt="KETI" onerror="this.style.display='none'">
+        <h1>TSN/GCL Showcase</h1>
+      </div>
+      <div class="sub">
+        IEEE 802.1Qbv TAS 기반 GCL 스케줄링 &mdash; Greedy vs ILP(GLPK/WASM) 자동 비교 대시보드.<br>
+        파라미터를 변경하고, 링크 장애를 시뮬레이션하며, 두 솔버의 성능 차이를 한눈에 확인합니다.
+      </div>
+    </div>
+
+    <!-- Parameters -->
+    <div class="card">
+      <div class="card-title">Parameters</div>
+      <div class="global-params">
+        <label>Cycle (&micro;s)
+          <input type="number" id="pCycle" value="1000" min="100" step="100">
+        </label>
+        <label>Guard (&micro;s)
+          <input type="number" id="pGuard" value="0" min="0" step="0.1">
+        </label>
+        <label>Speed (Mbps)
+          <input type="number" id="pSpeed" value="1000" min="100" step="100">
+        </label>
+        <label>Proc Delay (&micro;s)
+          <input type="number" id="pDelay" value="5" min="0" step="0.5">
+        </label>
+        <label>ILP Limit (s)
+          <input type="number" id="pTmlim" value="30" min="5" max="300" step="10" style="width:60px;">
+        </label>
+        <label>Link Failure
+          <select id="pFail" class="fail-select" style="width:110px;">
+            <option value="">None</option>
+            <option value="l_swfl_swfr">FL &harr; FR</option>
+            <option value="l_swfl_swrear">FL &harr; REAR</option>
+            <option value="l_swfr_swrear">FR &harr; REAR</option>
+          </select>
+        </label>
+      </div>
+      <div class="global-params">
+        <label style="color:var(--purple);font-weight:700;">Load Scale
+          <input type="number" id="pLoadScale" value="1" min="1" max="8" step="0.5" style="border-color:var(--purple);width:70px;">
+        </label>
+        <label style="color:var(--orange);font-weight:700;">Deadline Factor
+          <input type="number" id="pDeadline" value="1.0" min="0.3" max="3.0" step="0.1" style="border-color:var(--orange);width:70px;">
+        </label>
+        <button class="btn btn-primary" id="btnGreedy" style="padding:8px 18px;font-size:0.82rem;">&#9654; Greedy</button>
+        <button class="btn btn-ilp" id="btnILP" style="padding:8px 18px;font-size:0.82rem;">&#9654; ILP</button>
+        <button class="btn btn-compare" id="btnCompare" style="padding:8px 18px;font-size:0.82rem;">&#9654; Compare Both</button>
+      </div>
+      <div class="preset-group">
+        <span>Presets:</span>
+        <button class="btn btn-preset" data-load="1" data-deadline="1" data-tmlim="30">Light (1x)</button>
+        <button class="btn btn-preset" data-load="2" data-deadline="1" data-tmlim="60">Medium (2x)</button>
+        <button class="btn btn-preset" data-load="3" data-deadline="0.8" data-tmlim="90">Heavy (3x)</button>
+        <button class="btn btn-preset" data-load="5" data-deadline="0.6" data-tmlim="120">Stress (5x)</button>
+      </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="status-bar" id="statusBar">
+      <span class="spinner-sm"></span> Loading...
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid" id="statsGrid"></div>
+
+    <!-- Comparison Summary Table -->
+    <div class="card" id="cmpCard" style="display:none;">
+      <div class="card-title">Greedy vs ILP Comparison</div>
+      <table class="cmp-table" id="cmpTable">
+        <thead>
+          <tr><th>Metric</th><th style="color:var(--blue);">Greedy</th><th style="color:var(--purple);">ILP</th></tr>
+        </thead>
+        <tbody id="cmpBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Network Topology -->
+    <div class="card">
+      <div class="card-title">Network Topology</div>
+      <div id="topoContainer" style="min-height:340px;"></div>
+      <div id="topoLegend" class="gantt-legend" style="border-top:1px solid rgba(59,130,246,0.08);"></div>
+    </div>
+
+    <!-- Per-Flow E2E Delay Comparison -->
+    <div class="card" id="delayCard" style="display:none;">
+      <div class="card-title">Per-Flow Worst E2E Delay</div>
+      <div class="chart-container" id="delayContainer"></div>
+    </div>
+
+    <!-- Dual Gantt Charts -->
+    <div class="card" id="ganttCard" style="display:none;">
+      <div class="card-title">Schedule Timeline (GCL Gantt)</div>
+      <div class="dual-gantt">
+        <div class="gantt-section" id="ganttGreedySection" style="display:none;">
+          <div class="gantt-section-title greedy-title">Greedy Schedule</div>
+          <div class="gantt-wrap" id="ganttGreedy"></div>
+          <div class="gantt-legend" id="ganttGreedyLegend"></div>
+        </div>
+        <div class="gantt-section" id="ganttILPSection" style="display:none;">
+          <div class="gantt-section-title ilp-title">ILP Schedule</div>
+          <div class="gantt-wrap" id="ganttILP"></div>
+          <div class="gantt-legend" id="ganttILPLegend"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Per-Link Utilization -->
+    <div class="card" id="utilCard" style="display:none;">
+      <div class="card-title">Per-Link Utilization</div>
+      <div class="chart-container" id="utilContainer"></div>
+    </div>
+
+    <!-- H/W Sensor Specifications -->
+    <div class="card">
+      <div class="card-title card-toggle" id="toggleHW">Sensor H/W Specifications <span class="arrow">&#9654;</span></div>
+      <div class="collapse-content" id="hwContent">
+        <table class="hw-table">
+          <thead><tr>
+            <th>Sensor</th><th>Type</th><th>Interface</th><th>Payload</th><th>ETH Payload</th><th>TX (&micro;s)</th><th>Real Period</th><th>Model Period</th><th>Pkts/Cycle</th>
+          </tr></thead>
+          <tbody>
+            <tr><td><strong>AutoL G32</strong></td><td>LiDAR</td><td>Ethernet</td><td>1248 B</td><td>1276 B</td><td>10.512</td><td>167 &micro;s (6000 fps)</td><td>200 &micro;s</td><td>5</td></tr>
+            <tr><td><strong>Hesai Pandar 40P</strong></td><td>LiDAR</td><td>Ethernet</td><td>1262 B</td><td>1290 B</td><td>10.624</td><td>536 &micro;s (1866 fps)</td><td>500 &micro;s</td><td>2</td></tr>
+            <tr><td><strong>Continental MRR-35</strong></td><td>Radar</td><td>CAN-FD</td><td>64 B</td><td>64 B</td><td>0.816</td><td>500 &micro;s (CAN interval)</td><td>500 &micro;s</td><td>2</td></tr>
+          </tbody>
+        </table>
+        <div style="margin-top:10px;font-size:0.78rem;color:var(--text3);line-height:1.6;">
+          <strong>Ethernet overhead:</strong> Preamble(7) + SFD(1) + Dst MAC(6) + Src MAC(6) + EtherType(2) + FCS(4) + IFG(12) = <strong>38 bytes</strong>.<br>
+          <strong>TX time formula:</strong> (payload + 38) &times; 8 / speed_mbps &micro;s.<br>
+          <strong>Cycle:</strong> 1000 &micro;s (1 ms) &mdash; G32: 5 pkts, Pandar: 2 pkts, MRR-35: 2 pkts = <strong>24 pkts/cycle</strong>.
+        </div>
+      </div>
+    </div>
+
+    <!-- Flow Parameters -->
+    <div class="card">
+      <div class="card-title card-toggle" id="toggleFlows">Flow Parameters <span class="arrow">&#9654;</span></div>
+      <div class="collapse-content" id="flowContent">
+        <table class="param-table" id="flowTable">
+          <thead><tr>
+            <th>PCP</th><th>TC</th><th>Sensor</th>
+            <th>Payload</th><th>Scaled</th><th>TX (&micro;s)</th>
+            <th>Period</th><th>Deadline</th><th>Src</th><th>Dst</th>
+          </tr></thead>
+          <tbody id="flowBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Per-Switch GCL Detail Cards -->
+    <div class="card" id="switchGclCard" style="display:none;">
+      <div class="card-title card-toggle" id="toggleSwGcl">Per-Switch GCL Detail (ILP) <span class="arrow">&#9654;</span></div>
+      <div class="collapse-content" id="switchGclContent">
+        <div id="switchGclArea"></div>
+      </div>
+    </div>
+
+    <!-- Packet Detail Table -->
+    <div class="card" id="pktCard" style="display:none;">
+      <div class="card-title card-toggle" id="togglePkt">Packet Schedule Detail (ILP) <span class="arrow">&#9654;</span></div>
+      <div class="collapse-content" id="pktContent">
+        <table class="pkt-table">
+          <thead><tr>
+            <th>Packet</th><th>Type</th><th>Route</th><th>Release</th><th>Finish</th>
+            <th>E2E (&micro;s)</th><th>Deadline</th><th>Slack</th><th>Status</th>
+          </tr></thead>
+          <tbody id="pktBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="card" style="padding:12px 20px;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <a href="roii-8tc.html" class="btn btn-secondary" style="font-size:0.78rem;">8-TC</a>
+        <a href="roii-8tc-stable.html" class="btn btn-secondary" style="font-size:0.78rem;">Margin</a>
+        <a href="roii-8tc-inflate.html" class="btn btn-secondary" style="font-size:0.78rem;">Inflate</a>
+        <a href="roii-8tc-compare.html" class="btn btn-secondary" style="font-size:0.78rem;">Compare</a>
+        <a href="roii-8tc-failover.html" class="btn btn-secondary" style="font-size:0.78rem;">Failover</a>
+        <a href="roii-8tc-ilp.html" class="btn btn-secondary" style="font-size:0.78rem;">Greedy vs ILP</a>
+        <a href="roii-8tc-multiroute.html" class="btn btn-secondary" style="font-size:0.78rem;">Multi-Route</a>
+        <a href="roii-8tc-present.html" class="btn btn-secondary" style="font-size:0.78rem;">16:9 Present</a>
+        <a href="roii-debug.html" class="btn btn-secondary" style="font-size:0.78rem;">Debugger</a>
+        <a href="index.html" class="btn btn-secondary" style="margin-left:auto;font-size:0.78rem;">Home</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <script src="vendor/d3.min.js"></script>
+  <script type="module">
+  const _v = '?v=' + Date.now();
+  const { ROII_REAL_8TC, ROII_REAL_SWITCHES, getRealPositions, ROII_REAL_NODE_COLORS }
+    = await import('./js/roii-real-data.js' + _v);
+  const {
+    solveGreedy, solveILP, initTooltip, flowColor, flowType, getFlowColorsHex,
+    renderGCL, renderTopology, renderDelayChart, renderUtilization,
+    renderTable, renderSwitchGCL, showTip, hideTip
+  } = await import('./js/ilp-core.js' + _v);
+
+  initTooltip();
+  const round3 = v => Math.round(v * 1000) / 1000;
+  const txTime = (bytes, mbps) => round3(((bytes + 38) * 8) / mbps);
+
+  const BACKBONE_REVERSE = {
+    'l_swfl_swfr': 'l_swfr_swfl', 'l_swfr_swfl': 'l_swfl_swfr',
+    'l_swfl_swrear': 'l_swrear_swfl', 'l_swrear_swfl': 'l_swfl_swrear',
+    'l_swfr_swrear': 'l_swrear_swfr', 'l_swrear_swfr': 'l_swfr_swrear',
+  };
+
+  /* ═══════ GLPK Lazy Loader ═══════ */
+  let glpkInstance = null;
+  let glpkLoading = false;
+  async function ensureGLPK() {
+    if (glpkInstance) return glpkInstance;
+    if (glpkLoading) { while (glpkLoading) await new Promise(r => setTimeout(r, 80)); return glpkInstance; }
+    glpkLoading = true;
+    try { const GLPK = (await import('./vendor/glpk.js' + _v)).default; glpkInstance = await GLPK(); }
+    catch (e) { console.error('GLPK load error:', e); }
+    glpkLoading = false;
+    return glpkInstance;
+  }
+  ensureGLPK();
+
+  /* ═══════ Flow Definitions ═══════ */
+  const FLOW_DEFS = [
+    { pcp: 7, id: 'f_lidar_fc',  sensor: 'AutoL G32',        payload: 1276, period: 200, deadline: 1000, src: 'LIDAR_FC',  dst: 'ACU_IT', color: '#10B981' },
+    { pcp: 6, id: 'f_lidar_r',   sensor: 'AutoL G32',        payload: 1276, period: 200, deadline: 1000, src: 'LIDAR_R',   dst: 'ACU_IT', color: '#10B981' },
+    { pcp: 5, id: 'f_lidar_fl',  sensor: 'Hesai Pandar 40P', payload: 1290, period: 500, deadline: 1000, src: 'LIDAR_FL',  dst: 'ACU_IT', color: '#0D9488' },
+    { pcp: 4, id: 'f_lidar_fr',  sensor: 'Hesai Pandar 40P', payload: 1290, period: 500, deadline: 1000, src: 'LIDAR_FR',  dst: 'ACU_IT', color: '#0D9488' },
+    { pcp: 3, id: 'f_radar_f',   sensor: 'MRR-35',           payload: 64,   period: 500, deadline: 1000, src: 'RADAR_F',   dst: 'ACU_IT', color: '#952aff' },
+    { pcp: 2, id: 'f_radar_flc', sensor: 'MRR-35',           payload: 64,   period: 500, deadline: 1000, src: 'RADAR_FLC', dst: 'ACU_IT', color: '#952aff' },
+    { pcp: 1, id: 'f_radar_frc', sensor: 'MRR-35',           payload: 64,   period: 500, deadline: 1000, src: 'RADAR_FRC', dst: 'ACU_IT', color: '#952aff' },
+    { pcp: 0, id: 'f_radar_rlc', sensor: 'MRR-35',           payload: 64,   period: 500, deadline: 1000, src: 'RADAR_RLC', dst: 'ACU_IT', color: '#952aff' },
+    { pcp: 0, id: 'f_radar_rrc', sensor: 'MRR-35',           payload: 64,   period: 500, deadline: 1000, src: 'RADAR_RRC', dst: 'ACU_IT', color: '#952aff' },
+  ];
+
+  /* ═══════ State ═══════ */
+  let greedyResult = null, ilpResult = null, currentModel = null;
+  let solving = false;
+
+  /* ═══════ Helpers ═══════ */
+  const getP = id => parseFloat(document.getElementById(id).value) || 0;
+  function setStatus(html) { document.getElementById('statusBar').innerHTML = html; }
+
+  /* ═══════ Collapsible Sections ═══════ */
+  document.querySelectorAll('.card-toggle').forEach(el => {
+    el.addEventListener('click', () => {
+      el.classList.toggle('open');
+      const content = el.nextElementSibling;
+      content.classList.toggle('show');
+    });
+  });
+
+  /* ═══════ Flow Table ═══════ */
+  function renderFlowTable() {
+    const speed = getP('pSpeed') || 1000;
+    const loadScale = getP('pLoadScale') || 1;
+    const deadlineFactor = getP('pDeadline') || 1;
+    document.getElementById('flowBody').innerHTML = FLOW_DEFS.map(f => {
+      const scaled = Math.round(f.payload * loadScale);
+      const dl = Math.round(f.deadline * deadlineFactor);
+      const tx = txTime(scaled, speed);
+      return `<tr>
+        <td><strong>${f.pcp}</strong></td>
+        <td>TC${f.pcp}</td>
+        <td><span class="pcp-dot" style="background:${f.color}"></span>${f.sensor}</td>
+        <td class="calc">${f.payload} B</td>
+        <td class="calc" style="font-weight:700;color:var(--purple);">${scaled} B</td>
+        <td class="calc">${tx}</td>
+        <td class="calc">${f.period}</td>
+        <td class="calc" style="color:var(--orange);">${dl}</td>
+        <td style="font-size:0.72rem;">${f.src}</td>
+        <td style="font-size:0.72rem;">${f.dst}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  /* ═══════ Build Model ═══════ */
+  function buildModel() {
+    const cycle = getP('pCycle') || 1000;
+    const guard = getP('pGuard');
+    const speed = getP('pSpeed') || 1000;
+    const procDelay = getP('pDelay') || 5;
+    const loadScale = getP('pLoadScale') || 1;
+    const deadlineFactor = getP('pDeadline') || 1;
+
+    const m = JSON.parse(JSON.stringify(ROII_REAL_8TC));
+    m.cycle_time_us = cycle;
+    m.guard_band_us = guard;
+    m.processing_delay_us = procDelay;
+    for (const lnk of m.links) lnk.rate_mbps = speed;
+
+    m.flows = FLOW_DEFS.map(f => ({
+      id: f.id, PCP: f.pcp,
+      payload_bytes: Math.round(f.payload * loadScale),
+      period_us: f.period,
+      deadline_us: Math.round(f.deadline * deadlineFactor),
+      traffic_type: f.id.includes('lidar') ? 'lidar' : 'radar',
+      src: f.src, dst: f.dst, k_paths: 1
+    }));
+
+    const failedLink = document.getElementById('pFail').value;
+    if (failedLink) {
+      const rev = BACKBONE_REVERSE[failedLink];
+      m.links = m.links.filter(l => l.id !== failedLink && l.id !== rev);
+    }
+    return m;
+  }
+
+  /* ═══════ E2E Stats ═══════ */
+  function getE2EStats(result) {
+    const st = result.packetRows.filter(p => p.status !== 'NON-ST');
+    if (!st.length) return { worst: 0, avg: 0, allOk: true, missCount: 0, overlapCount: 0 };
+    const delays = st.map(p => p.e2e_delay_us);
+    return {
+      worst: Math.max(...delays),
+      avg: round3(delays.reduce((a, b) => a + b, 0) / delays.length),
+      allOk: st.every(p => p.status === 'OK'),
+      missCount: st.filter(p => p.status === 'MISS').length,
+      overlapCount: st.filter(p => p.status === 'OVERLAP').length,
+    };
+  }
+
+  function getPerFlowE2E(result) {
+    const map = {};
+    for (const p of result.packetRows) {
+      if (p.status === 'NON-ST') continue;
+      if (!map[p.flow_id] || p.e2e_delay_us > map[p.flow_id]) map[p.flow_id] = p.e2e_delay_us;
+    }
+    return map;
+  }
+
+  function getLinkUtils(model, result) {
+    const utils = {};
+    for (const p of result.packetRows) {
+      for (const h of (p.hops || [])) {
+        utils[h.link_id] = (utils[h.link_id] || 0) + h.duration_us;
+      }
+    }
+    return model.links
+      .map(l => ({ id: l.id, label: `${l.from} \u2192 ${l.to}`, util: round3((utils[l.id] || 0) / model.cycle_time_us * 100) }))
+      .filter(l => l.util > 0)
+      .sort((a, b) => b.util - a.util);
+  }
+
+  /* ═══════ Stats Grid ═══════ */
+  function renderStats() {
+    const grid = document.getElementById('statsGrid');
+    if (!greedyResult && !ilpResult) { grid.innerHTML = ''; return; }
+    const r = ilpResult || greedyResult;
+    const s = getE2EStats(r);
+    const m = currentModel;
+    const items = [
+      { val: m.nodes.length, label: 'Nodes', sub: `${m.nodes.filter(n=>n.type==='switch').length} switches`, cls: '' },
+      { val: m.links.length, label: 'Links', sub: 'directional', cls: '' },
+      { val: m.flows.length, label: 'Flows', sub: `${r.packetRows.length} pkts/cycle`, cls: '' },
+      { val: r.worst_util_percent + '%', label: 'Worst Util', sub: 'link utilization', cls: parseFloat(r.worst_util_percent) > 60 ? 'warn' : '' },
+      { val: round3(s.worst) + ' \u00b5s', label: 'Worst E2E', sub: ilpResult ? 'ILP' : 'Greedy', cls: 'purple' },
+      { val: s.avg + ' \u00b5s', label: 'Avg E2E', sub: `${r.packetRows.filter(p=>p.status!=='NON-ST').length} TSN pkts`, cls: '' },
+      { val: s.allOk ? 'ALL OK' : (s.missCount + s.overlapCount) + ' FAIL', label: 'Feasibility', sub: `${r.stats?.constraints || 0} constraints`, cls: s.allOk ? 'ok' : 'warn' },
+      { val: ilpResult ? round3((greedyResult && ilpResult ? (getE2EStats(greedyResult).worst - s.worst) / getE2EStats(greedyResult).worst * 100 : 0)) + '%' : '-', label: 'ILP Improvement', sub: 'worst E2E reduction', cls: 'ok' },
+    ];
+    grid.innerHTML = items.map(i => `
+      <div class="stat-card ${i.cls}">
+        <div class="stat-val">${i.val}</div>
+        <div class="stat-label">${i.label}</div>
+        <div class="stat-sub">${i.sub}</div>
+      </div>
+    `).join('');
+  }
+
+  /* ═══════ Comparison Table ═══════ */
+  function renderComparison() {
+    const card = document.getElementById('cmpCard');
+    if (!greedyResult || !ilpResult) { card.style.display = 'none'; return; }
+    card.style.display = '';
+
+    const gs = getE2EStats(greedyResult), is = getE2EStats(ilpResult);
+    const gObj = greedyResult.objective, iObj = ilpResult.objective;
+
+    function w(gv, iv, lower) {
+      if (gv == null || iv == null || gv === iv) return ['', ''];
+      return (lower ? gv < iv : gv > iv) ? ['cmp-winner', 'cmp-loser'] : ['cmp-loser', 'cmp-winner'];
+    }
+
+    const rows = [
+      { l: 'Method', g: greedyResult.method, i: ilpResult.method, c: ['',''] },
+      { l: 'Objective (\u00b5s)', g: gObj, i: iObj, c: w(gObj, iObj, true) },
+      { l: 'Worst E2E (\u00b5s)', g: gs.worst, i: is.worst, c: w(gs.worst, is.worst, true) },
+      { l: 'Avg E2E (\u00b5s)', g: gs.avg, i: is.avg, c: w(gs.avg, is.avg, true) },
+      { l: 'Worst Util (%)', g: greedyResult.worst_util_percent + '%', i: ilpResult.worst_util_percent + '%', c: w(+greedyResult.worst_util_percent, +ilpResult.worst_util_percent, true) },
+      { l: 'Packets', g: greedyResult.packetRows.length, i: ilpResult.packetRows.length, c: ['',''] },
+      { l: 'Deadlines Met', g: gs.allOk ? 'OK' : `MISS(${gs.missCount})`, i: is.allOk ? 'OK' : `MISS(${is.missCount})`, c: [gs.allOk?'':'cmp-miss', is.allOk?'':'cmp-miss'] },
+      { l: 'Runtime (ms)', g: greedyResult.stats?.runtime_ms ?? '<1', i: ilpResult.stats?.runtime_ms ?? '-', c: ['',''] },
+      { l: 'ILP Binaries', g: '-', i: ilpResult.stats?.binaries ?? '-', c: ['',''] },
+      { l: 'ILP Status', g: '-', i: ilpResult.stats?.status ?? '-', c: ['',''] },
+    ];
+    if (typeof gObj === 'number' && typeof iObj === 'number' && gObj > 0) {
+      const imp = round3((gObj - iObj) / gObj * 100);
+      rows.push({ l: 'ILP Improvement', g: '', i: (imp > 0 ? '+' : '') + imp + '%', c: ['', imp > 0 ? 'cmp-improvement' : ''] });
+    }
+    document.getElementById('cmpBody').innerHTML = rows.map(r =>
+      `<tr><td>${r.l}</td><td${r.c[0]?` class="${r.c[0]}"`:''}>${r.g}</td><td${r.c[1]?` class="${r.c[1]}"`:''}>${r.i}</td></tr>`
+    ).join('');
+  }
+
+  /* ═══════ Topology ═══════ */
+  function renderTopo(model, result) {
+    renderTopology(model, result || greedyResult || ilpResult, {
+      containerId: 'topoContainer',
+      legendId: 'topoLegend',
+      nodePositions: getRealPositions(
+        document.getElementById('topoContainer').clientWidth,
+        340
+      ),
+      nodeColors: ROII_REAL_NODE_COLORS,
+      height: 340
+    });
+  }
+
+  /* ═══════ Delay Comparison Chart (custom dual bars) ═══════ */
+  function renderDelayComparison() {
+    const card = document.getElementById('delayCard');
+    const container = document.getElementById('delayContainer');
+    container.innerHTML = '';
+
+    const hasGreedy = !!greedyResult, hasILP = !!ilpResult;
+    if (!hasGreedy && !hasILP) { card.style.display = 'none'; return; }
+    card.style.display = '';
+
+    const gMap = hasGreedy ? getPerFlowE2E(greedyResult) : {};
+    const iMap = hasILP ? getPerFlowE2E(ilpResult) : {};
+    const flowIds = FLOW_DEFS.map(f => f.id);
+
+    const data = flowIds.map(fid => ({
+      fid, name: fid.replace('f_', ''),
+      greedy: gMap[fid] || 0, ilp: iMap[fid] || 0,
+      deadline: FLOW_DEFS.find(f => f.id === fid)?.deadline * (getP('pDeadline') || 1) || 1000
+    }));
+
+    const W = container.clientWidth || 700;
+    const H = 320;
+    const margin = { top: 24, right: 20, bottom: 60, left: 55 };
+    const innerW = W - margin.left - margin.right;
+    const innerH = H - margin.top - margin.bottom;
+
+    const svg = d3.select(container).append('svg')
+      .attr('viewBox', `0 0 ${W} ${H}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet')
+      .style('width', '100%');
+
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+    const x0 = d3.scaleBand().domain(data.map(d => d.name)).range([0, innerW]).padding(0.25);
+    const x1 = d3.scaleBand().domain(['greedy', 'ilp']).range([0, x0.bandwidth()]).padding(0.08);
+    const maxVal = Math.max(...data.map(d => Math.max(d.greedy, d.ilp, d.deadline))) * 1.15;
+    const y = d3.scaleLinear().domain([0, maxVal]).range([innerH, 0]);
+
+    // Grid
+    g.append('g').attr('class', 'gcl-grid')
+      .selectAll('line').data(y.ticks(6)).enter().append('line')
+      .attr('x1', 0).attr('x2', innerW).attr('y1', d => y(d)).attr('y2', d => y(d));
+
+    // Deadline line
+    const deadlines = [...new Set(data.map(d => d.deadline))];
+    deadlines.forEach(dl => {
+      g.append('line').attr('class', 'deadline-line')
+        .attr('x1', 0).attr('x2', innerW).attr('y1', y(dl)).attr('y2', y(dl));
+      g.append('text').attr('x', innerW - 4).attr('y', y(dl) - 4)
+        .attr('text-anchor', 'end').attr('fill', 'var(--red)').attr('font-size', '9px')
+        .text(`Deadline: ${dl}\u00b5s`);
+    });
+
+    // Bars
+    const groups = g.selectAll('.bar-group').data(data).enter().append('g')
+      .attr('transform', d => `translate(${x0(d.name)},0)`);
+
+    if (hasGreedy) {
+      groups.append('rect').attr('class', 'delay-grouped-bar')
+        .attr('x', x1('greedy')).attr('width', x1.bandwidth())
+        .attr('y', innerH).attr('height', 0)
+        .attr('fill', '#3B82F6').attr('opacity', 0.85)
+        .transition().duration(600).delay((d, i) => i * 60)
+        .attr('y', d => y(d.greedy)).attr('height', d => innerH - y(d.greedy));
+    }
+    if (hasILP) {
+      groups.append('rect').attr('class', 'delay-grouped-bar')
+        .attr('x', x1('ilp')).attr('width', x1.bandwidth())
+        .attr('y', innerH).attr('height', 0)
+        .attr('fill', '#7c3aed').attr('opacity', 0.85)
+        .transition().duration(600).delay((d, i) => i * 60 + 300)
+        .attr('y', d => y(d.ilp)).attr('height', d => innerH - y(d.ilp));
+    }
+
+    // Value labels
+    if (hasGreedy) {
+      groups.append('text')
+        .attr('x', x1('greedy') + x1.bandwidth() / 2)
+        .attr('y', d => y(d.greedy) - 4)
+        .attr('text-anchor', 'middle').attr('fill', '#3B82F6').attr('font-size', '8px').attr('font-weight', '600')
+        .attr('opacity', 0).text(d => d.greedy.toFixed(1))
+        .transition().delay(800).duration(300).attr('opacity', 1);
+    }
+    if (hasILP) {
+      groups.append('text')
+        .attr('x', x1('ilp') + x1.bandwidth() / 2)
+        .attr('y', d => y(d.ilp) - 4)
+        .attr('text-anchor', 'middle').attr('fill', '#7c3aed').attr('font-size', '8px').attr('font-weight', '600')
+        .attr('opacity', 0).text(d => d.ilp.toFixed(1))
+        .transition().delay(1000).duration(300).attr('opacity', 1);
+    }
+
+    // Axes
+    g.append('g').attr('class', 'delay-axis').attr('transform', `translate(0,${innerH})`)
+      .call(d3.axisBottom(x0).tickSize(0).tickPadding(8))
+      .selectAll('text').attr('transform', 'rotate(-30)').attr('text-anchor', 'end').attr('font-size', '9px');
+
+    g.append('g').attr('class', 'delay-axis')
+      .call(d3.axisLeft(y).ticks(6).tickFormat(d => d + '\u00b5s'));
+
+    // Legend
+    const leg = svg.append('g').attr('transform', `translate(${margin.left + 10},${margin.top - 10})`);
+    if (hasGreedy) {
+      leg.append('rect').attr('width', 12).attr('height', 12).attr('fill', '#3B82F6').attr('rx', 2);
+      leg.append('text').attr('x', 16).attr('y', 10).attr('fill', 'var(--text2)').attr('font-size', '10px').text('Greedy');
+    }
+    if (hasILP) {
+      const off = hasGreedy ? 80 : 0;
+      leg.append('rect').attr('x', off).attr('width', 12).attr('height', 12).attr('fill', '#7c3aed').attr('rx', 2);
+      leg.append('text').attr('x', off + 16).attr('y', 10).attr('fill', 'var(--text2)').attr('font-size', '10px').text('ILP');
+    }
+  }
+
+  /* ═══════ Utilization Comparison Chart (horizontal bars) ═══════ */
+  function renderUtilComparison() {
+    const card = document.getElementById('utilCard');
+    const container = document.getElementById('utilContainer');
+    container.innerHTML = '';
+
+    const hasGreedy = !!greedyResult, hasILP = !!ilpResult;
+    if (!hasGreedy && !hasILP) { card.style.display = 'none'; return; }
+    card.style.display = '';
+
+    const gUtils = hasGreedy ? getLinkUtils(currentModel, greedyResult) : [];
+    const iUtils = hasILP ? getLinkUtils(currentModel, ilpResult) : [];
+
+    const allIds = new Set([...gUtils.map(l => l.id), ...iUtils.map(l => l.id)]);
+    const gMap = Object.fromEntries(gUtils.map(l => [l.id, l]));
+    const iMap = Object.fromEntries(iUtils.map(l => [l.id, l]));
+
+    const data = [...allIds].map(id => {
+      const g = gMap[id], i = iMap[id];
+      return { id, label: (g || i).label, greedy: g?.util || 0, ilp: i?.util || 0 };
+    }).sort((a, b) => Math.max(b.greedy, b.ilp) - Math.max(a.greedy, a.ilp));
+
+    const W = container.clientWidth || 700;
+    const barH = 22;
+    const margin = { top: 24, right: 60, bottom: 30, left: 140 };
+    const innerW = W - margin.left - margin.right;
+    const innerH = data.length * (barH * 2 + 8) + 10;
+    const H = margin.top + innerH + margin.bottom;
+
+    const svg = d3.select(container).append('svg')
+      .attr('viewBox', `0 0 ${W} ${H}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet')
+      .style('width', '100%');
+
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+    const maxUtil = Math.max(5, ...data.map(d => Math.max(d.greedy, d.ilp))) * 1.2;
+    const x = d3.scaleLinear().domain([0, maxUtil]).range([0, innerW]);
+
+    // Grid
+    g.append('g').attr('class', 'gcl-grid')
+      .selectAll('line').data(x.ticks(6)).enter().append('line')
+      .attr('x1', d => x(d)).attr('x2', d => x(d)).attr('y1', 0).attr('y2', innerH);
+
+    g.append('g').attr('class', 'delay-axis').attr('transform', `translate(0,${innerH})`)
+      .call(d3.axisBottom(x).ticks(6).tickFormat(d => d + '%'));
+
+    data.forEach((d, i) => {
+      const yOff = i * (barH * 2 + 8);
+
+      // Label
+      g.append('text').attr('x', -6).attr('y', yOff + barH)
+        .attr('text-anchor', 'end').attr('dominant-baseline', 'central')
+        .attr('fill', 'var(--text2)').attr('font-size', '10px').attr('font-weight', '600')
+        .text(d.label);
+
+      // Greedy bar
+      if (hasGreedy) {
+        g.append('rect').attr('class', 'util-bar')
+          .attr('x', 0).attr('y', yOff).attr('height', barH - 2)
+          .attr('fill', '#3B82F6').attr('opacity', 0.8).attr('rx', 3)
+          .attr('width', 0)
+          .transition().duration(600).delay(i * 40)
+          .attr('width', x(d.greedy));
+        g.append('text').attr('x', x(d.greedy) + 4).attr('y', yOff + (barH - 2) / 2)
+          .attr('dominant-baseline', 'central').attr('fill', '#3B82F6').attr('font-size', '9px').attr('font-weight', '600')
+          .attr('opacity', 0).text(d.greedy + '%')
+          .transition().delay(600 + i * 40).duration(200).attr('opacity', 1);
+      }
+
+      // ILP bar
+      if (hasILP) {
+        g.append('rect').attr('class', 'util-bar')
+          .attr('x', 0).attr('y', yOff + barH).attr('height', barH - 2)
+          .attr('fill', '#7c3aed').attr('opacity', 0.8).attr('rx', 3)
+          .attr('width', 0)
+          .transition().duration(600).delay(i * 40 + 200)
+          .attr('width', x(d.ilp));
+        g.append('text').attr('x', x(d.ilp) + 4).attr('y', yOff + barH + (barH - 2) / 2)
+          .attr('dominant-baseline', 'central').attr('fill', '#7c3aed').attr('font-size', '9px').attr('font-weight', '600')
+          .attr('opacity', 0).text(d.ilp + '%')
+          .transition().delay(800 + i * 40).duration(200).attr('opacity', 1);
+      }
+    });
+
+    // Legend
+    const leg = svg.append('g').attr('transform', `translate(${margin.left + 10},${margin.top - 12})`);
+    if (hasGreedy) {
+      leg.append('rect').attr('width', 12).attr('height', 12).attr('fill', '#3B82F6').attr('rx', 2);
+      leg.append('text').attr('x', 16).attr('y', 10).attr('fill', 'var(--text2)').attr('font-size', '10px').text('Greedy');
+    }
+    if (hasILP) {
+      const off = hasGreedy ? 80 : 0;
+      leg.append('rect').attr('x', off).attr('width', 12).attr('height', 12).attr('fill', '#7c3aed').attr('rx', 2);
+      leg.append('text').attr('x', off + 16).attr('y', 10).attr('fill', 'var(--text2)').attr('font-size', '10px').text('ILP');
+    }
+  }
+
+  /* ═══════ Render All Visualizations ═══════ */
+  function renderAll() {
+    renderStats();
+    renderComparison();
+    renderTopo(currentModel);
+    renderDelayComparison();
+    renderUtilComparison();
+
+    // Gantt
+    const ganttCard = document.getElementById('ganttCard');
+    ganttCard.style.display = (greedyResult || ilpResult) ? '' : 'none';
+
+    const gSection = document.getElementById('ganttGreedySection');
+    const iSection = document.getElementById('ganttILPSection');
+    gSection.style.display = greedyResult ? '' : 'none';
+    iSection.style.display = ilpResult ? '' : 'none';
+
+    if (greedyResult) {
+      renderGCL(currentModel, greedyResult, {
+        containerId: 'ganttGreedy', legendId: 'ganttGreedyLegend',
+        beColor: '#e2e8f0', beBorder: 'rgba(100,116,139,0.15)'
+      });
+    }
+    if (ilpResult) {
+      renderGCL(currentModel, ilpResult, {
+        containerId: 'ganttILP', legendId: 'ganttILPLegend',
+        beColor: '#e2e8f0', beBorder: 'rgba(100,116,139,0.15)'
+      });
+    }
+
+    // Switch GCL + Packet table (use ILP or Greedy)
+    const bestResult = ilpResult || greedyResult;
+    if (bestResult) {
+      document.getElementById('switchGclCard').style.display = '';
+      renderSwitchGCL(currentModel, bestResult, {
+        containerId: 'switchGclArea',
+        switches: ROII_REAL_SWITCHES.map(s => ({ ...s, color: ROII_REAL_NODE_COLORS[s.id]?.stroke || '#3B82F6' }))
+      });
+
+      document.getElementById('pktCard').style.display = '';
+      renderTable(bestResult, { containerId: 'pktBody' });
+
+      // Update card titles
+      const label = ilpResult ? 'ILP' : 'Greedy';
+      document.getElementById('toggleSwGcl').innerHTML = `Per-Switch GCL Detail (${label}) <span class="arrow">&#9654;</span>`;
+      document.getElementById('togglePkt').innerHTML = `Packet Schedule Detail (${label}) <span class="arrow">&#9654;</span>`;
+    }
+  }
+
+  /* ═══════ Solve: Greedy ═══════ */
+  async function runGreedy() {
+    if (solving) return;
+    solving = true;
+    setStatus('<span class="spinner-sm"></span> Solving with <strong>Greedy</strong>...');
+    currentModel = buildModel();
+    try {
+      greedyResult = solveGreedy(currentModel);
+      const s = getE2EStats(greedyResult);
+      setStatus(`<strong>Greedy</strong> &nbsp;|&nbsp; Pkts: ${greedyResult.packetRows.length} &nbsp;|&nbsp; Worst E2E: ${round3(s.worst)}\u00b5s &nbsp;|&nbsp; Util: ${greedyResult.worst_util_percent}% &nbsp;|&nbsp; ${s.allOk ? '<span style="color:var(--green);font-weight:700;">ALL OK</span>' : '<span style="color:var(--red);font-weight:700;">MISS(' + s.missCount + ')</span>'}`);
+      renderAll();
+    } catch (e) {
+      setStatus(`<span style="color:var(--red);">Greedy Error: ${e.message}</span>`);
+    }
+    solving = false;
+  }
+
+  /* ═══════ Solve: ILP ═══════ */
+  async function runILP() {
+    if (solving) return;
+    solving = true;
+    setStatus('<span class="spinner-sm"></span> Loading GLPK...');
+    const glpk = await ensureGLPK();
+    if (!glpk) { setStatus('<span style="color:var(--red);">GLPK failed to load</span>'); solving = false; return; }
+
+    currentModel = buildModel();
+    const tmlim = parseInt(document.getElementById('pTmlim').value) || 30;
+
+    setStatus('<span class="spinner-sm"></span> Solving with <strong>ILP</strong>...');
+    try {
+      ilpResult = await solveILP(currentModel, glpk, {
+        tmlim,
+        onProgress: info => {
+          if (info.phase === 'building') {
+            setStatus(`<span class="spinner-sm"></span> <strong>ILP</strong> \u2014 Building: ${info.pkts} pkts from ${info.flows} flows...`);
+          } else if (info.phase === 'solving') {
+            const p = info.pruning || {};
+            let detail = `${info.bins} bins, ${info.constraints} cstr`;
+            if (p.window || p.dominance || p.symmetry) detail += ` (pruned: ${p.window||0}w, ${p.dominance||0}d, ${p.symmetry||0}s)`;
+            setStatus(`<span class="spinner-sm"></span> <strong>ILP</strong> \u2014 GLPK: ${info.pkts} pkts, ${detail}...`);
+          }
+        }
+      });
+      const s = getE2EStats(ilpResult);
+      let statusHtml = `<strong>ILP</strong> &nbsp;|&nbsp; Pkts: ${ilpResult.packetRows.length} &nbsp;|&nbsp; Worst E2E: ${round3(s.worst)}\u00b5s &nbsp;|&nbsp; Util: ${ilpResult.worst_util_percent}%`;
+      if (ilpResult.stats) statusHtml += ` &nbsp;|&nbsp; ${ilpResult.stats.binaries} bins, ${Math.round(ilpResult.stats.runtime_ms)}ms`;
+      statusHtml += ` &nbsp;|&nbsp; ${s.allOk ? '<span style="color:var(--green);font-weight:700;">ALL OK</span>' : '<span style="color:var(--red);font-weight:700;">MISS(' + s.missCount + ')</span>'}`;
+      if (ilpResult.method?.includes('optimal')) statusHtml += ' <span style="color:var(--green);">\u2713 optimal</span>';
+      setStatus(statusHtml);
+      renderAll();
+    } catch (e) {
+      console.error(e);
+      setStatus(`<span style="color:var(--red);">ILP Error: ${e.message}</span> \u2014 Try Greedy instead`);
+    }
+    solving = false;
+  }
+
+  /* ═══════ Solve: Compare Both ═══════ */
+  async function runCompare() {
+    if (solving) return;
+    solving = true;
+
+    // Greedy first
+    currentModel = buildModel();
+    setStatus('<span class="spinner-sm"></span> <strong>Compare</strong>: Running Greedy...');
+    try { greedyResult = solveGreedy(currentModel); } catch (e) { greedyResult = null; }
+    renderAll();
+
+    // Then ILP
+    const glpk = await ensureGLPK();
+    if (!glpk) { setStatus('Greedy done. <span style="color:var(--red);">GLPK failed</span>'); solving = false; return; }
+
+    const tmlim = parseInt(document.getElementById('pTmlim').value) || 30;
+    setStatus('<span class="spinner-sm"></span> <strong>Compare</strong>: Running ILP...');
+
+    try {
+      ilpResult = await solveILP(currentModel, glpk, {
+        tmlim,
+        onProgress: info => {
+          if (info.phase === 'solving') {
+            setStatus(`<span class="spinner-sm"></span> <strong>Compare</strong>: ILP \u2014 ${info.bins} bins, ${info.constraints} cstr...`);
+          }
+        }
+      });
+    } catch (e) {
+      console.error('ILP failed in compare:', e);
+      ilpResult = null;
+    }
+
+    // Status summary
+    const gs = greedyResult ? getE2EStats(greedyResult) : null;
+    const is = ilpResult ? getE2EStats(ilpResult) : null;
+    let s = '<strong>Compare</strong>';
+    if (gs) s += ` &nbsp;|&nbsp; Greedy: ${round3(gs.worst)}\u00b5s`;
+    if (is) s += ` &nbsp;|&nbsp; ILP: ${round3(is.worst)}\u00b5s`;
+    if (gs && is) {
+      const imp = round3((gs.worst - is.worst) / gs.worst * 100);
+      s += ` &nbsp;|&nbsp; <span style="color:var(--green);font-weight:700;">ILP ${imp > 0 ? '-' : '+'}${Math.abs(imp)}% E2E</span>`;
+    }
+    if (!ilpResult) s += ' &nbsp;|&nbsp; <span style="color:var(--orange);">ILP failed</span>';
+    const fail = document.getElementById('pFail').value;
+    if (fail) s += ' &nbsp;|&nbsp; <span style="color:var(--red);">FAILOVER</span>';
+    setStatus(s);
+    renderAll();
+    solving = false;
+  }
+
+  /* ═══════ Events ═══════ */
+  document.getElementById('btnGreedy').addEventListener('click', runGreedy);
+  document.getElementById('btnILP').addEventListener('click', runILP);
+  document.getElementById('btnCompare').addEventListener('click', runCompare);
+
+  document.getElementById('pFail').addEventListener('change', () => { renderFlowTable(); runCompare(); });
+
+  document.querySelectorAll('.btn-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('pLoadScale').value = btn.dataset.load;
+      document.getElementById('pDeadline').value = btn.dataset.deadline;
+      document.getElementById('pTmlim').value = btn.dataset.tmlim;
+      renderFlowTable();
+      runCompare();
+    });
+  });
+
+  // Param changes → update flow table
+  ['pCycle', 'pGuard', 'pSpeed', 'pDelay', 'pLoadScale', 'pDeadline'].forEach(id => {
+    document.getElementById(id).addEventListener('change', renderFlowTable);
+  });
+
+  /* ═══════ Init ═══════ */
+  renderFlowTable();
+  // Run greedy immediately, then auto-compare when GLPK loads
+  currentModel = buildModel();
+  setStatus('<span class="spinner-sm"></span> Running Greedy...');
+  try {
+    greedyResult = solveGreedy(currentModel);
+    renderAll();
+    const gs = getE2EStats(greedyResult);
+    setStatus(`<strong>Greedy</strong>: ${round3(gs.worst)}\u00b5s worst E2E | Loading GLPK for ILP...`);
+  } catch (e) {
+    setStatus('<span style="color:var(--red);">Greedy init error</span>');
+  }
+
+  // Auto-ILP when GLPK is ready
+  ensureGLPK().then(async (glpk) => {
+    if (!glpk) return;
+    const tmlim = parseInt(document.getElementById('pTmlim').value) || 30;
+    setStatus('<span class="spinner-sm"></span> Auto-comparing: ILP running...');
+    try {
+      ilpResult = await solveILP(currentModel, glpk, { tmlim });
+      const is = getE2EStats(ilpResult);
+      const gs = getE2EStats(greedyResult);
+      const imp = round3((gs.worst - is.worst) / gs.worst * 100);
+      setStatus(`<strong>Auto-Compare</strong> &nbsp;|&nbsp; Greedy: ${round3(gs.worst)}\u00b5s &nbsp;|&nbsp; ILP: ${round3(is.worst)}\u00b5s &nbsp;|&nbsp; <span style="color:var(--green);font-weight:700;">ILP ${imp > 0 ? '-' : '+'}${Math.abs(imp)}% E2E</span>`);
+    } catch (e) {
+      setStatus(`Greedy done. <span style="color:var(--orange);">ILP: ${e.message}</span>`);
+    }
+    renderAll();
+  });
+  </script>
+</body>
+</html>
