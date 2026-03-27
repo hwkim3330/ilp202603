@@ -21,7 +21,8 @@ const FLOW_COLOR_MAP = {
 };
 
 export function flowColor(flowId) {
-  return FLOW_COLOR_MAP[flowId] || FLOW_COLOR_MAP[flowId.toLowerCase()] || "#7b61ff";
+  const fid = flowId.split("#")[0];
+  return FLOW_COLOR_MAP[fid] || FLOW_COLOR_MAP[fid.toLowerCase()] || "#7b61ff";
 }
 
 export function flowType(flowId) {
