@@ -1272,14 +1272,16 @@ export function renderGCL(model, result, opts = {}) {
     // When zoomed, only show entries within visible range
     const visibleEntries = isZoomed ? entries.filter(e => e.start_us < xMax) : entries;
 
+    const isIdle = n => n.includes("non-ST") || n.includes("all-gates-closed");
+
     barG.selectAll("rect.gcl-bar")
       .data(visibleEntries).enter().append("rect")
       .attr("class", d => {
-        const fid = d.note.includes("guard") || d.note.includes("non-ST") ? '' : d.note.split("#")[0];
+        const fid = d.note.includes("guard") || isIdle(d.note) ? '' : d.note.split("#")[0];
         return `gcl-bar ${fid ? 'flow-bar' : ''}`
       })
       .attr("data-flow", d => {
-        if (d.note.includes("guard") || d.note.includes("non-ST")) return '';
+        if (d.note.includes("guard") || isIdle(d.note)) return '';
         return d.note.split("#")[0];
       })
       .attr("x", d => x(d.start_us))
@@ -1288,22 +1290,23 @@ export function renderGCL(model, result, opts = {}) {
       .attr("height", y.bandwidth())
       .attr("fill", d => {
         if (d.note.includes("guard")) return "url(#guardHatch)";
-        if (d.note.includes("non-ST")) return beColor;
+        if (isIdle(d.note)) return beColor;
         return colorFn(d.note);
       })
       .attr("stroke", d => {
         if (d.note.includes("guard")) return "#e8a317";
-        if (d.note.includes("non-ST")) return beBorder;
+        if (isIdle(d.note)) return beBorder;
         return "rgba(255,255,255,0.4)";
       })
-      .attr("stroke-width", d => d.note.includes("non-ST") ? 0.5 : 0.8)
-      .attr("opacity", d => d.note.includes("non-ST") ? 0.3 : 0.9)
+      .attr("stroke-width", d => isIdle(d.note) ? 0.5 : 0.8)
+      .attr("opacity", d => isIdle(d.note) ? 0.15 : 0.9)
       .attr("rx", 3)
-      .attr("filter", d => d.note.includes("non-ST") || d.note.includes("guard") ? "none" : "url(#barShadow)")
+      .attr("filter", d => isIdle(d.note) || d.note.includes("guard") ? "none" : "url(#barShadow)")
       .on("mouseover", function(evt, d) {
+        if (isIdle(d.note)) return;
         const fid = d.note.split("#")[0];
         // Cross-flow highlight: dim all, brighten same flow
-        if (!d.note.includes("non-ST") && !d.note.includes("guard")) {
+        if (!d.note.includes("guard")) {
           g.selectAll(".flow-bar").attr("opacity", function() {
             return d3.select(this).attr("data-flow") === fid ? 1.0 : 0.25;
           });
@@ -1333,7 +1336,7 @@ export function renderGCL(model, result, opts = {}) {
       .attr("width", d => {
         const endClamped = Math.min(d.start_us + d.duration_us, xMax);
         const w = x(endClamped) - x(d.start_us);
-        return d.note.includes("non-ST") ? Math.max(w, 0) : Math.max(w, 3);
+        return isIdle(d.note) ? Math.max(w, 0) : Math.max(w, 3);
       });
 
     // Gate transition markers — small ticks at flow/guard boundaries

@@ -314,7 +314,7 @@
     = await import('./js/roii-real-data.js' + _v);
   const {
     solveGreedy, solveILP, initTooltip, flowColor, flowType, getFlowColorsHex,
-    renderGCL, renderTopology, renderTable, renderSwitchGCL, showTip, hideTip
+    renderGCL, renderTable, renderSwitchGCL, showTip, hideTip
   } = await import('./js/ilp-core.js' + _v);
 
   initTooltip();
@@ -450,13 +450,158 @@
 
   /* ═══════ Render: Topology ═══════ */
   function renderTopo() {
-    const c = document.getElementById('topoContainer');
-    const r = ilpResult || greedyResult;
-    if (!r) { c.innerHTML=''; return; }
-    renderTopology(currentModel, r, {
-      containerId:'topoContainer', nodePositions: getRealPositions(c.clientWidth, 280),
-      nodeColors: ROII_REAL_NODE_COLORS, height: 280
-    });
+    const container = document.getElementById('topoContainer');
+    const result = ilpResult || greedyResult;
+    container.innerHTML = '';
+    if (!result || !currentModel) return;
+
+    const W = container.clientWidth || 600;
+    const H = 280;
+    container.style.height = H + 'px';
+    const pos = getRealPositions(W, H);
+
+    const svg = d3.select(container).append('svg')
+      .attr('viewBox', `0 0 ${W} ${H}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet')
+      .style('width', '100%').style('height', '100%');
+
+    const topoBase = JSON.parse(JSON.stringify(ROII_REAL_8TC));
+    const backboneIds = new Set(Object.keys(BACKBONE_REVERSE));
+    const failVal = document.getElementById('pFail').value;
+    const failedSet = new Set();
+    if (failVal) { failedSet.add(failVal); const rv = BACKBONE_REVERSE[failVal]; if (rv) failedSet.add(rv); }
+    const drawnBi = new Set();
+    const tooltip = document.getElementById('tooltip');
+
+    // Per-link utilization
+    const linkUtil = {};
+    if (result.gcl && result.gcl.links) {
+      for (const [lid, ld] of Object.entries(result.gcl.links)) {
+        let used = 0;
+        for (const e of (ld.entries || [])) {
+          if (!e.note.includes('all-gates-closed') && !e.note.includes('non-ST')) used += e.duration_us;
+        }
+        linkUtil[lid] = round3(used / currentModel.cycle_time_us * 100);
+      }
+    }
+
+    // Per-node flow info
+    const nodeFlows = {};
+    for (const f of currentModel.flows) {
+      if (!nodeFlows[f.src]) nodeFlows[f.src] = [];
+      nodeFlows[f.src].push(f);
+      if (!nodeFlows[f.dst]) nodeFlows[f.dst] = [];
+    }
+
+    // Draw links
+    for (const lnk of topoBase.links) {
+      const p1 = pos[lnk.from], p2 = pos[lnk.to];
+      if (!p1 || !p2) continue;
+      const isBackbone = backboneIds.has(lnk.id);
+      if (isBackbone) {
+        const biKey = [lnk.from, lnk.to].sort().join('|');
+        if (drawnBi.has(biKey)) continue;
+        drawnBi.add(biKey);
+      }
+      const isFailed = failedSet.has(lnk.id);
+      const isGateway = lnk.id === 'l_swrear_acu';
+      let color, width, dash;
+      if (isFailed) { color = 'rgba(220,38,38,0.7)'; width = 4; dash = '8,5'; }
+      else if (isBackbone) { color = 'rgba(59,130,246,0.4)'; width = 3; dash = 'none'; }
+      else if (isGateway) { color = 'rgba(6,182,212,0.55)'; width = 3.5; dash = 'none'; }
+      else { color = 'rgba(59,130,246,0.2)'; width = 2; dash = 'none'; }
+
+      const baseLine = svg.append('line')
+        .attr('x1', p1.x).attr('y1', p1.y).attr('x2', p2.x).attr('y2', p2.y)
+        .attr('stroke', color).attr('stroke-width', width);
+      if (dash !== 'none') baseLine.attr('stroke-dasharray', dash);
+
+      if (isFailed) {
+        const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+        svg.append('circle').attr('cx', mx).attr('cy', my).attr('r', 14)
+          .attr('fill', 'rgba(220,38,38,0.12)').attr('stroke', '#dc2626').attr('stroke-width', 2);
+        svg.append('text').attr('x', mx).attr('y', my + 1)
+          .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+          .attr('font-size', '16px').attr('font-weight', '900').attr('fill', '#dc2626').text('\u2716');
+      }
+
+      // Hover hitbox
+      const util1 = linkUtil[lnk.id] || 0;
+      const revLnk = isBackbone ? BACKBONE_REVERSE[lnk.id] : null;
+      const util2 = revLnk ? (linkUtil[revLnk] || 0) : 0;
+      const linkType = isFailed ? 'FAILED' : isBackbone ? 'Backbone' : isGateway ? 'Gateway' : 'Sensor Link';
+
+      svg.append('line')
+        .attr('x1', p1.x).attr('y1', p1.y).attr('x2', p2.x).attr('y2', p2.y)
+        .attr('stroke', 'transparent').attr('stroke-width', 14)
+        .style('cursor', 'pointer')
+        .on('mouseover', () => {
+          baseLine.attr('stroke-width', width + 3).attr('stroke', isFailed ? '#dc2626' : '#3B82F6');
+          let html = `<div class="tt-title">${lnk.from} \u2194 ${lnk.to}</div>`;
+          html += `<div class="tt-row"><span class="tt-k">Type</span><span class="tt-v">${linkType}</span></div>`;
+          html += `<div class="tt-row"><span class="tt-k">Speed</span><span class="tt-v">${lnk.rate_mbps} Mbps</span></div>`;
+          if (!isFailed) {
+            html += `<div class="tt-row"><span class="tt-k">${lnk.from}\u2192${lnk.to}</span><span class="tt-v">${util1}%</span></div>`;
+            if (isBackbone) html += `<div class="tt-row"><span class="tt-k">${lnk.to}\u2192${lnk.from}</span><span class="tt-v">${util2}%</span></div>`;
+          }
+          tooltip.innerHTML = html;
+          tooltip.classList.add('show');
+        })
+        .on('mousemove', ev => { tooltip.style.left = (ev.clientX+14)+'px'; tooltip.style.top = (ev.clientY-20)+'px'; })
+        .on('mouseout', () => {
+          baseLine.attr('stroke-width', width).attr('stroke', color);
+          tooltip.classList.remove('show');
+        });
+    }
+
+    // Draw nodes
+    for (const node of topoBase.nodes) {
+      const p = pos[node.id];
+      if (!p) continue;
+      const nc = ROII_REAL_NODE_COLORS[node.id] || { fill: '#e2e8f0', stroke: '#94a3b8', shortLabel: node.id, label: node.id };
+      const isSwitch = node.type === 'switch';
+      const isACU = node.id === 'ACU_IT';
+      const isLidar = node.id.startsWith('LIDAR');
+      const r = isACU ? 24 : isSwitch ? 22 : isLidar ? 20 : 17;
+
+      const circle = svg.append('circle').attr('cx', p.x).attr('cy', p.y).attr('r', r)
+        .attr('fill', nc.fill).attr('stroke', nc.stroke).attr('stroke-width', 2);
+      svg.append('text').attr('x', p.x).attr('y', p.y + 1)
+        .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+        .attr('font-size', '11px').attr('font-weight', '800').attr('fill', nc.stroke)
+        .style('pointer-events', 'none').text(nc.shortLabel);
+      svg.append('text').attr('x', p.x).attr('y', p.y + r + 13)
+        .attr('text-anchor', 'middle').attr('font-size', '10px').attr('font-weight', '700')
+        .attr('fill', '#334155').style('pointer-events', 'none').text(nc.label || node.id);
+
+      // Node hover
+      const flows = (nodeFlows[node.id] || []).filter(f => f.src === node.id);
+      svg.append('circle').attr('cx', p.x).attr('cy', p.y).attr('r', r + 4)
+        .attr('fill', 'transparent').style('cursor', 'pointer')
+        .on('mouseover', () => {
+          circle.attr('stroke-width', 4).attr('r', r + 3);
+          let html = `<div class="tt-title">${nc.label || node.id}</div>`;
+          html += `<div class="tt-row"><span class="tt-k">Type</span><span class="tt-v">${isSwitch ? 'Switch (LAN9692)' : isACU ? 'ACU (Processing)' : isLidar ? 'LiDAR Sensor' : 'Radar Sensor'}</span></div>`;
+          if (flows.length) {
+            html += `<div style="margin-top:4px;border-top:1px solid rgba(59,130,246,0.15);padding-top:4px;">`;
+            for (const f of flows) {
+              const tx = round3((f.payload_bytes + 38) * 8 / (getP('pSpeed') || 1000));
+              const clr = flowColor(f.id) || '#7b61ff';
+              html += `<div class="tt-row"><span class="tt-k" style="color:${clr};">\u25CF ${f.id.replace('f_','')}</span><span class="tt-v">${f.payload_bytes}B (${tx}\u00b5s)</span></div>`;
+            }
+            html += `</div>`;
+          } else if (isACU) {
+            html += `<div class="tt-row"><span class="tt-k">Role</span><span class="tt-v">All flows dst</span></div>`;
+          }
+          tooltip.innerHTML = html;
+          tooltip.classList.add('show');
+        })
+        .on('mousemove', ev => { tooltip.style.left = (ev.clientX+14)+'px'; tooltip.style.top = (ev.clientY-20)+'px'; })
+        .on('mouseout', () => {
+          circle.attr('stroke-width', 2).attr('r', r);
+          tooltip.classList.remove('show');
+        });
+    }
   }
 
   /* ═══════ Render: Delay Comparison ═══════ */
