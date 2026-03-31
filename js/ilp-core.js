@@ -15,9 +15,9 @@ const FLOW_COLOR_MAP = {
   "f_radar_rrc": "#171717",  // 검정
   "f_lidar_r":   "#6b7280",  // 회색
   "f_radar_r":   "#e11d48",  // 로즈
-  "f_bg_small":  "#a3a3a3",  // 밝은회색
+  "f_bg_small":  "#ec4899",  // 핑크
   "f_bg_med":    "#737373",  // 중간회색
-  "f_bg_large":  "#525252",  // 어두운회색
+  "f_bg_large":  "#f472b6",  // 연핑크
 };
 
 export function flowColor(flowId) {
