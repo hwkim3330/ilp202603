@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>8-TC Grouped View &mdash; KETI</title>
+  <title>8-TC Sorted View &mdash; KETI</title>
   <style>
     :root {
       --bg-page: #f1f5f9;   --bg-card: #ffffff;    --bg-hover: #f8fafc;
@@ -243,7 +243,7 @@
   <div class="top-bar">
     <div class="logo">
       <img src="keti.png" alt="KETI" onerror="this.style.display='none'">
-      <h1>8-TC Grouped View</h1>
+      <h1>8-TC Sorted View</h1>
     </div>
     <div class="tsep"></div>
     <label>Speed (Mbps)<input type="number" id="pSpeed" value="1000" min="100" step="100"></label>
@@ -399,6 +399,19 @@
       }
     }
     return routes;
+  }
+
+  /* ═══════ Click-based Selection State ═══════ */
+  let selectedFlowId = null;
+
+  function toggleFlowHighlight(flowId) {
+    if (selectedFlowId === flowId) {
+      selectedFlowId = null;
+      clearHighlight();
+    } else {
+      selectedFlowId = flowId;
+      highlightFlow(flowId);
+    }
   }
 
   /* ═══════ Unified Highlight ═══════ */
@@ -652,6 +665,7 @@
   async function solve() {
     if (solving) return;
     solving = true;
+    selectedFlowId = null;
     const btn = document.getElementById('btnSolve');
     btn.disabled = true;
 
@@ -764,7 +778,8 @@
     const svg = d3.select(container).append('svg')
       .attr('viewBox', `0 0 ${W} ${H}`)
       .attr('preserveAspectRatio', 'xMidYMid meet')
-      .style('width', '100%').style('height', '100%');
+      .style('width', '100%').style('height', '100%')
+      .on('click', () => { if (selectedFlowId) { selectedFlowId = null; clearHighlight(); } clearBoardGCLHighlight(); });
 
     const topoBase = JSON.parse(JSON.stringify(ROII_REAL_8TC));
     const backboneIds = new Set(Object.keys(BACKBONE_REVERSE));
@@ -835,6 +850,7 @@
         .attr('x1', p1.x).attr('y1', p1.y).attr('x2', p2.x).attr('y2', p2.y)
         .attr('stroke', 'transparent').attr('stroke-width', 14)
         .style('cursor', 'pointer')
+        .on('click', ev => ev.stopPropagation())
         .on('mouseover', () => {
           baseLine.attr('stroke-width', width + 2).attr('stroke', isFailed ? '#ef4444' : '#3b82f6');
           let html = `<div class="tt-title">${lnk.from} \u2194 ${lnk.to}</div>`;
@@ -888,13 +904,18 @@
         .attr('text-anchor', 'middle').attr('font-size', '9px').attr('font-weight', '700')
         .attr('fill', '#475569').style('pointer-events', 'none').text(nc.label || node.id);
 
-      // Hover hitbox — simplified tooltip
+      // Click hitbox for highlight + hover for tooltip
       svg.append('circle').attr('cx', p.x).attr('cy', p.y).attr('r', r + 4)
         .attr('fill', 'transparent').style('cursor', 'pointer')
+        .on('click', ev => {
+          ev.stopPropagation();
+          if (sensorFid) toggleFlowHighlight(sensorFid);
+          else if (isSwitch) {
+            if (selectedFlowId) { selectedFlowId = null; clearHighlight(); }
+            highlightBoardGCLSwitch(node.id);
+          }
+        })
         .on('mouseover', () => {
-          if (sensorFid) highlightFlow(sensorFid);
-          if (isSwitch) highlightBoardGCLSwitch(node.id);
-
           let html = `<div class="tt-title">${nc.label || node.id}</div>`;
           html += `<div class="tt-row"><span class="tt-k">Type</span><span class="tt-v">${isSwitch ? 'Switch' : isACU ? 'ACU' : isLidar ? 'LiDAR' : 'Radar'}</span></div>`;
           if (sensorFid) {
@@ -905,11 +926,7 @@
           tooltip.classList.add('show');
         })
         .on('mousemove', ev => { tooltip.style.left = (ev.clientX+14)+'px'; tooltip.style.top = (ev.clientY-20)+'px'; })
-        .on('mouseout', () => {
-          if (sensorFid) clearHighlight();
-          if (isSwitch) clearBoardGCLHighlight();
-          tooltip.classList.remove('show');
-        });
+        .on('mouseout', () => { tooltip.classList.remove('show'); });
     }
 
     // Draw extra flow nodes — flows from switches (BG) or custom flows not in sensor map
@@ -952,12 +969,11 @@
 
       svg.append('circle').attr('cx', bx).attr('cy', by).attr('r', br + 4)
         .attr('fill', 'transparent').style('cursor', 'pointer')
-        .on('mouseenter', () => highlightFlow(ef.id))
-        .on('mouseleave', () => clearHighlight());
+        .on('click', ev => { ev.stopPropagation(); toggleFlowHighlight(ef.id); });
     }
   }
 
-  /* ═══════ Gantt (grouped by destination) ═══════ */
+  /* ═══════ Gantt (destination-sorted, flat) ═══════ */
   function renderGantt(model, result) {
     const container = document.getElementById('ganttContainer');
     container.innerHTML = '';
@@ -970,45 +986,23 @@
     });
     if (!activeLinks.length) return;
 
-    // Group by destination
+    // Sort by destination order, then by source
     const destOrder = ['SW_FL', 'SW_FR', 'SW_REAR', 'ACU_IT'];
-    const groups = {};
-    for (const lnk of activeLinks) {
-      if (!groups[lnk.to]) groups[lnk.to] = [];
-      groups[lnk.to].push(lnk);
-    }
-    const destColors = {
-      SW_FL: { bg: 'rgba(59,130,246,0.05)', text: '#3b82f6', border: 'rgba(59,130,246,0.15)' },
-      SW_FR: { bg: 'rgba(6,182,212,0.05)', text: '#06b6d4', border: 'rgba(6,182,212,0.15)' },
-      SW_REAR: { bg: 'rgba(245,158,11,0.05)', text: '#d97706', border: 'rgba(245,158,11,0.15)' },
-      ACU_IT: { bg: 'rgba(239,68,68,0.05)', text: '#ef4444', border: 'rgba(239,68,68,0.15)' },
-    };
-
-    // Build rows with group headers
-    const rowH = 26, groupH = 18, groupGap = 5;
-    const rows = [];
-    let currentY = 0;
-    for (const dest of destOrder) {
-      if (!groups[dest] || !groups[dest].length) continue;
-      rows.push({ type: 'group', dest, y: currentY, h: groupH });
-      currentY += groupH;
-      for (const lnk of groups[dest]) {
-        rows.push({ type: 'link', dest, lnk, y: currentY, h: rowH });
-        currentY += rowH;
-      }
-      currentY += groupGap;
-    }
+    const destRank = Object.fromEntries(destOrder.map((d, i) => [d, i]));
+    activeLinks.sort((a, b) => (destRank[a.to] ?? 99) - (destRank[b.to] ?? 99) || a.from.localeCompare(b.from));
 
     const W = container.clientWidth || 700;
-    const margin = { top: 20, right: 48, bottom: 30, left: 110 };
+    const margin = { top: 20, right: 48, bottom: 30, left: 105 };
+    const rowH = 28;
     const innerW = W - margin.left - margin.right;
-    const innerH = currentY;
+    const innerH = activeLinks.length * rowH;
     const H = margin.top + innerH + margin.bottom;
 
     const svg = d3.select(container).append('svg')
       .attr('viewBox', `0 0 ${W} ${H}`)
       .attr('preserveAspectRatio', 'xMidYMid meet')
-      .style('width', '100%');
+      .style('width', '100%')
+      .on('click', () => { if (selectedFlowId) { selectedFlowId = null; clearHighlight(); } });
 
     const defs = svg.append('defs');
     const gp = defs.append('pattern').attr('id', 'guardH')
@@ -1020,139 +1014,108 @@
 
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
     const x = d3.scaleLinear().domain([0, model.cycle_time_us]).range([0, innerW]);
+    const y = d3.scaleBand().domain(activeLinks.map(l => l.id)).range([0, innerH]).padding(0.12);
 
-    // Grid
     g.append('g').attr('class', 'gcl-grid')
       .selectAll('line').data(x.ticks(8)).enter().append('line')
       .attr('x1', d => x(d)).attr('x2', d => x(d)).attr('y1', 0).attr('y2', innerH);
 
-    // X axis
     g.append('g').attr('class', 'gcl-axis').attr('transform', `translate(0,${innerH})`)
       .call(d3.axisBottom(x).ticks(8).tickFormat(d => d + '\u00b5s'))
       .selectAll('text').attr('font-size', '10px');
 
+    g.append('g').attr('class', 'gcl-axis')
+      .call(d3.axisLeft(y).tickSize(0).tickPadding(6))
+      .selectAll('text').text(d => {
+        const lnk = model.links.find(l => l.id === d);
+        return lnk ? `${lnk.from} \u2192 ${lnk.to}` : d;
+      }).attr('font-size', '9.5px');
+
+    g.selectAll('.rbg').data(activeLinks).enter().append('rect')
+      .attr('x', 0).attr('y', d => y(d.id)).attr('width', innerW).attr('height', y.bandwidth())
+      .attr('fill', (_, i) => i % 2 === 0 ? 'rgba(59,130,246,0.02)' : 'transparent').attr('rx', 2);
+
     const tooltip = document.getElementById('tooltip');
-    const DEST_LABELS = { SW_FL: 'Front-L', SW_FR: 'Front-R', SW_REAR: 'Rear', ACU_IT: 'ACU' };
+    for (const lnk of activeLinks) {
+      const entries = result.gcl.links[lnk.id]?.entries || [];
+      let used = 0;
+      for (const e of entries) {
+        const xPos = x(e.start_us); const actualW = x(e.end_us) - xPos;
+        const yPos = y(lnk.id); if (yPos === undefined) continue;
+        const bw = y.bandwidth();
 
-    for (const row of rows) {
-      if (row.type === 'group') {
-        const dc = destColors[row.dest] || destColors.ACU_IT;
-        // Find group extent
-        const groupLinks = rows.filter(r => r.type === 'link' && r.dest === row.dest);
-        const lastLink = groupLinks[groupLinks.length - 1];
-        const groupEndY = lastLink ? lastLink.y + lastLink.h : row.y + row.h;
-
-        // Group background band
-        g.append('rect')
-          .attr('x', -margin.left + 2).attr('y', row.y)
-          .attr('width', innerW + margin.left - 4).attr('height', groupEndY - row.y + 1)
-          .attr('fill', dc.bg).attr('rx', 4)
-          .attr('stroke', dc.border).attr('stroke-width', 1);
-
-        // Group label
-        g.append('text')
-          .attr('x', -margin.left + 8).attr('y', row.y + row.h / 2 + 1)
-          .attr('dominant-baseline', 'central')
-          .attr('font-size', '10px').attr('font-weight', '800')
-          .attr('fill', dc.text)
-          .text('\u2192 ' + (DEST_LABELS[row.dest] || row.dest));
-      } else {
-        const lnk = row.lnk;
-        const yPos = row.y + 2;
-        const bw = row.h - 4;
-
-        // Link source label
-        const srcLabel = lnk.from.replace('LIDAR_', 'L:').replace('RADAR_', 'R:').replace('SW_', 'SW:');
-        g.append('text')
-          .attr('x', -8).attr('y', yPos + bw / 2)
-          .attr('text-anchor', 'end').attr('dominant-baseline', 'central')
-          .attr('font-size', '9px').attr('fill', '#475569').attr('font-weight', '600')
-          .text(srcLabel);
-
-        // Draw GCL entries
-        const entries = result.gcl.links[lnk.id]?.entries || [];
-        let used = 0;
-        for (const e of entries) {
-          const xPos = x(e.start_us);
-          const actualW = x(e.end_us) - xPos;
-
-          if (e.note === 'guard') {
-            const guardEl = g.append('rect').attr('x', xPos).attr('y', yPos)
-              .attr('width', Math.max(actualW, 1)).attr('height', bw)
-              .attr('fill', 'url(#guardH)').attr('opacity', 0.7).attr('rx', 2);
-            xref.guards.push({ el: guardEl });
-          } else if (e.note === 'BE (TC0)') {
-            const beEl = g.append('rect').attr('x', xPos).attr('y', yPos)
-              .attr('width', Math.max(actualW, 1)).attr('height', bw)
-              .attr('fill', '#93c5fd').attr('opacity', 0.18).attr('rx', 2);
-            xref.beBars.push({ el: beEl });
-            if (actualW > 30) {
-              g.append('text').attr('class', 'gcl-label')
-                .attr('x', xPos + actualW/2).attr('y', yPos + bw/2)
-                .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-                .attr('font-size', '8px').attr('fill', 'rgba(59,130,246,0.35)')
-                .text('BE');
-            }
-          } else if (e.note.includes('all-gates-closed') || e.note.includes('non-ST')) {
-            // skip
-          } else {
-            const fid = e.note.split('#')[0];
-            const color = flowColor(fid) || '#3b82f6';
-            const displayW = Math.max(actualW, 1);
-
-            const barEl = g.append('rect').attr('x', xPos).attr('y', yPos)
-              .attr('width', displayW).attr('height', bw)
-              .attr('fill', color).attr('stroke', 'rgba(255,255,255,0.4)')
-              .attr('stroke-width', 0.8).attr('rx', 3).attr('opacity', 0.9);
-
-            let labelEl = null;
-            if (actualW > 20) {
-              labelEl = g.append('text').attr('class', 'gcl-label')
-                .attr('x', xPos + actualW/2).attr('y', yPos + bw/2)
-                .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-                .attr('font-size', '9px')
-                .text(e.note.replace('#', '.'));
-            }
-
-            xref.bars.push({ el: barEl, labelEl, fid, lid: lnk.id });
-
-            const hitW = Math.max(displayW, 8); const hitOff = (hitW - displayW) / 2;
-            g.append('rect').attr('x', xPos - hitOff).attr('y', yPos)
-              .attr('width', hitW).attr('height', bw)
-              .attr('fill', 'transparent').style('cursor', 'pointer')
-              .on('mouseover', () => {
-                highlightFlow(fid);
-                let hopPath = '';
-                if (result.packetRows) {
-                  const pkt = result.packetRows.find(p => p.flow_id === fid);
-                  if (pkt && pkt.hops && pkt.hops.length) {
-                    const nodes = [pkt.hops[0].from, ...pkt.hops.map(h => h.to)];
-                    hopPath = nodes.join(' \u2192 ');
-                  }
-                }
-                tooltip.innerHTML = `<div class="tt-title" style="color:${color}">${e.note}</div>`
-                  + `<div class="tt-row"><span class="tt-k">Gate</span><span class="tt-v">${e.gate_mask}</span></div>`
-                  + `<div class="tt-row"><span class="tt-k">Start</span><span class="tt-v">${e.start_us}\u00b5s</span></div>`
-                  + `<div class="tt-row"><span class="tt-k">End</span><span class="tt-v">${e.end_us}\u00b5s</span></div>`
-                  + `<div class="tt-row"><span class="tt-k">Duration</span><span class="tt-v">${e.duration_us}\u00b5s</span></div>`
-                  + (hopPath ? `<div class="tt-row" style="margin-top:3px;border-top:1px solid var(--border);padding-top:3px;"><span class="tt-k">Path</span><span class="tt-v" style="font-size:0.74rem;">${hopPath}</span></div>` : '');
-                tooltip.classList.add('show');
-              })
-              .on('mousemove', ev => { tooltip.style.left = (ev.clientX+12)+'px'; tooltip.style.top = (ev.clientY-20)+'px'; })
-              .on('mouseout', () => {
-                clearHighlight();
-                tooltip.classList.remove('show');
-              });
-
-            used += e.duration_us;
+        if (e.note === 'guard') {
+          const guardEl = g.append('rect').attr('x', xPos).attr('y', yPos)
+            .attr('width', Math.max(actualW, 1)).attr('height', bw)
+            .attr('fill', 'url(#guardH)').attr('opacity', 0.7).attr('rx', 2);
+          xref.guards.push({ el: guardEl });
+        } else if (e.note === 'BE (TC0)') {
+          const beEl = g.append('rect').attr('x', xPos).attr('y', yPos)
+            .attr('width', Math.max(actualW, 1)).attr('height', bw)
+            .attr('fill', '#93c5fd').attr('opacity', 0.18).attr('rx', 2);
+          xref.beBars.push({ el: beEl });
+          if (actualW > 30) {
+            g.append('text').attr('class', 'gcl-label')
+              .attr('x', xPos + actualW/2).attr('y', yPos + bw/2)
+              .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+              .attr('font-size', '8px').attr('fill', 'rgba(59,130,246,0.35)')
+              .text('BE');
           }
+        } else if (e.note.includes('all-gates-closed') || e.note.includes('non-ST')) {
+          // skip
+        } else {
+          const fid = e.note.split('#')[0];
+          const color = flowColor(fid) || '#3b82f6';
+          const displayW = Math.max(actualW, 1);
+
+          const barEl = g.append('rect').attr('x', xPos).attr('y', yPos)
+            .attr('width', displayW).attr('height', bw)
+            .attr('fill', color).attr('stroke', 'rgba(255,255,255,0.4)')
+            .attr('stroke-width', 0.8).attr('rx', 3).attr('opacity', 0.9);
+
+          let labelEl = null;
+          if (actualW > 20) {
+            labelEl = g.append('text').attr('class', 'gcl-label')
+              .attr('x', xPos + actualW/2).attr('y', yPos + bw/2)
+              .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+              .attr('font-size', '9px')
+              .text(e.note.replace('#', '.'));
+          }
+
+          xref.bars.push({ el: barEl, labelEl, fid, lid: lnk.id });
+
+          const hitW = Math.max(displayW, 8); const hitOff = (hitW - displayW) / 2;
+          g.append('rect').attr('x', xPos - hitOff).attr('y', yPos)
+            .attr('width', hitW).attr('height', bw)
+            .attr('fill', 'transparent').style('cursor', 'pointer')
+            .on('click', ev => { ev.stopPropagation(); toggleFlowHighlight(fid); })
+            .on('mouseover', () => {
+              let hopPath = '';
+              if (result.packetRows) {
+                const pkt = result.packetRows.find(p => p.flow_id === fid);
+                if (pkt && pkt.hops && pkt.hops.length) {
+                  const nodes = [pkt.hops[0].from, ...pkt.hops.map(h => h.to)];
+                  hopPath = nodes.join(' \u2192 ');
+                }
+              }
+              tooltip.innerHTML = `<div class="tt-title" style="color:${color}">${e.note}</div>`
+                + `<div class="tt-row"><span class="tt-k">Gate</span><span class="tt-v">${e.gate_mask}</span></div>`
+                + `<div class="tt-row"><span class="tt-k">Start</span><span class="tt-v">${e.start_us}\u00b5s</span></div>`
+                + `<div class="tt-row"><span class="tt-k">End</span><span class="tt-v">${e.end_us}\u00b5s</span></div>`
+                + `<div class="tt-row"><span class="tt-k">Duration</span><span class="tt-v">${e.duration_us}\u00b5s</span></div>`
+                + (hopPath ? `<div class="tt-row" style="margin-top:3px;border-top:1px solid var(--border);padding-top:3px;"><span class="tt-k">Path</span><span class="tt-v" style="font-size:0.74rem;">${hopPath}</span></div>` : '');
+              tooltip.classList.add('show');
+            })
+            .on('mousemove', ev => { tooltip.style.left = (ev.clientX+12)+'px'; tooltip.style.top = (ev.clientY-20)+'px'; })
+            .on('mouseout', () => { tooltip.classList.remove('show'); });
+
+          used += e.duration_us;
         }
-        // Utilization label
-        g.append('text').attr('x', innerW + 4).attr('y', yPos + bw / 2)
-          .attr('text-anchor', 'start').attr('dominant-baseline', 'middle')
-          .attr('font-size', '9px').attr('fill', '#94a3b8').attr('font-weight', '700')
-          .text((used / model.cycle_time_us * 100).toFixed(1) + '%');
       }
+      g.append('text').attr('x', innerW + 4).attr('y', y(lnk.id) + y.bandwidth()/2)
+        .attr('text-anchor', 'start').attr('dominant-baseline', 'middle')
+        .attr('font-size', '9px').attr('fill', '#94a3b8').attr('font-weight', '700')
+        .text((used / model.cycle_time_us * 100).toFixed(1) + '%');
     }
 
     svg.append('text').attr('x', margin.left).attr('y', margin.top - 6)
@@ -1190,7 +1153,8 @@
     const svg = d3.select(container).append('svg')
       .attr('viewBox', `0 0 ${W} ${H}`)
       .attr('preserveAspectRatio', 'xMidYMid meet')
-      .style('width', '100%');
+      .style('width', '100%')
+      .on('click', () => { if (selectedFlowId) { selectedFlowId = null; clearHighlight(); } });
 
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
     const maxVal = Math.max(...entries.map(e => Math.max(e.e2e, e.dl)));
@@ -1223,12 +1187,11 @@
 
       xref.e2eBars.push({ el: barEl, labelEl, fid: e.fid });
 
-      // Hit area for hover
+      // Hit area for click highlight
       g.append('rect').attr('x', 0).attr('y', y(e.fid))
         .attr('width', Math.max(barW, innerW * 0.5)).attr('height', y.bandwidth())
         .attr('fill', 'transparent').style('cursor', 'pointer')
-        .on('mouseenter', () => highlightFlow(e.fid))
-        .on('mouseleave', () => clearHighlight());
+        .on('click', ev => { ev.stopPropagation(); toggleFlowHighlight(e.fid); });
     }
 
     g.append('g').attr('class', 'gcl-axis')
