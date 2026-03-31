@@ -719,7 +719,7 @@
   /* ═══════ Build Model ═══════ */
   function buildModel() {
     const m = JSON.parse(JSON.stringify(ROII_REAL_8TC));
-    m.no_be = false;  // Enable standard mode with computeGateSchedule → guard bands work
+    // no_be stays true from ROII_REAL_8TC — tight per-packet GCL, ILP runs without gate window constraints
     m.cycle_time_us = getP('pCycle') || 1000;
     m.guard_band_us = getP('pGuard');
     m.processing_delay_us = getP('pDelay') || 5;
