@@ -103,19 +103,6 @@
       min-height: 340px;
     }
 
-    /* ── BG Chips ── */
-    .chip {
-      display: flex; align-items: center; gap: 4px;
-      font-size: 0.74rem; font-weight: 600; color: var(--text-2);
-      padding: 3px 10px; border-radius: 20px; cursor: pointer;
-      background: rgba(255,255,255,0.9); border: 1px solid var(--border);
-      backdrop-filter: blur(4px); transition: all 0.15s; user-select: none;
-    }
-    .chip:hover { border-color: var(--border-focus); background: #fff; }
-    .chip input[type="checkbox"] {
-      width: 13px; height: 13px; accent-color: var(--blue); cursor: pointer; margin: 0;
-    }
-
     /* ── Flow Table ── */
     .btn-add {
       padding: 3px 12px; font-size: 0.76rem; font-weight: 700;
@@ -306,14 +293,6 @@
           <div class="section-title">Network Topology</div>
         </div>
         <div id="topoContainer"></div>
-      </div>
-
-      <!-- BG Traffic toggles -->
-      <div style="display:flex;gap:8px;padding:6px 14px;border-bottom:1px solid var(--border);background:var(--bg-card);">
-        <span style="font-size:0.74rem;font-weight:700;color:var(--text-3);margin-right:2px;">BG</span>
-        <label class="chip"><input type="checkbox" id="bgFL" checked> FL</label>
-        <label class="chip"><input type="checkbox" id="bgFR" checked> FR</label>
-        <label class="chip"><input type="checkbox" id="bgREAR" checked> REAR</label>
       </div>
 
       <!-- Flow Configuration -->
@@ -640,22 +619,12 @@
     });
   }
 
-  /* ═══════ BG Flow Management ═══════ */
-  const BG_FLOW_DEFS = {
-    bgFL:   { id: 'f_bg_fl',   src: 'SW_FL',   dst: 'ACU_IT', PCP: 0, payload_bytes: 500, period_us: 500, deadline_us: 1000, traffic_type: 'bg', color: '#a3a3a3' },
-    bgFR:   { id: 'f_bg_fr',   src: 'SW_FR',   dst: 'ACU_IT', PCP: 0, payload_bytes: 500, period_us: 500, deadline_us: 1000, traffic_type: 'bg', color: '#737373' },
-    bgREAR: { id: 'f_bg_rear', src: 'SW_REAR', dst: 'ACU_IT', PCP: 0, payload_bytes: 800, period_us: 500, deadline_us: 1000, traffic_type: 'bg', color: '#525252' },
-  };
-
-  function syncBgFlows(solveAfter = true) {
-    for (const [cbId, flowDef] of Object.entries(BG_FLOW_DEFS)) {
-      const checked = document.getElementById(cbId).checked;
-      const idx = baseFlows.findIndex(f => f.id === flowDef.id);
-      if (checked && idx === -1) baseFlows.push({ ...flowDef, k_paths: 1 });
-      else if (!checked && idx !== -1) baseFlows.splice(idx, 1);
-    }
-    if (solveAfter) { renderFlowTable(); solve(); }
-  }
+  // Add default BG flows
+  baseFlows.push(
+    { id: 'f_bg_fl',   src: 'SW_FL',   dst: 'ACU_IT', PCP: 0, payload_bytes: 500, period_us: 500, deadline_us: 1000, traffic_type: 'bg', color: '#a3a3a3', k_paths: 1 },
+    { id: 'f_bg_fr',   src: 'SW_FR',   dst: 'ACU_IT', PCP: 0, payload_bytes: 500, period_us: 500, deadline_us: 1000, traffic_type: 'bg', color: '#737373', k_paths: 1 },
+    { id: 'f_bg_rear', src: 'SW_REAR', dst: 'ACU_IT', PCP: 0, payload_bytes: 800, period_us: 500, deadline_us: 1000, traffic_type: 'bg', color: '#525252', k_paths: 1 },
+  );
 
   /* ═══════ Build Model ═══════ */
   function buildModel() {
@@ -968,34 +937,47 @@
         });
     }
 
-    // Draw BG traffic nodes — small circles offset from their source switch
-    const bgOffsets = { SW_FL: { dx: -30, dy: -28 }, SW_FR: { dx: 30, dy: -28 }, SW_REAR: { dx: -30, dy: 28 } };
-    for (const bgFlow of baseFlows.filter(f => f.traffic_type === 'bg')) {
-      const swPos = pos[bgFlow.src];
+    // Draw extra flow nodes — flows from switches (BG) or custom flows not in sensor map
+    const extraFlows = baseFlows.filter(f => {
+      if (!f.src) return false;
+      // Already drawn as a sensor node
+      if (xref.sensorFlowMap[f.src] === f.id) return false;
+      // Source is a switch or ACU — draw as satellite node
+      const srcNode = topoBase.nodes.find(n => n.id === f.src);
+      return srcNode && (srcNode.type === 'switch' || f.src === 'ACU_IT');
+    });
+    const swExtraCount = {};  // track offset index per switch
+    for (const ef of extraFlows) {
+      const swPos = pos[ef.src];
       if (!swPos) continue;
-      const off = bgOffsets[bgFlow.src] || { dx: 0, dy: -30 };
-      const bx = swPos.x + off.dx, by = swPos.y + off.dy;
+      const idx = swExtraCount[ef.src] || 0;
+      swExtraCount[ef.src] = idx + 1;
+      // Spread nodes around the switch
+      const angle = -Math.PI/2 + idx * (Math.PI / 4);
+      const dist = 34;
+      const bx = swPos.x + Math.cos(angle) * dist;
+      const by = swPos.y + Math.sin(angle) * dist;
       const br = 10;
-      const bgColor = bgFlow.color || '#a3a3a3';
+      const fColor = ef.color || flowColor(ef.id) || '#a3a3a3';
+      const isBG = ef.traffic_type === 'bg';
+      const label = isBG ? 'BG' : ef.id.replace(/^f_/, '').slice(0, 3).toUpperCase();
 
-      // Link from BG node to switch
       svg.append('line').attr('x1', bx).attr('y1', by).attr('x2', swPos.x).attr('y2', swPos.y)
-        .attr('stroke', bgColor).attr('stroke-width', 1.5).attr('stroke-dasharray', '3,2').attr('opacity', 0.5);
+        .attr('stroke', fColor).attr('stroke-width', 1.5).attr('stroke-dasharray', '3,2').attr('opacity', 0.5);
 
-      const bgCircle = svg.append('circle').attr('cx', bx).attr('cy', by).attr('r', br)
-        .attr('fill', hexToRgba(bgColor, 0.2)).attr('stroke', bgColor).attr('stroke-width', 1.5);
+      const circle = svg.append('circle').attr('cx', bx).attr('cy', by).attr('r', br)
+        .attr('fill', hexToRgba(fColor, 0.2)).attr('stroke', fColor).attr('stroke-width', 1.5);
 
       svg.append('text').attr('x', bx).attr('y', by + 1)
         .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-        .attr('font-size', '7px').attr('font-weight', '900').attr('fill', bgColor)
-        .style('pointer-events', 'none').text('BG');
+        .attr('font-size', '7px').attr('font-weight', '900').attr('fill', fColor)
+        .style('pointer-events', 'none').text(label);
 
-      xref.nodes.push({ el: bgCircle, nid: bgFlow.src, fid: bgFlow.id, baseR: br, baseFill: hexToRgba(bgColor, 0.2), baseStroke: bgColor });
+      xref.nodes.push({ el: circle, nid: ef.src, fid: ef.id, baseR: br, baseFill: hexToRgba(fColor, 0.2), baseStroke: fColor });
 
-      // Hover on BG node → highlight BG flow
       svg.append('circle').attr('cx', bx).attr('cy', by).attr('r', br + 4)
         .attr('fill', 'transparent').style('cursor', 'pointer')
-        .on('mouseenter', () => highlightFlow(bgFlow.id))
+        .on('mouseenter', () => highlightFlow(ef.id))
         .on('mouseleave', () => clearHighlight());
     }
   }
@@ -1318,9 +1300,6 @@
     ev.stopPropagation();
     exportGCL();
   });
-  document.getElementById('bgFL').addEventListener('change', () => syncBgFlows());
-  document.getElementById('bgFR').addEventListener('change', () => syncBgFlows());
-  document.getElementById('bgREAR').addEventListener('change', () => syncBgFlows());
   document.getElementById('btnAddFlow').addEventListener('click', () => {
     addCounter++;
     baseFlows.push({
@@ -1335,7 +1314,6 @@
   initAccordion();
 
   /* ═══════ Init: Greedy first, then ILP when GLPK ready ═══════ */
-  syncBgFlows(false);
   renderFlowTable();
   const initSolver = document.getElementById('pSolver').value;
   document.getElementById('pSolver').value = 'greedy';
