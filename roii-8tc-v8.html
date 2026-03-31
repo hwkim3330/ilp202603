@@ -706,8 +706,8 @@
 
   // BG flows — SW_FR (small) + SW_REAR (large)
   baseFlows.push({
-    id: 'f_bg_small', PCP: 0, payload_bytes: 200, period_us: 500,
-    deadline_us: 500, traffic_type: 'bg', src: 'SW_FR', dst: 'ACU_IT',
+    id: 'f_bg_small', PCP: 0, payload_bytes: 200, period_us: 1000,
+    deadline_us: 1000, traffic_type: 'bg', src: 'SW_FR', dst: 'ACU_IT',
     k_paths: 1, color: '#ec4899'
   });
   baseFlows.push({
@@ -1243,46 +1243,47 @@
       const bw = y.bandwidth();
 
       for (const pkt of bgPkts) {
-        for (const hop of pkt.hops) {
-          const xPos = x(hop.start_us);
-          const actualW = x(hop.end_us) - xPos;
-          const displayW = Math.max(actualW, 2);
+        // Only show first hop (originating link from source switch)
+        const hop = pkt.hops[0];
+        if (!hop) continue;
+        const xPos = x(hop.start_us);
+        const actualW = x(hop.end_us) - xPos;
+        const displayW = Math.max(actualW, 2);
 
-          const barEl = g.append('rect').attr('x', xPos).attr('y', yPos)
-            .attr('width', displayW).attr('height', bw)
-            .attr('fill', color).attr('stroke', 'rgba(255,255,255,0.5)')
-            .attr('stroke-width', 0.8).attr('rx', 3).attr('opacity', 0.9);
+        const barEl = g.append('rect').attr('x', xPos).attr('y', yPos)
+          .attr('width', displayW).attr('height', bw)
+          .attr('fill', color).attr('stroke', 'rgba(255,255,255,0.5)')
+          .attr('stroke-width', 0.8).attr('rx', 3).attr('opacity', 0.9);
 
-          let labelEl = null;
-          if (actualW > 18) {
-            labelEl = g.append('text').attr('class', 'gcl-label')
-              .attr('x', xPos + actualW / 2).attr('y', yPos + bw / 2)
-              .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-              .attr('font-size', '8px')
-              .text(pkt.packet_id.replace('#', '.'));
-          }
-
-          xref.bars.push({ el: barEl, labelEl, fid: bgFid, lid: hop.link_id });
-
-          const hitW = Math.max(displayW, 10);
-          const hitOff = (hitW - displayW) / 2;
-          const lnk = model.links.find(l => l.id === hop.link_id);
-          const linkLabel = lnk ? `${lnk.from} \u2192 ${lnk.to}` : hop.link_id;
-          g.append('rect').attr('x', xPos - hitOff).attr('y', yPos)
-            .attr('width', hitW).attr('height', bw)
-            .attr('fill', 'transparent').style('cursor', 'pointer')
-            .on('click', ev => { ev.stopPropagation(); toggleFlowHighlight(bgFid); })
-            .on('mouseover', () => {
-              tooltip.innerHTML = `<div class="tt-title" style="color:${color}">${pkt.packet_id}</div>`
-                + `<div class="tt-row"><span class="tt-k">Link</span><span class="tt-v">${linkLabel}</span></div>`
-                + `<div class="tt-row"><span class="tt-k">Start</span><span class="tt-v">${hop.start_us}\u00b5s</span></div>`
-                + `<div class="tt-row"><span class="tt-k">End</span><span class="tt-v">${round3(hop.end_us)}\u00b5s</span></div>`
-                + `<div class="tt-row"><span class="tt-k">Duration</span><span class="tt-v">${hop.duration_us}\u00b5s</span></div>`;
-              tooltip.classList.add('show');
-            })
-            .on('mousemove', ev => { tooltip.style.left = (ev.clientX + 12) + 'px'; tooltip.style.top = (ev.clientY - 20) + 'px'; })
-            .on('mouseout', () => { tooltip.classList.remove('show'); });
+        let labelEl = null;
+        if (actualW > 18) {
+          labelEl = g.append('text').attr('class', 'gcl-label')
+            .attr('x', xPos + actualW / 2).attr('y', yPos + bw / 2)
+            .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+            .attr('font-size', '8px')
+            .text(pkt.packet_id.replace('#', '.'));
         }
+
+        xref.bars.push({ el: barEl, labelEl, fid: bgFid, lid: hop.link_id });
+
+        const hitW = Math.max(displayW, 10);
+        const hitOff = (hitW - displayW) / 2;
+        const lnk = model.links.find(l => l.id === hop.link_id);
+        const linkLabel = lnk ? `${lnk.from} \u2192 ${lnk.to}` : hop.link_id;
+        g.append('rect').attr('x', xPos - hitOff).attr('y', yPos)
+          .attr('width', hitW).attr('height', bw)
+          .attr('fill', 'transparent').style('cursor', 'pointer')
+          .on('click', ev => { ev.stopPropagation(); toggleFlowHighlight(bgFid); })
+          .on('mouseover', () => {
+            tooltip.innerHTML = `<div class="tt-title" style="color:${color}">${pkt.packet_id}</div>`
+              + `<div class="tt-row"><span class="tt-k">Link</span><span class="tt-v">${linkLabel}</span></div>`
+              + `<div class="tt-row"><span class="tt-k">Start</span><span class="tt-v">${hop.start_us}\u00b5s</span></div>`
+              + `<div class="tt-row"><span class="tt-k">End</span><span class="tt-v">${round3(hop.end_us)}\u00b5s</span></div>`
+              + `<div class="tt-row"><span class="tt-k">Duration</span><span class="tt-v">${hop.duration_us}\u00b5s</span></div>`;
+            tooltip.classList.add('show');
+          })
+          .on('mousemove', ev => { tooltip.style.left = (ev.clientX + 12) + 'px'; tooltip.style.top = (ev.clientY - 20) + 'px'; })
+          .on('mouseout', () => { tooltip.classList.remove('show'); });
       }
 
       // E2E label on right
