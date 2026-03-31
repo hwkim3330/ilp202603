@@ -704,7 +704,17 @@
     });
   }
 
-  // No default BG flows in this version
+  // BG flows — SW_FR (small) + SW_REAR (large)
+  baseFlows.push({
+    id: 'f_bg_small', PCP: 0, payload_bytes: 200, period_us: 500,
+    deadline_us: 500, traffic_type: 'bg', src: 'SW_FR', dst: 'ACU_IT',
+    k_paths: 1, color: '#ec4899'
+  });
+  baseFlows.push({
+    id: 'f_bg_large', PCP: 0, payload_bytes: 1400, period_us: 1000,
+    deadline_us: 1000, traffic_type: 'bg', src: 'SW_REAR', dst: 'ACU_IT',
+    k_paths: 1, color: '#f472b6'
+  });
 
   /* ═══════ Build Model ═══════ */
   function buildModel() {
