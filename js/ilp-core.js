@@ -304,21 +304,35 @@ function buildResult(model, pkts, schedHops, method, stats) {
   if (model.no_be) {
     // ── No-BE mode: build GCL from actual packet placements ──
     // Each packet gets TC-specific gate mask, gaps → all-gates-closed
+    // Guard bands inserted at TC transitions (post-hoc, fits in existing gaps)
+    const guard_us_nb = model.guard_band_us || 0;
     for (const lnk of model.links) {
       const rows = linkRows[lnk.id].slice().sort((a, b) => a.start_us - b.start_us);
       const entries = [];
-      let idx = 0, cursor = 0;
+      let idx = 0, cursor = 0, prevTC = -1;
 
       for (const r of rows) {
-        // Gap → all-gates-closed
+        const tc = r.queue >= 0 ? r.queue : r.priority;
+        // Gap before packet
         if (r.start_us > cursor + 0.001) {
-          entries.push({ index: idx++, gate_mask: '00000000', start_us: round3(cursor), end_us: r.start_us, duration_us: round3(r.start_us - cursor), note: 'all-gates-closed' });
+          const gapStart = round3(cursor);
+          const gapEnd = r.start_us;
+          // Insert guard band at TC transition if enough room
+          if (guard_us_nb > 0 && prevTC >= 0 && tc !== prevTC && gapEnd - gapStart >= guard_us_nb - 0.001) {
+            const gEnd = round3(gapStart + guard_us_nb);
+            entries.push({ index: idx++, gate_mask: '00000000', start_us: gapStart, end_us: gEnd, duration_us: round3(guard_us_nb), note: 'guard' });
+            if (gEnd < gapEnd - 0.001) {
+              entries.push({ index: idx++, gate_mask: '00000000', start_us: gEnd, end_us: gapEnd, duration_us: round3(gapEnd - gEnd), note: 'all-gates-closed' });
+            }
+          } else {
+            entries.push({ index: idx++, gate_mask: '00000000', start_us: gapStart, end_us: gapEnd, duration_us: round3(gapEnd - gapStart), note: 'all-gates-closed' });
+          }
         }
         // Packet → TC-specific gate mask
-        const tc = r.queue >= 0 ? r.queue : r.priority;
         const mask = Array(8).fill('0'); mask[7 - tc] = '1';
         entries.push({ index: idx++, gate_mask: mask.join(''), start_us: r.start_us, end_us: r.end_us, duration_us: r.duration_us, note: r.note });
         cursor = r.end_us;
+        prevTC = tc;
       }
       // Remaining → all-gates-closed
       if (cursor < model.cycle_time_us - 0.001) {
