@@ -161,7 +161,7 @@ export function computeGateSchedule(model, pkts) {
     const allTCs = [...tcSet].sort((a, b) =>
       (tcMinDeadline[a] || Infinity) - (tcMinDeadline[b] || Infinity)
     );
-    if (allTCs.length <= 1) continue;
+    if (allTCs.length === 0) continue;
 
     // Compute sub-period = GCD of all flow periods on this link
     const periodsArr = [...linkPeriods];
