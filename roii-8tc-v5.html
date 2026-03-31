@@ -1305,7 +1305,7 @@
     baseFlows.push({
       id: `f_custom_${addCounter}`, PCP: 3, payload_bytes: 1500,
       period_us: 500, deadline_us: 500, traffic_type: 'radar',
-      src: 'RADAR_F', dst: 'ACU_IT', k_paths: 1,
+      src: 'SW_FL', dst: 'ACU_IT', k_paths: 1,
       color: CUSTOM_COLORS[(addCounter - 1) % CUSTOM_COLORS.length]
     });
     renderFlowTable();
