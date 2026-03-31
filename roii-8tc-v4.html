@@ -201,6 +201,37 @@
     .bg-toggle input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--blue); cursor: pointer; }
     .bg-info { font-size: 0.76rem; color: var(--text3); font-weight: 400; }
 
+    /* ── Flow Legend ── */
+    .legend-grid {
+      display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.78rem;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 5px; padding: 2px 0; cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .legend-item:hover { opacity: 0.7; }
+    .legend-dot {
+      width: 12px; height: 12px; min-width: 12px; border-radius: 50%;
+      border: 1.5px solid rgba(0,0,0,0.15);
+    }
+    .legend-name { font-weight: 700; color: var(--text); }
+    .legend-meta { color: var(--text3); font-size: 0.72rem; }
+    .legend-pcp {
+      font-size: 0.68rem; font-weight: 800; color: #fff; border-radius: 3px;
+      padding: 0 4px; line-height: 16px; min-width: 18px; text-align: center;
+    }
+
+    /* ── E2E Delay Chart ── */
+    #e2eContainer { min-height: 100px; }
+
+    /* ── GCL Export Button ── */
+    .btn-export {
+      padding: 3px 12px; font-size: 0.76rem; font-weight: 600;
+      border-radius: 4px; border: 1px solid rgba(59,130,246,0.2);
+      background: rgba(59,130,246,0.05); color: var(--blue); cursor: pointer;
+    }
+    .btn-export:hover { background: rgba(59,130,246,0.12); }
+
     /* ── Tooltip ── */
     .tooltip {
       position: fixed; z-index: 1000; pointer-events: none; display: none;
@@ -263,6 +294,11 @@
         <div id="topoContainer"></div>
       </div>
 
+      <div class="pane-card" id="legendCard">
+        <div class="pane-title">Flow Legend</div>
+        <div class="legend-grid" id="legendGrid"></div>
+      </div>
+
       <div class="pane-card" id="bgCard">
         <div class="pane-title">Background Traffic (TC0 Best Effort)</div>
         <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;padding:4px 0;">
@@ -299,8 +335,16 @@
         <div id="ganttContainer"></div>
       </div>
 
+      <div class="pane-card" id="e2eCard">
+        <div class="pane-title">E2E Delay per Flow</div>
+        <div id="e2eContainer"></div>
+      </div>
+
       <div class="pane-card" id="gclCard">
-        <div class="pane-title">Board GCL Configuration (LAN9692)</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div class="pane-title" style="margin-bottom:0;">Board GCL Configuration (LAN9692)</div>
+          <button class="btn-export" id="btnExportGCL" title="Copy GCL JSON">Export JSON</button>
+        </div>
         <div id="gclPanel"></div>
       </div>
     </div>
@@ -338,6 +382,10 @@
 
   /* ═══════ Helpers ═══════ */
   const getP = id => parseFloat(document.getElementById(id).value) || 0;
+  function hexToRgba(hex, alpha) {
+    const r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
 
   function setStatus(html) {
     document.getElementById('statusBar').innerHTML = html;
@@ -382,6 +430,10 @@
     const fColor = flowColor(flowId);
     const routeLinks = xref.flowRoutes[flowId] || new Set();
 
+    // Find source node of this flow (for BG flows that start at switches)
+    const flowDef = baseFlows.find(f => f.id === flowId);
+    const srcNode = flowDef ? flowDef.src : null;
+
     // Gantt bars
     for (const b of xref.bars) {
       if (b.fid === flowId) {
@@ -395,15 +447,20 @@
     for (const b of xref.beBars) b.el.attr('opacity', 0.05);
     for (const b of xref.guards) b.el.attr('opacity', 0.15);
 
-    // Topology nodes
+    // Topology nodes — also highlight source switch for BG flows
     for (const n of xref.nodes) {
       if (n.fid === flowId) {
         n.el.attr('stroke-width', 5).attr('r', n.baseR + 4);
+      } else if (n.nid === srcNode) {
+        // Source switch for BG flow — highlight with flow color ring
+        n.el.attr('stroke', fColor).attr('stroke-width', 4).attr('r', n.baseR + 2);
+      } else if (n.nid === 'ACU_IT') {
+        // Destination — subtle highlight
+        n.el.attr('stroke-width', 3).attr('opacity', 0.8);
       } else if (n.fid) {
         n.el.attr('opacity', 0.2);
       } else {
-        // switches / ACU — dim slightly
-        n.el.attr('opacity', 0.5);
+        n.el.attr('opacity', 0.35);
       }
     }
 
@@ -434,7 +491,7 @@
     for (const b of xref.guards) b.el.attr('opacity', 0.7);
 
     for (const n of xref.nodes) {
-      n.el.attr('stroke-width', 2).attr('r', n.baseR).attr('opacity', 1);
+      n.el.attr('stroke', n.baseStroke).attr('stroke-width', 2).attr('r', n.baseR).attr('opacity', 1);
     }
     for (const l of xref.links) {
       l.el.attr('stroke', l.baseColor).attr('stroke-width', l.baseW).attr('opacity', 1);
@@ -730,6 +787,8 @@
       renderTopology(model, failedLink, result);
       renderGantt(model, result);
       renderBoardGCL(model, result);
+      renderLegend();
+      renderE2E(model, result);
 
     } catch (e) {
       console.error(e);
@@ -741,6 +800,8 @@
           renderTopology(model, failedLink, result);
           renderGantt(model, result);
           renderBoardGCL(model, result);
+          renderLegend();
+          renderE2E(model, result);
           const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
           const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
           setStatus(`<span style="color:var(--red);">ILP failed</span> \u2192 Greedy fallback &nbsp;|&nbsp; Pkts: ${result.packetRows.length} &nbsp;|&nbsp; Util: ${result.worst_util_percent}% &nbsp;|&nbsp; Worst E2E: ${round3(worst)}\u00b5s &nbsp;|&nbsp; <span style="color:var(--text3);font-size:0.78rem;">${e.message}</span>`);
@@ -934,7 +995,7 @@
       if (sensorFid) {
         const fc = flowColor(sensorFid);
         // Light fill derived from flow color
-        nodeFill = fc + '25'; // hex + alpha for light fill
+        nodeFill = hexToRgba(fc, 0.15);
         nodeStroke = fc;
       } else {
         nodeFill = nc.fill;
@@ -967,6 +1028,22 @@
           .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
           .attr('font-size', '9px').attr('font-weight', '900').attr('fill', '#fff')
           .style('pointer-events', 'none').text(pcp);
+      }
+
+      // BG badge on switches that generate BG traffic
+      if (isSwitch) {
+        const bgFlow = baseFlows.find(f => f.traffic_type === 'bg' && f.src === node.id);
+        if (bgFlow) {
+          const badgeX = p.x - r * 0.65;
+          const badgeY = p.y - r * 0.65;
+          svg.append('rect').attr('x', badgeX - 11).attr('y', badgeY - 7)
+            .attr('width', 22).attr('height', 14).attr('rx', 3)
+            .attr('fill', bgFlow.color || '#a3a3a3').attr('stroke', '#fff').attr('stroke-width', 1);
+          svg.append('text').attr('x', badgeX).attr('y', badgeY + 0.5)
+            .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+            .attr('font-size', '8px').attr('font-weight', '900').attr('fill', '#fff')
+            .style('pointer-events', 'none').text('BG');
+        }
       }
 
       // Node hover hitbox — with cross-highlight for sensors, rich info for switches
@@ -1146,11 +1223,21 @@
               // Cross-highlight
               highlightFlow(fid);
 
+              // Build hop path string from packetRows
+              let hopPath = '';
+              if (result.packetRows) {
+                const pkt = result.packetRows.find(p => p.flow_id === fid);
+                if (pkt && pkt.hops && pkt.hops.length) {
+                  const nodes = [pkt.hops[0].from, ...pkt.hops.map(h => h.to)];
+                  hopPath = nodes.join(' \u2192 ');
+                }
+              }
               tooltip.innerHTML = `<div class="tt-title" style="color:${color}">${e.note}</div>`
                 + `<div class="tt-row"><span class="tt-k">Gate</span><span class="tt-v">${e.gate_mask}</span></div>`
                 + `<div class="tt-row"><span class="tt-k">Start</span><span class="tt-v">${e.start_us}\u00b5s</span></div>`
                 + `<div class="tt-row"><span class="tt-k">End</span><span class="tt-v">${e.end_us}\u00b5s</span></div>`
-                + `<div class="tt-row"><span class="tt-k">Duration</span><span class="tt-v">${e.duration_us}\u00b5s</span></div>`;
+                + `<div class="tt-row"><span class="tt-k">Duration</span><span class="tt-v">${e.duration_us}\u00b5s</span></div>`
+                + (hopPath ? `<div class="tt-row" style="margin-top:3px;border-top:1px solid rgba(59,130,246,0.1);padding-top:3px;"><span class="tt-k">Path</span><span class="tt-v" style="font-size:0.76rem;">${hopPath}</span></div>` : '');
               tooltip.classList.add('show');
             })
             .on('mousemove', ev => { tooltip.style.left = (ev.clientX+12)+'px'; tooltip.style.top = (ev.clientY-20)+'px'; })
@@ -1223,6 +1310,116 @@
     panel.innerHTML = html;
   }
 
+  /* ═══════ Flow Legend ═══════ */
+  function renderLegend() {
+    const grid = document.getElementById('legendGrid');
+    let html = '';
+    for (const f of baseFlows) {
+      const c = flowColor(f.id) || f.color || '#7b61ff';
+      const name = f.id.replace(/^f_/, '');
+      const type = f.traffic_type === 'lidar' ? 'LiDAR' : f.traffic_type === 'radar' ? 'Radar' : 'BG';
+      html += `<div class="legend-item" data-fid="${f.id}">`
+        + `<span class="legend-dot" style="background:${c};"></span>`
+        + `<span class="legend-pcp" style="background:${c};">P${f.PCP}</span>`
+        + `<span class="legend-name">${name}</span>`
+        + `<span class="legend-meta">${type} ${f.payload_bytes}B</span>`
+        + `</div>`;
+    }
+    grid.innerHTML = html;
+    // Hover on legend item → cross-highlight
+    grid.querySelectorAll('.legend-item').forEach(el => {
+      el.addEventListener('mouseenter', () => highlightFlow(el.dataset.fid));
+      el.addEventListener('mouseleave', () => clearHighlight());
+    });
+  }
+
+  /* ═══════ E2E Delay Chart ═══════ */
+  let lastResult = null;
+  function renderE2E(model, result) {
+    lastResult = result;
+    const container = document.getElementById('e2eContainer');
+    container.innerHTML = '';
+    if (!result || result.error || !result.packetRows) return;
+
+    // Compute per-flow worst E2E
+    const flowE2E = {};
+    for (const pkt of result.packetRows) {
+      if (pkt.status === 'NON-ST') continue;
+      const fid = pkt.flow_id;
+      if (!flowE2E[fid] || pkt.e2e_delay_us > flowE2E[fid]) flowE2E[fid] = pkt.e2e_delay_us;
+    }
+    const entries = baseFlows
+      .filter(f => flowE2E[f.id] !== undefined)
+      .map(f => ({ fid: f.id, name: f.id.replace(/^f_/,''), e2e: flowE2E[f.id], dl: f.deadline_us || model.cycle_time_us, color: flowColor(f.id) || f.color }));
+    if (!entries.length) return;
+
+    const W = container.clientWidth || 400;
+    const margin = { top: 8, right: 60, bottom: 22, left: 90 };
+    const rowH = 22;
+    const innerW = W - margin.left - margin.right;
+    const innerH = entries.length * rowH;
+    const H = margin.top + innerH + margin.bottom;
+
+    const svg = d3.select(container).append('svg')
+      .attr('viewBox', `0 0 ${W} ${H}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet')
+      .style('width', '100%');
+
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+    const maxVal = Math.max(...entries.map(e => Math.max(e.e2e, e.dl)));
+    const x = d3.scaleLinear().domain([0, maxVal * 1.1]).range([0, innerW]);
+    const y = d3.scaleBand().domain(entries.map(e => e.fid)).range([0, innerH]).padding(0.2);
+
+    // Deadline markers
+    for (const e of entries) {
+      g.append('line').attr('x1', x(e.dl)).attr('x2', x(e.dl))
+        .attr('y1', y(e.fid)).attr('y2', y(e.fid) + y.bandwidth())
+        .attr('stroke', 'rgba(220,38,38,0.4)').attr('stroke-width', 1.5).attr('stroke-dasharray', '3,2');
+    }
+
+    // E2E bars
+    for (const e of entries) {
+      const barW = Math.max(x(e.e2e), 2);
+      const miss = e.e2e > e.dl;
+      g.append('rect').attr('x', 0).attr('y', y(e.fid))
+        .attr('width', barW).attr('height', y.bandwidth())
+        .attr('fill', e.color).attr('opacity', miss ? 1 : 0.8).attr('rx', 3)
+        .attr('stroke', miss ? '#dc2626' : 'none').attr('stroke-width', miss ? 2 : 0);
+
+      // Value label
+      g.append('text').attr('x', barW + 4).attr('y', y(e.fid) + y.bandwidth()/2)
+        .attr('dominant-baseline', 'central').attr('font-size', '9px')
+        .attr('font-weight', '700').attr('fill', miss ? '#dc2626' : 'var(--text2)')
+        .text(round3(e.e2e) + '\u00b5s');
+    }
+
+    // Y axis labels
+    g.append('g').attr('class', 'gcl-axis')
+      .call(d3.axisLeft(y).tickSize(0).tickPadding(4))
+      .selectAll('text').text(d => {
+        const e = entries.find(en => en.fid === d);
+        return e ? e.name : d;
+      }).attr('font-size', '9px').attr('font-weight', '600');
+
+    // X axis
+    g.append('g').attr('class', 'gcl-axis').attr('transform', `translate(0,${innerH})`)
+      .call(d3.axisBottom(x).ticks(5).tickFormat(d => d + '\u00b5s'))
+      .selectAll('text').attr('font-size', '9px');
+  }
+
+  /* ═══════ GCL Export ═══════ */
+  function exportGCL() {
+    if (!lastResult || !lastResult.boardConfigs) return;
+    const json = JSON.stringify(lastResult.boardConfigs, null, 2);
+    navigator.clipboard.writeText(json).then(() => {
+      const btn = document.getElementById('btnExportGCL');
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      btn.style.color = '#059669';
+      setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 1500);
+    });
+  }
+
   /* ═══════ Events ═══════ */
   document.getElementById('btnSolve').addEventListener('click', () => {
     renderFlowTable();
@@ -1232,6 +1429,7 @@
   document.getElementById('pCycle').addEventListener('change', renderFlowTable);
   document.getElementById('pFail').addEventListener('change', () => { renderFlowTable(); solve(); });
 
+  document.getElementById('btnExportGCL').addEventListener('click', exportGCL);
   document.getElementById('bgFL').addEventListener('change', () => syncBgFlows());
   document.getElementById('bgFR').addEventListener('change', () => syncBgFlows());
   document.getElementById('bgREAR').addEventListener('change', () => syncBgFlows());
