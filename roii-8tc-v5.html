@@ -103,38 +103,7 @@
       min-height: 340px;
     }
 
-    /* ── Legend Overlay ── */
-    .legend-overlay {
-      position: absolute; bottom: 44px; left: 10px; right: 10px;
-      background: rgba(255,255,255,0.92); backdrop-filter: blur(8px);
-      border: 1px solid var(--border); border-radius: 8px;
-      padding: 8px 10px; z-index: 5;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    }
-    .legend-grid {
-      display: flex; flex-wrap: wrap; gap: 3px 10px; font-size: 0.74rem;
-    }
-    .legend-item {
-      display: flex; align-items: center; gap: 4px; padding: 2px 0; cursor: pointer;
-      transition: opacity 0.15s;
-    }
-    .legend-item:hover { opacity: 0.7; }
-    .legend-dot {
-      width: 10px; height: 10px; min-width: 10px; border-radius: 50%;
-      border: 1.5px solid rgba(0,0,0,0.12);
-    }
-    .legend-name { font-weight: 700; color: var(--text-1); }
-    .legend-meta { color: var(--text-3); font-size: 0.68rem; }
-    .legend-pcp {
-      font-size: 0.64rem; font-weight: 800; color: #fff; border-radius: 3px;
-      padding: 0 3px; line-height: 14px; min-width: 16px; text-align: center;
-    }
-
     /* ── BG Chips ── */
-    .bg-chips {
-      position: absolute; bottom: 8px; left: 10px; right: 10px;
-      display: flex; gap: 6px; z-index: 5;
-    }
     .chip {
       display: flex; align-items: center; gap: 4px;
       font-size: 0.74rem; font-weight: 600; color: var(--text-2);
@@ -337,14 +306,14 @@
           <div class="section-title">Network Topology</div>
         </div>
         <div id="topoContainer"></div>
-        <div class="legend-overlay">
-          <div class="legend-grid" id="legendGrid"></div>
-        </div>
-        <div class="bg-chips">
-          <label class="chip"><input type="checkbox" id="bgFL" checked> FL</label>
-          <label class="chip"><input type="checkbox" id="bgFR" checked> FR</label>
-          <label class="chip"><input type="checkbox" id="bgREAR" checked> REAR</label>
-        </div>
+      </div>
+
+      <!-- BG Traffic toggles -->
+      <div style="display:flex;gap:8px;padding:6px 14px;border-bottom:1px solid var(--border);background:var(--bg-card);">
+        <span style="font-size:0.74rem;font-weight:700;color:var(--text-3);margin-right:2px;">BG</span>
+        <label class="chip"><input type="checkbox" id="bgFL" checked> FL</label>
+        <label class="chip"><input type="checkbox" id="bgFR" checked> FR</label>
+        <label class="chip"><input type="checkbox" id="bgREAR" checked> REAR</label>
       </div>
 
       <!-- Flow Configuration -->
@@ -805,7 +774,7 @@
       renderGantt(model, result);
       renderE2E(model, result);
       renderBoardGCL(model, result);
-      renderLegend();
+
 
     } catch (e) {
       console.error(e);
@@ -818,7 +787,7 @@
           renderGantt(model, result);
           renderE2E(model, result);
           renderBoardGCL(model, result);
-          renderLegend();
+    
           const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
           const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
           setStatus(`<span style="color:var(--red);">ILP failed</span> \u2192 Greedy fallback | Pkts: ${result.packetRows.length} | Util: ${result.worst_util_percent}% | Worst E2E: ${round3(worst)}\u00b5s`);
@@ -1312,28 +1281,6 @@
       html += `</div>`;
     }
     panel.innerHTML = html;
-  }
-
-  /* ═══════ Flow Legend ═══════ */
-  function renderLegend() {
-    const grid = document.getElementById('legendGrid');
-    let html = '';
-    for (const f of baseFlows) {
-      const c = flowColor(f.id) || f.color || '#7b61ff';
-      const name = f.id.replace(/^f_/, '');
-      const type = f.traffic_type === 'lidar' ? 'LiDAR' : f.traffic_type === 'radar' ? 'Radar' : 'BG';
-      html += `<div class="legend-item" data-fid="${f.id}">`
-        + `<span class="legend-dot" style="background:${c};"></span>`
-        + `<span class="legend-pcp" style="background:${c};">P${f.PCP}</span>`
-        + `<span class="legend-name">${name}</span>`
-        + `<span class="legend-meta">${type} ${f.payload_bytes}B</span>`
-        + `</div>`;
-    }
-    grid.innerHTML = html;
-    grid.querySelectorAll('.legend-item').forEach(el => {
-      el.addEventListener('mouseenter', () => highlightFlow(el.dataset.fid));
-      el.addEventListener('mouseleave', () => clearHighlight());
-    });
   }
 
   /* ═══════ GCL Export ═══════ */
