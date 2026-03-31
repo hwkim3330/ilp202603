@@ -246,6 +246,11 @@
   <div class="split">
     <!-- Left Pane: Flow Config + Topology -->
     <div class="pane pane-left">
+      <div class="pane-card" id="topoCard">
+        <div class="pane-title">Network Topology</div>
+        <div id="topoContainer"></div>
+      </div>
+
       <div class="pane-card" id="flowCard">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <div class="pane-title" style="margin-bottom:0;">Flow Configuration</div>
@@ -263,11 +268,6 @@
             <tbody id="flowBody"></tbody>
           </table>
         </div>
-      </div>
-
-      <div class="pane-card" id="topoCard">
-        <div class="pane-title">Network Topology</div>
-        <div id="topoContainer"></div>
       </div>
     </div>
 
@@ -421,6 +421,8 @@
   for (const f of baseFlows) {
     if (f.traffic_type === 'lidar') f.payload_bytes = 4500;
     if (f.traffic_type === 'radar') f.payload_bytes = 1500;
+    // G32 LiDAR: 200µs → 250µs (4000 fps, more realistic)
+    if (f.period_us === 200) f.period_us = 250;
     // Per-flow PCP with LC/RC pairing:
     const pcpMap = {
       f_lidar_fc: 7, f_lidar_r: 6, f_lidar_fl: 5, f_lidar_fr: 4,
@@ -704,6 +706,36 @@
       if (xref.sensorFlowMap[f.src] === f.id) pcpMap[f.src] = f.PCP;
     }
 
+    // Per-switch port stats (for board hover)
+    const switchPorts = {}; // switchId → [{to, lid, util, flowCount, activeTCs}]
+    for (const lnk of model.links) {
+      const fromNode = model.nodes.find(n => n.id === lnk.from);
+      if (!fromNode || fromNode.type !== 'switch') continue;
+      if (!switchPorts[lnk.from]) switchPorts[lnk.from] = [];
+      const util = linkUtil[lnk.id] || 0;
+      // Count flows passing through this link
+      let flowCount = 0;
+      const activeTCs = new Set();
+      for (const [fid, linkSet] of Object.entries(xref.flowRoutes)) {
+        if (linkSet.has(lnk.id)) {
+          flowCount++;
+          const f = baseFlows.find(bf => bf.id === fid);
+          if (f) activeTCs.add(f.PCP);
+        }
+      }
+      switchPorts[lnk.from].push({ to: lnk.to, lid: lnk.id, util, flowCount, activeTCs });
+    }
+    // Also count ingress flows (links ending at this switch)
+    const switchIngress = {};
+    for (const lnk of model.links) {
+      const toNode = model.nodes.find(n => n.id === lnk.to);
+      if (!toNode || toNode.type !== 'switch') continue;
+      if (!switchIngress[lnk.to]) switchIngress[lnk.to] = 0;
+      for (const linkSet of Object.values(xref.flowRoutes)) {
+        if (linkSet.has(lnk.id)) switchIngress[lnk.to]++;
+      }
+    }
+
     // Draw links with hover
     for (const lnk of topoBase.links) {
       const p1 = pos[lnk.from], p2 = pos[lnk.to];
@@ -830,7 +862,7 @@
           .style('pointer-events', 'none').text(pcp);
       }
 
-      // Node hover hitbox — with cross-highlight for sensors
+      // Node hover hitbox — with cross-highlight for sensors, rich info for switches
       const flows = (nodeFlows[node.id] || []).filter(f => f.src === node.id);
       svg.append('circle').attr('cx', p.x).attr('cy', p.y).attr('r', r + 4)
         .attr('fill', 'transparent').style('cursor', 'pointer')
@@ -840,10 +872,30 @@
 
           let html = `<div class="tt-title">${nc.label || node.id}</div>`;
           html += `<div class="tt-row"><span class="tt-k">Type</span><span class="tt-v">${isSwitch ? 'Switch (LAN9692)' : isACU ? 'ACU (Processing)' : isLidar ? 'LiDAR Sensor' : 'Radar Sensor'}</span></div>`;
-          if (isSensor && pcpMap[node.id] !== undefined) {
+
+          if (isSwitch) {
+            // Board info: chip, egress ports, per-port utilization
+            const swInfo = ROII_REAL_SWITCHES.find(s => s.id === node.id);
+            if (swInfo) html += `<div class="tt-row"><span class="tt-k">Chip</span><span class="tt-v">${swInfo.chip}</span></div>`;
+            const ports = switchPorts[node.id] || [];
+            const ingress = switchIngress[node.id] || 0;
+            const totalFlows = ports.reduce((s, p) => s + p.flowCount, 0);
+            html += `<div class="tt-row"><span class="tt-k">Egress Ports</span><span class="tt-v">${ports.length}</span></div>`;
+            html += `<div class="tt-row"><span class="tt-k">Flows (in/out)</span><span class="tt-v">${ingress} / ${totalFlows}</span></div>`;
+            if (ports.length) {
+              html += `<div style="margin-top:4px;border-top:1px solid rgba(59,130,246,0.15);padding-top:4px;font-size:0.8rem;">`;
+              for (const port of ports) {
+                const tcList = port.activeTCs.size ? [...port.activeTCs].sort((a,b) => b-a).map(t => 'TC'+t).join(',') : '-';
+                const utilColor = port.util > 50 ? '#dc2626' : port.util > 25 ? '#d97706' : '#059669';
+                html += `<div class="tt-row"><span class="tt-k">\u2192 ${port.to}</span><span class="tt-v" style="color:${utilColor}">${port.util}% <span style="color:var(--text3);font-weight:400;">(${port.flowCount}f, ${tcList})</span></span></div>`;
+              }
+              html += `</div>`;
+            }
+          } else if (isSensor && pcpMap[node.id] !== undefined) {
             html += `<div class="tt-row"><span class="tt-k">PCP</span><span class="tt-v">${pcpMap[node.id]} (TC${pcpMap[node.id]})</span></div>`;
           }
-          if (flows.length) {
+
+          if (flows.length && !isSwitch) {
             html += `<div style="margin-top:4px;border-top:1px solid rgba(59,130,246,0.15);padding-top:4px;">`;
             for (const f of flows) {
               const tx = round3((f.payload_bytes + 38) * 8 / (getP('pSpeed') || 1000));
@@ -852,7 +904,8 @@
             }
             html += `</div>`;
           } else if (isACU) {
-            html += `<div class="tt-row"><span class="tt-k">Role</span><span class="tt-v">All flows dst</span></div>`;
+            const totalIn = Object.values(xref.flowRoutes).length;
+            html += `<div class="tt-row"><span class="tt-k">Role</span><span class="tt-v">Destination (${totalIn} flows)</span></div>`;
           }
           tooltip.innerHTML = html;
           tooltip.classList.add('show');
