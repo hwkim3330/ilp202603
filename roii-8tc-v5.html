@@ -209,6 +209,7 @@
     }
     .gate-bit.open { background: rgba(59,130,246,0.3); color: #1e40af; }
     .gate-bit.closed { background: rgba(100,116,139,0.1); color: var(--text-3); }
+    .gate-bit.guard { background: rgba(217,119,6,0.3); color: #92400e; }
     .pcp-map { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
     .pcp-badge {
       font-size: 0.72rem; padding: 1px 7px; border-radius: 3px;
@@ -496,11 +497,16 @@
 
   /* ═══════ Board GCL Highlight ═══════ */
   function highlightBoardGCLSwitch(switchId) {
-    document.querySelectorAll('.board-section').forEach(sec => {
+    const sections = document.querySelectorAll('.board-section');
+    if (!sections.length) return;
+    sections.forEach(sec => {
       if (sec.dataset.switchId === switchId) {
         sec.style.borderColor = 'rgba(59,130,246,0.6)';
         sec.style.background = 'rgba(59,130,246,0.08)';
-        sec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        const panel = document.getElementById('gclPanel');
+        if (panel && !panel.classList.contains('collapsed')) {
+          sec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
       } else {
         sec.style.opacity = '0.3';
       }
@@ -508,7 +514,9 @@
   }
 
   function highlightBoardGCLFlow(flowId) {
-    document.querySelectorAll('.board-section').forEach(sec => { sec.style.opacity = '0.4'; });
+    const sections = document.querySelectorAll('.board-section');
+    if (!sections.length) return;
+    sections.forEach(sec => { sec.style.opacity = '0.4'; });
     document.querySelectorAll('.gcl-table tr[data-flow-id]').forEach(tr => {
       if (tr.dataset.flowId === flowId) {
         tr.style.background = 'rgba(59,130,246,0.12)';
@@ -854,6 +862,22 @@
         .attr('text-anchor', 'middle').attr('font-size', '9px').attr('font-weight', '700')
         .attr('fill', '#475569').style('pointer-events', 'none').text(nc.label || node.id);
 
+      // BG indicator on switches
+      if (isSwitch) {
+        const bgFlow = baseFlows.find(f => f.traffic_type === 'bg' && f.src === node.id);
+        if (bgFlow) {
+          svg.append('rect')
+            .attr('x', p.x + r * 0.45).attr('y', p.y - r * 0.85)
+            .attr('width', 20).attr('height', 12).attr('rx', 3)
+            .attr('fill', bgFlow.color || '#a3a3a3').attr('stroke', '#fff').attr('stroke-width', 1);
+          svg.append('text')
+            .attr('x', p.x + r * 0.45 + 10).attr('y', p.y - r * 0.85 + 6.5)
+            .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+            .attr('font-size', '7px').attr('font-weight', '900').attr('fill', '#fff')
+            .style('pointer-events', 'none').text('BG');
+        }
+      }
+
       // Hover hitbox — simplified tooltip
       svg.append('circle').attr('cx', p.x).attr('cy', p.y).attr('r', r + 4)
         .attr('fill', 'transparent').style('cursor', 'pointer')
@@ -1128,7 +1152,7 @@
         html += `<div class="board-port">`;
         html += `<h4>Egress &rarr; ${port.to} <span style="color:var(--text-3);font-weight:400;">(${portId})</span></h4>`;
         html += `<div class="port-meta">Cycle: ${port.cycle_time_us}&micro;s | Guard: ${port.guard_band_us}&micro;s | Entries: ${port.num_entries}</div>`;
-        if (port.pcp_queue_map.length) {
+        if (port.pcp_queue_map && port.pcp_queue_map.length) {
           html += `<div class="pcp-map">`;
           for (const m of port.pcp_queue_map) html += `<span class="pcp-badge">PCP ${m.pcp} \u2192 Q${m.queue}</span>`;
           html += `</div>`;
