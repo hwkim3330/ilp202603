@@ -407,6 +407,7 @@
 
   function toggleFlowHighlight(flowId) {
     selectedSwitchId = null;
+    selectedLinkId = null;
     if (selectedFlowId === flowId) {
       selectedFlowId = null;
       clearHighlight();
@@ -418,6 +419,7 @@
 
   function toggleSwitchHighlight(switchId) {
     selectedFlowId = null;
+    selectedLinkId = null;
     clearHighlight();
     if (selectedSwitchId === switchId) {
       selectedSwitchId = null;
@@ -426,6 +428,74 @@
       selectedSwitchId = switchId;
       highlightBoardGCLSwitch(switchId);
     }
+  }
+
+  let selectedLinkId = null;
+
+  function toggleLinkHighlight(linkId) {
+    selectedFlowId = null;
+    selectedSwitchId = null;
+    clearHighlight();
+    if (selectedLinkId === linkId) {
+      selectedLinkId = null;
+    } else {
+      selectedLinkId = linkId;
+      highlightLink(linkId);
+    }
+  }
+
+  function highlightLink(linkId) {
+    const flowsOnLink = new Set();
+    for (const [fid, routes] of Object.entries(xref.flowRoutes)) {
+      if (routes.has(linkId)) flowsOnLink.add(fid);
+    }
+
+    for (const b of xref.bars) {
+      if (b.lid === linkId || flowsOnLink.has(b.fid)) {
+        b.el.attr('opacity', 1).attr('stroke', '#fff').attr('stroke-width', 2);
+        if (b.labelEl) b.labelEl.attr('opacity', 1);
+      } else {
+        b.el.attr('opacity', 0.12);
+        if (b.labelEl) b.labelEl.attr('opacity', 0.12);
+      }
+    }
+    for (const b of xref.beBars) b.el.attr('opacity', 0.05);
+    for (const b of xref.guards) b.el.attr('opacity', 0.15);
+
+    for (const l of xref.links) {
+      if (l.lid === linkId) {
+        l.el.attr('stroke', '#3b82f6').attr('stroke-width', l.baseW + 3).attr('opacity', 1);
+      } else {
+        l.el.attr('opacity', 0.08);
+      }
+    }
+
+    const relevantNodes = new Set();
+    for (const fid of flowsOnLink) {
+      const f = baseFlows.find(fl => fl.id === fid);
+      if (f) { relevantNodes.add(f.src); relevantNodes.add(f.dst); }
+    }
+    for (const n of xref.nodes) {
+      if (flowsOnLink.has(n.fid)) {
+        n.el.attr('stroke-width', 4).attr('r', n.baseR + 2);
+      } else if (relevantNodes.has(n.nid)) {
+        n.el.attr('stroke-width', 3).attr('opacity', 0.8);
+      } else {
+        n.el.attr('opacity', 0.2);
+      }
+    }
+
+    for (const b of xref.e2eBars) {
+      if (flowsOnLink.has(b.fid)) {
+        b.el.classed('dimmed', false).classed('lit', true);
+        if (b.labelEl) b.labelEl.classed('dimmed', false);
+      } else {
+        b.el.classed('lit', false).classed('dimmed', true);
+        if (b.labelEl) b.labelEl.classed('dimmed', true);
+      }
+    }
+
+    clearBoardGCLHighlight();
   }
 
   /* ═══════ Unified Highlight ═══════ */
@@ -681,6 +751,7 @@
     solving = true;
     selectedFlowId = null;
     selectedSwitchId = null;
+    selectedLinkId = null;
     const btn = document.getElementById('btnSolve');
     btn.disabled = true;
 
@@ -794,7 +865,7 @@
       .attr('viewBox', `0 0 ${W} ${H}`)
       .attr('preserveAspectRatio', 'xMidYMid meet')
       .style('width', '100%').style('height', '100%')
-      .on('click', () => { selectedFlowId = null; selectedSwitchId = null; clearHighlight(); });
+      .on('click', () => { selectedFlowId = null; selectedSwitchId = null; selectedLinkId = null; clearHighlight(); });
 
     const topoBase = JSON.parse(JSON.stringify(ROII_REAL_8TC));
     const backboneIds = new Set(Object.keys(BACKBONE_REVERSE));
@@ -865,7 +936,10 @@
         .attr('x1', p1.x).attr('y1', p1.y).attr('x2', p2.x).attr('y2', p2.y)
         .attr('stroke', 'transparent').attr('stroke-width', 14)
         .style('cursor', 'pointer')
-        .on('click', ev => ev.stopPropagation())
+        .on('click', ev => {
+          ev.stopPropagation();
+          if (!isFailed) toggleLinkHighlight(lnk.id);
+        })
         .on('mouseover', () => {
           baseLine.attr('stroke-width', width + 2).attr('stroke', isFailed ? '#ef4444' : '#3b82f6');
           let html = `<div class="tt-title">${lnk.from} \u2194 ${lnk.to}</div>`;
@@ -1014,7 +1088,7 @@
       .attr('viewBox', `0 0 ${W} ${H}`)
       .attr('preserveAspectRatio', 'xMidYMid meet')
       .style('width', '100%')
-      .on('click', () => { selectedFlowId = null; selectedSwitchId = null; clearHighlight(); });
+      .on('click', () => { selectedFlowId = null; selectedSwitchId = null; selectedLinkId = null; clearHighlight(); });
 
     const defs = svg.append('defs');
     const gp = defs.append('pattern').attr('id', 'guardH')
@@ -1166,7 +1240,7 @@
       .attr('viewBox', `0 0 ${W} ${H}`)
       .attr('preserveAspectRatio', 'xMidYMid meet')
       .style('width', '100%')
-      .on('click', () => { selectedFlowId = null; selectedSwitchId = null; clearHighlight(); });
+      .on('click', () => { selectedFlowId = null; selectedSwitchId = null; selectedLinkId = null; clearHighlight(); });
 
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
     const maxVal = Math.max(...entries.map(e => Math.max(e.e2e, e.dl)));
