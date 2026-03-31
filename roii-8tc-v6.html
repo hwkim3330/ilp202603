@@ -156,33 +156,19 @@
     /* ── E2E ── */
     #e2eContainer { min-height: 90px; }
 
-    /* ── Board GCL Accordion ── */
-    .accordion-header {
+    /* ── Board GCL Header ── */
+    .board-header {
       display: flex; align-items: center; justify-content: space-between;
-      cursor: pointer; user-select: none;
+      margin-bottom: 8px;
     }
-    .accordion-header .section-title { margin-bottom: 0; }
-    .accordion-actions {
-      display: flex; align-items: center; gap: 8px;
-    }
+    .board-header .section-title { margin-bottom: 0; }
     .btn-export {
       padding: 3px 10px; font-size: 0.72rem; font-weight: 600;
       border-radius: 4px; border: 1px solid var(--border);
       background: var(--bg-hover); color: var(--blue); cursor: pointer;
-      z-index: 2;
     }
     .btn-export:hover { background: rgba(59,130,246,0.08); }
-    .accordion-arrow {
-      font-size: 0.8rem; color: var(--text-3); transition: transform 0.2s;
-      width: 20px; text-align: center;
-    }
-    .accordion-arrow.open { transform: rotate(180deg); }
-    #gclPanel {
-      overflow: hidden; transition: max-height 0.3s ease, opacity 0.2s;
-      max-height: 2000px; opacity: 1;
-    }
-    #gclPanel.collapsed { max-height: 0; opacity: 0; margin-top: 0; }
-    #gclPanel:not(.collapsed) { margin-top: 10px; }
+    #gclPanel { margin-top: 0; }
 
     /* ── Board GCL Tables ── */
     .board-section {
@@ -260,10 +246,10 @@
       <h1>8-TC Dashboard (No BG)</h1>
     </div>
     <div class="tsep"></div>
-    <label>Speed<input type="number" id="pSpeed" value="1000" min="100" step="100"></label>
-    <label>Cycle<input type="number" id="pCycle" value="1000" min="100" step="100"></label>
-    <label>Guard<input type="number" id="pGuard" value="0" min="0" step="0.5"></label>
-    <label>Proc<input type="number" id="pDelay" value="5" min="0" step="0.5"></label>
+    <label>Speed (Mbps)<input type="number" id="pSpeed" value="1000" min="100" step="100"></label>
+    <label>Cycle (&micro;s)<input type="number" id="pCycle" value="1000" min="100" step="100"></label>
+    <label>Guard (&micro;s)<input type="number" id="pGuard" value="0" min="0" step="0.5"></label>
+    <label>Proc (&micro;s)<input type="number" id="pDelay" value="5" min="0" step="0.5"></label>
     <div class="tsep"></div>
     <label>Solver
       <select id="pSolver">
@@ -327,12 +313,9 @@
       </div>
 
       <div class="section" id="boardSection">
-        <div class="accordion-header" id="accordionToggle">
+        <div class="board-header">
           <div class="section-title" style="margin-bottom:0;">Board GCL (LAN9692)</div>
-          <div class="accordion-actions">
-            <button class="btn-export" id="btnExportGCL" title="Copy GCL JSON">Export JSON</button>
-            <span class="accordion-arrow open" id="accordionArrow">&#9660;</span>
-          </div>
+          <button class="btn-export" id="btnExportGCL" title="Copy GCL JSON">Export JSON</button>
         </div>
         <div id="gclPanel"></div>
       </div>
@@ -511,10 +494,7 @@
       if (sec.dataset.switchId === switchId) {
         sec.style.borderColor = 'rgba(59,130,246,0.6)';
         sec.style.background = 'rgba(59,130,246,0.08)';
-        const panel = document.getElementById('gclPanel');
-        if (panel && !panel.classList.contains('collapsed')) {
-          sec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
+        sec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       } else {
         sec.style.opacity = '0.3';
       }
@@ -1273,28 +1253,15 @@
     });
   }
 
-  /* ═══════ Accordion ═══════ */
-  function initAccordion() {
-    const toggle = document.getElementById('accordionToggle');
-    const panel = document.getElementById('gclPanel');
-    const arrow = document.getElementById('accordionArrow');
-    toggle.addEventListener('click', (ev) => {
-      // Don't toggle when clicking the export button
-      if (ev.target.closest('.btn-export')) return;
-      panel.classList.toggle('collapsed');
-      arrow.classList.toggle('open');
-    });
-  }
-
   /* ═══════ Events ═══════ */
-  document.getElementById('btnSolve').addEventListener('click', () => { renderFlowTable(); solve(); });
-  document.getElementById('pSpeed').addEventListener('change', renderFlowTable);
-  document.getElementById('pCycle').addEventListener('change', renderFlowTable);
-  document.getElementById('pFail').addEventListener('change', () => { renderFlowTable(); solve(); });
-  document.getElementById('btnExportGCL').addEventListener('click', (ev) => {
-    ev.stopPropagation();
-    exportGCL();
-  });
+  const autoSolve = () => { renderFlowTable(); solve(); };
+  document.getElementById('btnSolve').addEventListener('click', autoSolve);
+  document.getElementById('pSpeed').addEventListener('change', autoSolve);
+  document.getElementById('pCycle').addEventListener('change', autoSolve);
+  document.getElementById('pGuard').addEventListener('change', autoSolve);
+  document.getElementById('pDelay').addEventListener('change', autoSolve);
+  document.getElementById('pFail').addEventListener('change', autoSolve);
+  document.getElementById('btnExportGCL').addEventListener('click', exportGCL);
   document.getElementById('btnAddFlow').addEventListener('click', () => {
     addCounter++;
     baseFlows.push({
@@ -1305,8 +1272,6 @@
     });
     renderFlowTable();
   });
-
-  initAccordion();
 
   /* ═══════ Init: Greedy first, then ILP when GLPK ready ═══════ */
   renderFlowTable();

@@ -246,10 +246,10 @@
       <h1>8-TC Grouped View</h1>
     </div>
     <div class="tsep"></div>
-    <label>Speed<input type="number" id="pSpeed" value="1000" min="100" step="100"></label>
-    <label>Cycle<input type="number" id="pCycle" value="1000" min="100" step="100"></label>
-    <label>Guard<input type="number" id="pGuard" value="0" min="0" step="0.5"></label>
-    <label>Proc<input type="number" id="pDelay" value="5" min="0" step="0.5"></label>
+    <label>Speed (Mbps)<input type="number" id="pSpeed" value="1000" min="100" step="100"></label>
+    <label>Cycle (&micro;s)<input type="number" id="pCycle" value="1000" min="100" step="100"></label>
+    <label>Guard (&micro;s)<input type="number" id="pGuard" value="0" min="0" step="0.5"></label>
+    <label>Proc (&micro;s)<input type="number" id="pDelay" value="5" min="0" step="0.5"></label>
     <div class="tsep"></div>
     <label>Solver
       <select id="pSolver">
@@ -758,26 +758,8 @@
     const rect = container.getBoundingClientRect();
     const W = rect.width || 420;
     const H = rect.height || Math.max(340, W * 0.75);
-    // Flow-oriented layout: Sensors(left) → Switches(center) → ACU(right)
-    const pos = {
-      // SW_FL cluster (top)
-      LIDAR_FC:  { x: W*0.07, y: H*0.08 },
-      LIDAR_FL:  { x: W*0.21, y: H*0.08 },
-      RADAR_F:   { x: W*0.07, y: H*0.26 },
-      RADAR_FLC: { x: W*0.21, y: H*0.26 },
-      SW_FL:     { x: W*0.40, y: H*0.17 },
-      // SW_FR cluster (middle)
-      LIDAR_FR:  { x: W*0.07, y: H*0.46 },
-      RADAR_FRC: { x: W*0.21, y: H*0.46 },
-      SW_FR:     { x: W*0.40, y: H*0.46 },
-      // Gateway + ACU
-      SW_REAR:   { x: W*0.64, y: H*0.32 },
-      ACU_IT:    { x: W*0.90, y: H*0.32 },
-      // SW_REAR sensors (bottom fan)
-      LIDAR_R:   { x: W*0.50, y: H*0.70 },
-      RADAR_RLC: { x: W*0.64, y: H*0.80 },
-      RADAR_RRC: { x: W*0.78, y: H*0.70 },
-    };
+    const pos = getRealPositions(W, H);
+    pos.LIDAR_R = { x: W * 0.32, y: H * 0.70 };
 
     const svg = d3.select(container).append('svg')
       .attr('viewBox', `0 0 ${W} ${H}`)
@@ -1325,10 +1307,13 @@
   }
 
   /* ═══════ Events ═══════ */
-  document.getElementById('btnSolve').addEventListener('click', () => { renderFlowTable(); solve(); });
-  document.getElementById('pSpeed').addEventListener('change', renderFlowTable);
-  document.getElementById('pCycle').addEventListener('change', renderFlowTable);
-  document.getElementById('pFail').addEventListener('change', () => { renderFlowTable(); solve(); });
+  const autoSolve = () => { renderFlowTable(); solve(); };
+  document.getElementById('btnSolve').addEventListener('click', autoSolve);
+  document.getElementById('pSpeed').addEventListener('change', autoSolve);
+  document.getElementById('pCycle').addEventListener('change', autoSolve);
+  document.getElementById('pGuard').addEventListener('change', autoSolve);
+  document.getElementById('pDelay').addEventListener('change', autoSolve);
+  document.getElementById('pFail').addEventListener('change', autoSolve);
   document.getElementById('btnExportGCL').addEventListener('click', exportGCL);
   document.getElementById('btnAddFlow').addEventListener('click', () => {
     addCounter++;
