@@ -403,14 +403,28 @@
 
   /* ═══════ Click-based Selection State ═══════ */
   let selectedFlowId = null;
+  let selectedSwitchId = null;
 
   function toggleFlowHighlight(flowId) {
+    selectedSwitchId = null;
     if (selectedFlowId === flowId) {
       selectedFlowId = null;
       clearHighlight();
     } else {
       selectedFlowId = flowId;
       highlightFlow(flowId);
+    }
+  }
+
+  function toggleSwitchHighlight(switchId) {
+    selectedFlowId = null;
+    clearHighlight();
+    if (selectedSwitchId === switchId) {
+      selectedSwitchId = null;
+      clearBoardGCLHighlight();
+    } else {
+      selectedSwitchId = switchId;
+      highlightBoardGCLSwitch(switchId);
     }
   }
 
@@ -666,6 +680,7 @@
     if (solving) return;
     solving = true;
     selectedFlowId = null;
+    selectedSwitchId = null;
     const btn = document.getElementById('btnSolve');
     btn.disabled = true;
 
@@ -779,7 +794,7 @@
       .attr('viewBox', `0 0 ${W} ${H}`)
       .attr('preserveAspectRatio', 'xMidYMid meet')
       .style('width', '100%').style('height', '100%')
-      .on('click', () => { if (selectedFlowId) { selectedFlowId = null; clearHighlight(); } clearBoardGCLHighlight(); });
+      .on('click', () => { selectedFlowId = null; selectedSwitchId = null; clearHighlight(); });
 
     const topoBase = JSON.parse(JSON.stringify(ROII_REAL_8TC));
     const backboneIds = new Set(Object.keys(BACKBONE_REVERSE));
@@ -910,10 +925,7 @@
         .on('click', ev => {
           ev.stopPropagation();
           if (sensorFid) toggleFlowHighlight(sensorFid);
-          else if (isSwitch) {
-            if (selectedFlowId) { selectedFlowId = null; clearHighlight(); }
-            highlightBoardGCLSwitch(node.id);
-          }
+          else if (isSwitch) toggleSwitchHighlight(node.id);
         })
         .on('mouseover', () => {
           let html = `<div class="tt-title">${nc.label || node.id}</div>`;
@@ -1002,7 +1014,7 @@
       .attr('viewBox', `0 0 ${W} ${H}`)
       .attr('preserveAspectRatio', 'xMidYMid meet')
       .style('width', '100%')
-      .on('click', () => { if (selectedFlowId) { selectedFlowId = null; clearHighlight(); } });
+      .on('click', () => { selectedFlowId = null; selectedSwitchId = null; clearHighlight(); });
 
     const defs = svg.append('defs');
     const gp = defs.append('pattern').attr('id', 'guardH')
@@ -1154,7 +1166,7 @@
       .attr('viewBox', `0 0 ${W} ${H}`)
       .attr('preserveAspectRatio', 'xMidYMid meet')
       .style('width', '100%')
-      .on('click', () => { if (selectedFlowId) { selectedFlowId = null; clearHighlight(); } });
+      .on('click', () => { selectedFlowId = null; selectedSwitchId = null; clearHighlight(); });
 
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
     const maxVal = Math.max(...entries.map(e => Math.max(e.e2e, e.dl)));
