@@ -386,11 +386,16 @@
       }
     }
 
-    // Topology links
+    // Topology links — deduplicate SVG elements (backbone has 2 entries for 1 line)
+    const litEls = new Set();
     for (const l of xref.links) {
       if (routeLinks.has(l.lid)) {
+        litEls.add(l.el.node());
         l.el.attr('stroke', fColor).attr('stroke-width', l.baseW + 3).attr('opacity', 1);
-      } else {
+      }
+    }
+    for (const l of xref.links) {
+      if (!litEls.has(l.el.node())) {
         l.el.attr('opacity', 0.08);
       }
     }
