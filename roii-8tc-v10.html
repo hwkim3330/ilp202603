@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>8-TC Demo Profile &mdash; KETI</title>
+  <title>8-TC Demo &mdash; KETI</title>
   <style>
     :root {
       --bg-page: #f1f5f9;   --bg-card: #ffffff;    --bg-hover: #f8fafc;
@@ -57,6 +57,17 @@
     }
     .btn-solve:hover { filter: brightness(1.1); }
     .btn-solve:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-case {
+      padding: 5px 16px; font-size: 0.88rem; font-weight: 700;
+      border: 2px solid var(--border); border-radius: 6px; cursor: pointer;
+      background: var(--bg-card); color: var(--text-2); transition: all 0.15s;
+    }
+    .btn-case:hover { border-color: var(--blue); color: var(--blue); }
+    .btn-case.active {
+      background: linear-gradient(135deg, var(--blue) 0%, var(--cyan) 100%);
+      color: #fff; border-color: transparent;
+    }
+
     /* ── Dashboard Grid ── */
     .dashboard {
       flex: 1; display: grid; grid-template-columns: 1fr 1fr;
@@ -242,7 +253,7 @@
   <div class="top-bar">
     <div class="logo">
       <img src="keti.png" alt="KETI" onerror="this.style.display='none'">
-      <h1>8-TC Demo Profile</h1>
+      <h1>8-TC Demo</h1>
     </div>
     <div class="tsep"></div>
     <label>Speed (Mbps)<input type="number" id="pSpeed" value="1000" min="100" step="100"></label>
@@ -268,14 +279,10 @@
     </label>
     <button class="btn-solve" id="btnSolve">&#9654; Solve</button>
     <div class="tsep"></div>
-    <label>Profile
-      <select id="pProfile">
-        <option value="light">Light</option>
-        <option value="medium" selected>Medium</option>
-        <option value="heavy">Heavy</option>
-        <option value="custom">Custom</option>
-      </select>
-    </label>
+    <div style="display:flex;gap:4px;">
+      <button class="btn-case active" id="btnCase1" data-case="1">Case 1</button>
+      <button class="btn-case" id="btnCase2" data-case="2">Case 2</button>
+    </div>
   </div>
 
   <!-- 2-Column Dashboard -->
@@ -642,71 +649,25 @@
     f_radar_rlc: 1, f_radar_rrc: 1, f_bg_small: 0, f_bg_large: 0
   };
 
-  function initFlows() {
+  let currentCase = 1;
+
+  function initFlows(caseNum) {
     const flows = JSON.parse(JSON.stringify(ROII_REAL_8TC.flows));
     for (const f of flows) {
+      if (f.traffic_type === 'lidar') f.payload_bytes = 4500;
+      if (f.traffic_type === 'radar') f.payload_bytes = 1500;
+      if (f.period_us === 200) f.period_us = 250;
+      // Case 2: TSN 패킷 주기 2배
+      if (caseNum === 2 && f.deadline_us != null) {
+        f.period_us = f.period_us * 2;
+      }
       f.PCP = pcpMap[f.id] ?? f.PCP;
       f.color = flowColor(f.id);
     }
     return flows;
   }
 
-  let baseFlows = initFlows();
-
-  /* ═══════ Traffic Profiles ═══════ */
-  const PROFILES = {
-    light: {
-      f_lidar_fc:  { payload_bytes: 1276, period_us: 500 },
-      f_lidar_r:   { payload_bytes: 1276, period_us: 500 },
-      f_lidar_fl:  { payload_bytes: 1290, period_us: 1000 },
-      f_lidar_fr:  { payload_bytes: 1290, period_us: 1000 },
-      f_radar_f:   { payload_bytes: 64, period_us: 1000 },
-      f_radar_flc: { payload_bytes: 64, period_us: 1000 },
-      f_radar_frc: { payload_bytes: 64, period_us: 1000 },
-      f_radar_rlc: { payload_bytes: 64, period_us: 1000 },
-      f_radar_rrc: { payload_bytes: 64, period_us: 1000 },
-      f_bg_small:  { payload_bytes: 100, period_us: 1000 },
-      f_bg_large:  { payload_bytes: 500, period_us: 1000 },
-    },
-    medium: {
-      f_lidar_fc:  { payload_bytes: 4500, period_us: 250 },
-      f_lidar_r:   { payload_bytes: 4500, period_us: 250 },
-      f_lidar_fl:  { payload_bytes: 4500, period_us: 500 },
-      f_lidar_fr:  { payload_bytes: 4500, period_us: 500 },
-      f_radar_f:   { payload_bytes: 1500, period_us: 500 },
-      f_radar_flc: { payload_bytes: 1500, period_us: 500 },
-      f_radar_frc: { payload_bytes: 1500, period_us: 500 },
-      f_radar_rlc: { payload_bytes: 1500, period_us: 500 },
-      f_radar_rrc: { payload_bytes: 1500, period_us: 500 },
-      f_bg_small:  { payload_bytes: 200, period_us: 500 },
-      f_bg_large:  { payload_bytes: 1400, period_us: 1000 },
-    },
-    heavy: {
-      f_lidar_fc:  { payload_bytes: 4500, period_us: 200 },
-      f_lidar_r:   { payload_bytes: 4500, period_us: 200 },
-      f_lidar_fl:  { payload_bytes: 4500, period_us: 250 },
-      f_lidar_fr:  { payload_bytes: 4500, period_us: 250 },
-      f_radar_f:   { payload_bytes: 1500, period_us: 250 },
-      f_radar_flc: { payload_bytes: 1500, period_us: 250 },
-      f_radar_frc: { payload_bytes: 1500, period_us: 250 },
-      f_radar_rlc: { payload_bytes: 1500, period_us: 250 },
-      f_radar_rrc: { payload_bytes: 1500, period_us: 250 },
-      f_bg_small:  { payload_bytes: 1400, period_us: 500 },
-      f_bg_large:  { payload_bytes: 1400, period_us: 500 },
-    }
-  };
-
-  function applyProfile(name) {
-    const prof = PROFILES[name];
-    if (!prof) return;
-    baseFlows = initFlows();
-    for (const f of baseFlows) {
-      if (prof[f.id]) {
-        f.payload_bytes = prof[f.id].payload_bytes;
-        f.period_us = prof[f.id].period_us;
-      }
-    }
-  }
+  let baseFlows = initFlows(1);
   function syncColors() {
     const map = getFlowColorsHex();
     for (const f of baseFlows) map[f.id] = f.color;
@@ -751,7 +712,6 @@
         } else {
           baseFlows[idx][field] = el.value === '' ? null : parseFloat(el.value);
         }
-        document.getElementById('pProfile').value = 'custom';
         renderFlowTable();
       });
     });
@@ -838,7 +798,7 @@
         let cached = null;
         try {
           setStatus('<span class="spinner-sm"></span> <strong>ILP</strong> \u2014 Loading cached result.json...');
-          const cacheFile = './ilp-base-result.json';
+          const cacheFile = currentCase === 1 ? './ilp-base-result.json' : './ilp-base-result-case2.json';
           const resp = await fetch(cacheFile + '?v=' + Date.now());
           if (resp.ok) {
             cached = await resp.json();
@@ -1472,15 +1432,18 @@
     });
   }
 
-  /* ═══════ Profile Events ═══════ */
-  document.getElementById('pProfile').addEventListener('change', () => {
-    const sel = document.getElementById('pProfile').value;
-    if (sel !== 'custom') {
-      applyProfile(sel);
-      renderFlowTable();
-      solve();
-    }
-  });
+  /* ═══════ Case Switch ═══════ */
+  function switchCase(caseNum) {
+    if (currentCase === caseNum) return;
+    currentCase = caseNum;
+    document.querySelectorAll('.btn-case').forEach(b => b.classList.remove('active'));
+    document.getElementById('btnCase' + caseNum).classList.add('active');
+    baseFlows = initFlows(caseNum);
+    renderFlowTable();
+    solve();
+  }
+  document.getElementById('btnCase1').addEventListener('click', () => switchCase(1));
+  document.getElementById('btnCase2').addEventListener('click', () => switchCase(2));
 
   /* ═══════ Events ═══════ */
   const autoSolve = () => { renderFlowTable(); solve(); };
@@ -1502,8 +1465,7 @@
     renderFlowTable();
   });
 
-  /* ═══════ Init: Apply medium profile, Greedy first, then ILP when GLPK ready ═══════ */
-  applyProfile('medium');
+  /* ═══════ Init: Greedy first, then ILP when GLPK ready ═══════ */
   renderFlowTable();
   const initSolver = document.getElementById('pSolver').value;
   document.getElementById('pSolver').value = 'greedy';
