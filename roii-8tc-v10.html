@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>8-TC Demo &mdash; KETI</title>
+  <title>8-TC Sorted View &mdash; KETI</title>
   <style>
     :root {
       --bg-page: #f1f5f9;   --bg-card: #ffffff;    --bg-hover: #f8fafc;
@@ -253,7 +253,7 @@
   <div class="top-bar">
     <div class="logo">
       <img src="keti.png" alt="KETI" onerror="this.style.display='none'">
-      <h1>8-TC Demo</h1>
+      <h1>8-TC Sorted View</h1>
     </div>
     <div class="tsep"></div>
     <label>Speed (Mbps)<input type="number" id="pSpeed" value="1000" min="100" step="100"></label>
@@ -280,9 +280,8 @@
     <button class="btn-solve" id="btnSolve">&#9654; Solve</button>
     <div class="tsep"></div>
     <div style="display:flex;gap:4px;">
-      <button class="btn-case active" id="btnCase1" data-case="1" title="Original sensor spec (~25% util)">Case 1</button>
-      <button class="btn-case" id="btnCase2" data-case="2" title="Upscaled payloads (~55% util)">Case 2</button>
-      <button class="btn-case" id="btnCase3" data-case="3" title="Fast rate + heavy BG (~85% util)">Case 3</button>
+      <button class="btn-case active" id="btnCase1" data-case="1">Case 1</button>
+      <button class="btn-case" id="btnCase2" data-case="2">Case 2</button>
     </div>
   </div>
 
@@ -642,6 +641,7 @@
   /* ═══════ Flow Data ═══════ */
   const NODE_IDS = ROII_REAL_8TC.nodes.map(n => n.id);
   let addCounter = 0;
+  let currentCase = 1;
   const CUSTOM_COLORS = ['#e11d48','#f97316','#84cc16','#06b6d4','#8b5cf6','#ec4899','#14b8a6','#f59e0b'];
 
   const pcpMap = {
@@ -650,25 +650,15 @@
     f_radar_rlc: 1, f_radar_rrc: 1, f_bg_small: 0, f_bg_large: 0
   };
 
-  let currentCase = 1;
-
   function initFlows(caseNum) {
     const flows = JSON.parse(JSON.stringify(ROII_REAL_8TC.flows));
     for (const f of flows) {
-      if (caseNum === 1) {
-        // Case 1 — Original sensor spec: small payloads, ~25% bottleneck
-        // No modifications — use raw ROII_REAL_8TC data
-      } else if (caseNum === 2) {
-        // Case 2 — Medium: upscaled payloads, moderate periods, ~55% bottleneck
-        if (f.traffic_type === 'lidar') f.payload_bytes = 4500;
-        if (f.traffic_type === 'radar') f.payload_bytes = 1500;
-        if (f.period_us === 200) f.period_us = 250; // G32 200→250µs safety margin
-      } else if (caseNum === 3) {
-        // Case 3 — Heavy: big payloads + fast periods, ~85% bottleneck
-        if (f.traffic_type === 'lidar') f.payload_bytes = 4500;
-        // G32: keep 200µs (fast), Pandar: keep 500µs
-        if (f.traffic_type === 'radar') { f.payload_bytes = 1500; f.period_us = 250; }
-        if (f.traffic_type === 'background') { f.payload_bytes = 1400; f.period_us = 500; }
+      if (f.traffic_type === 'lidar') f.payload_bytes = 4500;
+      if (f.traffic_type === 'radar') f.payload_bytes = 1500;
+      if (f.period_us === 200) f.period_us = 250;
+      // Case 2: TSN 패킷 주기 2배
+      if (caseNum === 2 && f.deadline_us != null) {
+        f.period_us = f.period_us * 2;
       }
       f.PCP = pcpMap[f.id] ?? f.PCP;
       f.color = flowColor(f.id);
@@ -690,7 +680,7 @@
     let html = '';
     for (let i = 0; i < baseFlows.length; i++) {
       const f = baseFlows[i];
-      const tx = round3((f.payload_bytes + 70) * 8 / speed + 1);
+      const tx = round3((f.payload_bytes + 38) * 8 / speed);
       const pkts = Math.round(cycle / f.period_us);
       const c = f.color || '#7b61ff';
       const name = f.id.replace(/^f_/, '');
@@ -733,7 +723,7 @@
     });
   }
 
-  // BG flows come from ROII_REAL_8TC data model (BG node + l_bg_* links)
+  // No default BG flows in this version
 
   /* ═══════ Build Model ═══════ */
   function buildModel() {
@@ -805,11 +795,9 @@
       if (solver === 'ilp') {
         // Try loading pre-computed result.json first
         let cached = null;
-        const cacheFiles = { 1: './ilp-base-result.json', 2: './ilp-base-result-case2.json' };
-        const cacheFile = cacheFiles[currentCase];
         try {
-          if (!cacheFile) throw new Error('no cache for case ' + currentCase);
           setStatus('<span class="spinner-sm"></span> <strong>ILP</strong> \u2014 Loading cached result.json...');
+          const cacheFile = currentCase === 1 ? './ilp-base-result.json' : './ilp-base-result-case2.json';
           const resp = await fetch(cacheFile + '?v=' + Date.now());
           if (resp.ok) {
             cached = await resp.json();
@@ -1455,7 +1443,6 @@
   }
   document.getElementById('btnCase1').addEventListener('click', () => switchCase(1));
   document.getElementById('btnCase2').addEventListener('click', () => switchCase(2));
-  document.getElementById('btnCase3').addEventListener('click', () => switchCase(3));
 
   /* ═══════ Events ═══════ */
   const autoSolve = () => { renderFlowTable(); solve(); };
