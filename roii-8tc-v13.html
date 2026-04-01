@@ -795,6 +795,60 @@
     return m;
   }
 
+  /* ═══════ Rebuild guard bands: demo-style (BEFORE TSN packets on trunk links) ═══════ */
+  function fixGuardBands(model, result) {
+    if (!result?.gcl?.links) return;
+    const guard_us = model.guard_band_us;
+    if (!guard_us || guard_us <= 0) return;
+    const nodeType = {};
+    for (const n of model.nodes) nodeType[n.id] = n.type;
+
+    for (const lnk of model.links) {
+      if (nodeType[lnk.from] !== 'switch') continue;
+      const ld = result.gcl.links[lnk.id];
+      if (!ld || !ld.entries) continue;
+
+      // Extract packet entries (contain '#', e.g. f_radar_f#0)
+      const pktEntries = ld.entries.filter(e => e.note.includes('#'));
+      if (!pktEntries.length) continue;
+      pktEntries.sort((a, b) => a.start_us - b.start_us);
+
+      // Rebuild entries with guard bands BEFORE TSN packets
+      const entries = [];
+      let cur = 0, idx = 0;
+      for (const p of pktEntries) {
+        if (p.start_us > cur + 0.001) {
+          const gapS = round3(cur), gapE = round3(p.start_us), gap = round3(gapE - gapS);
+          const isTSN = !p.note.includes('non-ST');
+          if (isTSN && gap > guard_us) {
+            const gs = round3(gapE - guard_us);
+            entries.push({ index: idx++, gate_mask: '11111111', start_us: gapS, end_us: gs, duration_us: round3(gs - gapS), note: 'non-ST' });
+            entries.push({ index: idx++, gate_mask: '00000000', start_us: gs, end_us: gapE, duration_us: round3(guard_us), note: 'guard' });
+          } else if (isTSN && gap > 0) {
+            entries.push({ index: idx++, gate_mask: '00000000', start_us: gapS, end_us: gapE, duration_us: gap, note: 'guard' });
+          } else if (gap > 0) {
+            entries.push({ index: idx++, gate_mask: '11111111', start_us: gapS, end_us: gapE, duration_us: gap, note: 'non-ST' });
+          }
+        }
+        entries.push({ ...p, index: idx++ });
+        cur = Math.max(cur, p.end_us);
+      }
+      if (cur < model.cycle_time_us - 0.001) {
+        entries.push({ index: idx++, gate_mask: '11111111', start_us: round3(cur), end_us: model.cycle_time_us, duration_us: round3(model.cycle_time_us - cur), note: 'non-ST' });
+      }
+      ld.entries = entries;
+    }
+    // Sync boardConfigs
+    if (result.boardConfigs) {
+      for (const sw of Object.values(result.boardConfigs)) {
+        for (const [pid, port] of Object.entries(sw.ports)) {
+          const ld = result.gcl.links[pid];
+          if (ld) { port.entries = ld.entries; port.num_entries = ld.entries.length; }
+        }
+      }
+    }
+  }
+
   /* ═══════ Patch idle → TC0 Best Effort ═══════ */
   function patchIdleToTC0(result) {
     if (!result?.gcl?.links) return;
@@ -950,6 +1004,7 @@
         result = solveGreedy(model);
       }
 
+      fixGuardBands(model, result);
       patchIdleToTC0(result);
       xref.flowRoutes = buildFlowRoutes(result);
 
@@ -1020,6 +1075,7 @@
       if (solver === 'ilp') {
         try {
           result = solveGreedy(model);
+          fixGuardBands(model, result);
           patchIdleToTC0(result);
           xref.flowRoutes = buildFlowRoutes(result);
           renderTopology(model, failedLink, result);
