@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>8-TC Compare &mdash; KETI</title>
+  <title>8-TC Guard Band + Custom &mdash; KETI</title>
   <style>
     :root {
       --bg-page: #f1f5f9;   --bg-card: #ffffff;    --bg-hover: #f8fafc;
@@ -57,26 +57,6 @@
     }
     .btn-solve:hover { filter: brightness(1.1); }
     .btn-solve:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-mode {
-      padding: 4px 14px; font-size: 0.8rem; font-weight: 700;
-      border: 2px solid var(--border); border-radius: 6px;
-      background: var(--bg-card); color: var(--text-2); cursor: pointer;
-      transition: all 0.15s;
-    }
-    .btn-mode:hover { border-color: var(--blue); color: var(--blue); }
-    .btn-mode.active {
-      background: var(--blue); color: #fff; border-color: var(--blue);
-    }
-    .btn-mode.active-custom {
-      background: var(--orange); color: #fff; border-color: var(--orange);
-    }
-    .delta-badge {
-      display: inline-block; font-size: 0.72rem; font-weight: 700;
-      padding: 1px 6px; border-radius: 4px; margin-left: 4px;
-    }
-    .delta-up { background: rgba(239,68,68,0.12); color: #dc2626; }
-    .delta-down { background: rgba(34,197,94,0.12); color: #16a34a; }
-    .delta-same { background: rgba(148,163,184,0.12); color: #64748b; }
 
     /* ── Dashboard Grid ── */
     .dashboard {
@@ -266,7 +246,7 @@
   <div class="top-bar">
     <div class="logo">
       <img src="keti.png" alt="KETI" onerror="this.style.display='none'">
-      <h1>8-TC Compare</h1>
+      <h1>8-TC Guard Band + Custom</h1>
     </div>
     <div class="tsep"></div>
     <label>Speed (Mbps)<input type="number" id="pSpeed" value="1000" min="100" step="100"></label>
@@ -291,8 +271,14 @@
       </select>
     </label>
     <div class="tsep"></div>
-    <button class="btn-mode active" id="btnDefault">Default</button>
-    <button class="btn-mode" id="btnCustom">Custom</button>
+    <label>Profile
+      <select id="pProfile">
+        <option value="light">Light</option>
+        <option value="medium" selected>Medium</option>
+        <option value="heavy">Heavy</option>
+        <option value="custom">Custom</option>
+      </select>
+    </label>
     <button class="btn-solve" id="btnSolve">&#9654; Solve</button>
   </div>
 
@@ -326,7 +312,7 @@
 
       <!-- E2E under topology on left -->
       <div class="section" id="e2eSection">
-        <div class="section-title">E2E Delay <span id="e2eDelta" style="font-size:0.7rem;font-weight:600;text-transform:none;letter-spacing:0;"></span></div>
+        <div class="section-title">E2E Delay</div>
         <div id="e2eContainer"></div>
       </div>
     </div>
@@ -658,150 +644,156 @@
   const NODE_IDS = ROII_REAL_8TC.nodes.map(n => n.id);
   let addCounter = 0;
   const CUSTOM_COLORS = ['#e11d48','#f97316','#84cc16','#06b6d4','#8b5cf6','#ec4899','#14b8a6','#f59e0b'];
-
-  const pcpMap = {
-    f_lidar_fc: 7, f_lidar_r: 6, f_lidar_fl: 5, f_lidar_fr: 4,
-    f_radar_f: 3, f_radar_flc: 2, f_radar_frc: 2,
-    f_radar_rlc: 1, f_radar_rrc: 1
-  };
-
-  /* ── Default preset (Medium — locked) ── */
-  const DEFAULT_PRESET = {
-    f_lidar_fc:  { payload_bytes: 4500, period_us: 250 },
-    f_lidar_r:   { payload_bytes: 4500, period_us: 250 },
-    f_lidar_fl:  { payload_bytes: 4500, period_us: 500 },
-    f_lidar_fr:  { payload_bytes: 4500, period_us: 500 },
-    f_radar_f:   { payload_bytes: 1500, period_us: 500 },
-    f_radar_flc: { payload_bytes: 1500, period_us: 500 },
-    f_radar_frc: { payload_bytes: 1500, period_us: 500 },
-    f_radar_rlc: { payload_bytes: 1500, period_us: 500 },
-    f_radar_rrc: { payload_bytes: 1500, period_us: 500 },
-    f_bg_small:  { payload_bytes: 200, period_us: 500 },
-    f_bg_large:  { payload_bytes: 1400, period_us: 1000 },
-  };
-
-  function makeFlows(preset) {
-    const flows = JSON.parse(JSON.stringify(ROII_REAL_8TC.flows));
-    for (const f of flows) {
-      if (f.traffic_type === 'lidar') f.payload_bytes = 4500;
-      if (f.traffic_type === 'radar') f.payload_bytes = 1500;
-      if (f.period_us === 200) f.period_us = 250;
-      f.PCP = pcpMap[f.id] ?? f.PCP;
-      f.color = flowColor(f.id);
-    }
-    // BG flows
-    flows.push({
-      id: 'f_bg_small', PCP: 0, payload_bytes: 200, period_us: 500,
-      deadline_us: 500, traffic_type: 'bg', src: 'SW_FR', dst: 'ACU_IT',
-      k_paths: 1, color: '#ec4899'
-    });
-    flows.push({
-      id: 'f_bg_large', PCP: 0, payload_bytes: 1400, period_us: 1000,
-      deadline_us: 1000, traffic_type: 'bg', src: 'SW_REAR', dst: 'ACU_IT',
-      k_paths: 1, color: '#f472b6'
-    });
-    if (preset) {
-      for (const f of flows) {
-        const p = preset[f.id];
-        if (p) {
-          f.payload_bytes = p.payload_bytes;
-          f.period_us = p.period_us;
-          if (f.deadline_us !== undefined) f.deadline_us = p.period_us;
-        }
-      }
-    }
-    return flows;
+  const baseFlows = JSON.parse(JSON.stringify(ROII_REAL_8TC.flows));
+  for (const f of baseFlows) {
+    if (f.traffic_type === 'lidar') f.payload_bytes = 4500;
+    if (f.traffic_type === 'radar') f.payload_bytes = 1500;
+    if (f.period_us === 200) f.period_us = 250;
+    const pcpMap = {
+      f_lidar_fc: 7, f_lidar_r: 6, f_lidar_fl: 5, f_lidar_fr: 4,
+      f_radar_f: 3, f_radar_flc: 2, f_radar_frc: 2,
+      f_radar_rlc: 1, f_radar_rrc: 1
+    };
+    f.PCP = pcpMap[f.id] ?? f.PCP;
+    f.color = flowColor(f.id);
   }
-
-  /* ── Two flow sets ── */
-  let activeMode = 'default';  // 'default' | 'custom'
-  const defaultFlows = makeFlows(DEFAULT_PRESET);
-  let customFlows = makeFlows(DEFAULT_PRESET); // start from same as default
-  let defaultResult = null;
-  let customResult = null;
-
-  function getActiveFlows() { return activeMode === 'default' ? defaultFlows : customFlows; }
-
-  // Backward compat alias
-  let baseFlows = getActiveFlows();
-
   function syncColors() {
     const map = getFlowColorsHex();
-    for (const f of getActiveFlows()) map[f.id] = f.color;
+    for (const f of baseFlows) map[f.id] = f.color;
+  }
+
+  /* ═══════ Traffic Profiles ═══════ */
+  const PROFILES = {
+    light: {
+      f_lidar_fc:  { payload_bytes: 1276, period_us: 500 },
+      f_lidar_r:   { payload_bytes: 1276, period_us: 500 },
+      f_lidar_fl:  { payload_bytes: 1290, period_us: 1000 },
+      f_lidar_fr:  { payload_bytes: 1290, period_us: 1000 },
+      f_radar_f:   { payload_bytes: 64, period_us: 1000 },
+      f_radar_flc: { payload_bytes: 64, period_us: 1000 },
+      f_radar_frc: { payload_bytes: 64, period_us: 1000 },
+      f_radar_rlc: { payload_bytes: 64, period_us: 1000 },
+      f_radar_rrc: { payload_bytes: 64, period_us: 1000 },
+      f_bg_small:  { payload_bytes: 100, period_us: 1000 },
+      f_bg_large:  { payload_bytes: 500, period_us: 1000 },
+      f_custom_1:  { payload_bytes: 500, period_us: 1000 },
+    },
+    medium: {
+      f_lidar_fc:  { payload_bytes: 4500, period_us: 250 },
+      f_lidar_r:   { payload_bytes: 4500, period_us: 250 },
+      f_lidar_fl:  { payload_bytes: 4500, period_us: 500 },
+      f_lidar_fr:  { payload_bytes: 4500, period_us: 500 },
+      f_radar_f:   { payload_bytes: 1500, period_us: 500 },
+      f_radar_flc: { payload_bytes: 1500, period_us: 500 },
+      f_radar_frc: { payload_bytes: 1500, period_us: 500 },
+      f_radar_rlc: { payload_bytes: 1500, period_us: 500 },
+      f_radar_rrc: { payload_bytes: 1500, period_us: 500 },
+      f_bg_small:  { payload_bytes: 200, period_us: 500 },
+      f_bg_large:  { payload_bytes: 1400, period_us: 1000 },
+      f_custom_1:  { payload_bytes: 1500, period_us: 500 },
+    },
+    heavy: {
+      f_lidar_fc:  { payload_bytes: 4500, period_us: 200 },
+      f_lidar_r:   { payload_bytes: 4500, period_us: 200 },
+      f_lidar_fl:  { payload_bytes: 4500, period_us: 250 },
+      f_lidar_fr:  { payload_bytes: 4500, period_us: 250 },
+      f_radar_f:   { payload_bytes: 1500, period_us: 250 },
+      f_radar_flc: { payload_bytes: 1500, period_us: 250 },
+      f_radar_frc: { payload_bytes: 1500, period_us: 250 },
+      f_radar_rlc: { payload_bytes: 1500, period_us: 250 },
+      f_radar_rrc: { payload_bytes: 1500, period_us: 250 },
+      f_bg_small:  { payload_bytes: 1400, period_us: 500 },
+      f_bg_large:  { payload_bytes: 1400, period_us: 500 },
+      f_custom_1:  { payload_bytes: 1500, period_us: 250 },
+    }
+  };
+
+  function applyProfile(name) {
+    if (name === 'custom') return;
+    const preset = PROFILES[name];
+    if (!preset) return;
+    for (const f of baseFlows) {
+      const p = preset[f.id];
+      if (p) {
+        f.payload_bytes = p.payload_bytes;
+        f.period_us = p.period_us;
+        if (f.deadline_us !== undefined) f.deadline_us = p.period_us;
+      }
+    }
   }
 
   /* ═══════ Flow Table ═══════ */
   function renderFlowTable() {
-    const flows = getActiveFlows();
     const speed = getP('pSpeed') || 1000;
     const cycle = getP('pCycle') || 1000;
     const tbody = document.getElementById('flowBody');
-    const locked = activeMode === 'default';
     let html = '';
-    for (let i = 0; i < flows.length; i++) {
-      const f = flows[i];
+    for (let i = 0; i < baseFlows.length; i++) {
+      const f = baseFlows[i];
       const tx = round3((f.payload_bytes + 38) * 8 / speed);
       const pkts = Math.round(cycle / f.period_us);
       const c = f.color || '#7b61ff';
       const name = f.id.replace(/^f_/, '');
-      // Show delta vs default in custom mode
-      let bytesDelta = '', periodDelta = '';
-      if (!locked) {
-        const df = defaultFlows.find(df => df.id === f.id);
-        if (df) {
-          if (f.payload_bytes !== df.payload_bytes) {
-            const d = f.payload_bytes - df.payload_bytes;
-            bytesDelta = ` <span class="delta-badge ${d > 0 ? 'delta-up' : 'delta-down'}">${d > 0 ? '+' : ''}${d}</span>`;
-          }
-          if (f.period_us !== df.period_us) {
-            const d = f.period_us - df.period_us;
-            periodDelta = ` <span class="delta-badge ${d > 0 ? 'delta-down' : 'delta-up'}">${d > 0 ? '+' : ''}${d}</span>`;
-          }
-        }
-      }
-      const dis = locked ? ' disabled' : '';
       const srcOpts = NODE_IDS.map(n => `<option${n===f.src?' selected':''}>${n}</option>`).join('');
       const dstOpts = NODE_IDS.map(n => `<option${n===f.dst?' selected':''}>${n}</option>`).join('');
       html += `<tr>`;
-      html += `<td><div class="flow-name-cell"><input type="color" value="${c}" class="flow-color-dot" data-idx="${i}" data-field="color"${dis}><span style="font-weight:600;font-size:0.76rem;">${name}</span></div></td>`;
-      html += `<td><input type="number" value="${f.PCP}" min="0" max="7" data-idx="${i}" data-field="PCP" style="width:32px;"${dis}></td>`;
-      html += `<td><input type="number" value="${f.payload_bytes}" min="1" data-idx="${i}" data-field="payload_bytes" style="width:52px;"${dis}>${bytesDelta}</td>`;
+      html += `<td><div class="flow-name-cell"><input type="color" value="${c}" class="flow-color-dot" data-idx="${i}" data-field="color"><span style="font-weight:600;font-size:0.76rem;">${name}</span></div></td>`;
+      html += `<td><input type="number" value="${f.PCP}" min="0" max="7" data-idx="${i}" data-field="PCP" style="width:32px;"></td>`;
+      html += `<td><input type="number" value="${f.payload_bytes}" min="1" data-idx="${i}" data-field="payload_bytes" style="width:52px;"></td>`;
       html += `<td class="flow-tx">${tx}</td>`;
-      html += `<td><input type="number" value="${f.period_us}" min="1" data-idx="${i}" data-field="period_us" style="width:48px;"${dis}>${periodDelta}</td>`;
+      html += `<td><input type="number" value="${f.period_us}" min="1" data-idx="${i}" data-field="period_us" style="width:48px;"></td>`;
       html += `<td class="flow-pkts">${pkts}</td>`;
-      html += `<td><select data-idx="${i}" data-field="src" style="max-width:72px;"${dis}>${srcOpts}</select></td>`;
-      html += `<td><select data-idx="${i}" data-field="dst" style="max-width:72px;"${dis}>${dstOpts}</select></td>`;
-      html += `<td>${locked ? '' : `<button class="btn-row-del" data-idx="${i}" title="Remove">&times;</button>`}</td>`;
+      html += `<td><select data-idx="${i}" data-field="src" style="max-width:72px;">${srcOpts}</select></td>`;
+      html += `<td><select data-idx="${i}" data-field="dst" style="max-width:72px;">${dstOpts}</select></td>`;
+      html += `<td><button class="btn-row-del" data-idx="${i}" title="Remove">&times;</button></td>`;
       html += `</tr>`;
     }
     tbody.innerHTML = html;
     syncColors();
-    if (!locked) {
-      tbody.querySelectorAll('input, select').forEach(el => {
-        el.addEventListener('change', () => {
-          const idx = parseInt(el.dataset.idx);
-          const field = el.dataset.field;
-          if (field === 'color') {
-            customFlows[idx].color = el.value;
-          } else if (field === 'src' || field === 'dst') {
-            customFlows[idx][field] = el.value;
-          } else {
-            customFlows[idx][field] = el.value === '' ? null : parseFloat(el.value);
-          }
-          renderFlowTable();
-        });
+    tbody.querySelectorAll('input, select').forEach(el => {
+      el.addEventListener('change', () => {
+        const idx = parseInt(el.dataset.idx);
+        const field = el.dataset.field;
+        if (field === 'color') {
+          baseFlows[idx].color = el.value;
+        } else if (field === 'src' || field === 'dst') {
+          baseFlows[idx][field] = el.value;
+        } else {
+          baseFlows[idx][field] = el.value === '' ? null : parseFloat(el.value);
+        }
+        if (field === 'payload_bytes' || field === 'period_us') {
+          document.getElementById('pProfile').value = 'custom';
+        }
+        renderFlowTable();
       });
-      tbody.querySelectorAll('.btn-row-del').forEach(btn => {
-        btn.addEventListener('click', () => {
-          if (customFlows.length <= 1) return;
-          customFlows.splice(parseInt(btn.dataset.idx), 1);
-          renderFlowTable();
-        });
+    });
+    tbody.querySelectorAll('.btn-row-del').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (baseFlows.length <= 1) return;
+        baseFlows.splice(parseInt(btn.dataset.idx), 1);
+        renderFlowTable();
       });
-    }
-    // Update Add Flow button visibility
-    document.getElementById('btnAddFlow').style.display = locked ? 'none' : '';
+    });
   }
+
+  // BG flows — SW_FR (small) + SW_REAR (large)
+  baseFlows.push({
+    id: 'f_bg_small', PCP: 0, payload_bytes: 200, period_us: 500,
+    deadline_us: 500, traffic_type: 'bg', src: 'SW_FR', dst: 'ACU_IT',
+    k_paths: 1, color: '#ec4899'
+  });
+  baseFlows.push({
+    id: 'f_bg_large', PCP: 0, payload_bytes: 1400, period_us: 1000,
+    deadline_us: 1000, traffic_type: 'bg', src: 'SW_REAR', dst: 'ACU_IT',
+    k_paths: 1, color: '#f472b6'
+  });
+
+  // Custom flow
+  baseFlows.push({
+    id: 'f_custom_1', PCP: 0, payload_bytes: 1500, period_us: 500,
+    deadline_us: 500, traffic_type: 'radar', src: 'SW_FL', dst: 'ACU_IT',
+    k_paths: 1, color: '#e11d48'
+  });
 
   /* ═══════ Build Model ═══════ */
   function buildModel() {
@@ -812,7 +804,7 @@
     m.processing_delay_us = getP('pDelay') || 5;
     const speed = getP('pSpeed') || 1000;
     for (const lnk of m.links) lnk.rate_mbps = speed;
-    m.flows = getActiveFlows().map(f => ({ ...f, k_paths: 1 }));
+    m.flows = baseFlows.map(f => ({ ...f, k_paths: 1 }));
     const failedLink = document.getElementById('pFail').value;
     if (failedLink) {
       const revId = BACKBONE_REVERSE[failedLink];
@@ -852,28 +844,6 @@
 
   /* ═══════ Solve ═══════ */
   let solving = false;
-
-  function getResultMetrics(result) {
-    if (!result || result.error) return null;
-    const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
-    return {
-      pkts: result.packetRows.length,
-      util: parseFloat(result.worst_util_percent),
-      worst: stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0,
-      miss: stPkts.filter(p => p.status === 'MISS').length,
-      overlap: stPkts.filter(p => p.status === 'OVERLAP').length,
-    };
-  }
-
-  function deltaHtml(cur, ref, unit, lowerBetter) {
-    if (ref == null) return '';
-    const d = cur - ref;
-    if (Math.abs(d) < 0.01) return '<span class="delta-badge delta-same">=</span>';
-    const better = lowerBetter ? d < 0 : d > 0;
-    const cls = better ? 'delta-down' : 'delta-up';
-    return `<span class="delta-badge ${cls}">${d > 0 ? '+' : ''}${round3(d)}${unit}</span>`;
-  }
-
   async function solve() {
     if (solving) return;
     solving = true;
@@ -882,7 +852,6 @@
     selectedLinkId = null;
     const btn = document.getElementById('btnSolve');
     btn.disabled = true;
-    baseFlows = getActiveFlows();
 
     const solver = document.getElementById('pSolver').value;
     syncColors();
@@ -890,7 +859,7 @@
     const model = buildModel();
     const failedLink = document.getElementById('pFail').value;
 
-    setStatus(`<span class="spinner-sm"></span> Solving <strong>${activeMode === 'default' ? 'Default' : 'Custom'}</strong> with <strong>${solver === 'ilp' ? 'ILP' : 'Greedy'}</strong> | ${model.flows.length} flows | cycle ${model.cycle_time_us}\u00b5s`);
+    setStatus(`<span class="spinner-sm"></span> Solving with <strong>${solver === 'ilp' ? 'ILP' : 'Greedy'}</strong> | ${model.flows.length} flows | cycle ${model.cycle_time_us}\u00b5s`);
 
     let result;
     try {
@@ -917,47 +886,37 @@
       patchIdleToTC0(result);
       xref.flowRoutes = buildFlowRoutes(result);
 
-      // Cache result
-      if (activeMode === 'default') defaultResult = result;
-      else customResult = result;
-
       if (result.error) {
         setStatus(`<span style="color:var(--red);">Error: ${result.error}</span>`);
       } else {
-        const m = getResultMetrics(result);
-        const failCount = m.miss + m.overlap;
-        const modeLabel = activeMode === 'default' ? 'Default' : 'Custom';
-        let s = `\u2713 <strong>${modeLabel}</strong> (${solver === 'ilp' ? 'ILP' : 'Greedy'})`;
-        s += ` | ${m.pkts} pkts`;
+        const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
+        const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
+        const missCount = stPkts.filter(p => p.status === 'MISS').length;
+        const overlapCount = stPkts.filter(p => p.status === 'OVERLAP').length;
+        const failCount = missCount + overlapCount;
+        let s = `\u2713 <strong>${solver === 'ilp' ? 'ILP' : 'Greedy'}</strong>`;
+        s += ` | ${result.packetRows.length} pkts`;
         s += ` | Util ${result.worst_util_percent}%`;
-        // Show delta vs other mode
-        const otherResult = activeMode === 'default' ? customResult : defaultResult;
-        const otherMetrics = getResultMetrics(otherResult);
-        if (otherMetrics) {
-          s += deltaHtml(m.util, otherMetrics.util, '%', true);
-        }
-        s += ` | Worst E2E ${round3(m.worst)}\u00b5s`;
-        if (otherMetrics) {
-          s += deltaHtml(m.worst, otherMetrics.worst, '\u00b5s', true);
-        }
+        s += ` | Worst E2E ${round3(worst)}\u00b5s`;
         if (result.stats) {
           s += ` | ${result.stats.binaries} bins, ${Math.round(result.stats.runtime_ms)}ms`;
           if (result.method && result.method.includes('optimal')) s += ` <span style="color:var(--green);">\u2713 optimal</span>`;
         }
         if (failCount === 0) s += ` | <span style="color:var(--green);font-weight:700;">ALL OK</span>`;
-        else if (m.overlap > 0) s += ` | <span style="color:var(--red);font-weight:700;">${m.overlap} OVERLAP</span>`;
-        else s += ` | <span style="color:var(--red);font-weight:700;">${m.miss} MISS</span>`;
+        else if (overlapCount > 0) s += ` | <span style="color:var(--red);font-weight:700;">${overlapCount} OVERLAP</span>`;
+        else s += ` | <span style="color:var(--red);font-weight:700;">${missCount} MISS</span>`;
         if (failedLink) s += ` | <span style="color:var(--red);">FAILOVER</span>`;
         setStatus(s);
       }
 
       document.getElementById('ganttTitle').textContent =
-        `GCL Schedule \u2014 ${activeMode === 'default' ? 'Default' : 'Custom'} (${solver === 'ilp' ? 'ILP' : 'Greedy'})${failedLink ? ' [FAILOVER]' : ''}`;
+        `GCL Schedule \u2014 ${solver === 'ilp' ? 'ILP' : 'Greedy'}${failedLink ? ' [FAILOVER]' : ''}`;
 
       renderTopology(model, failedLink, result);
       renderGantt(model, result);
       renderE2E(model, result);
       renderBoardGCL(model, result);
+
 
     } catch (e) {
       console.error(e);
@@ -965,18 +924,16 @@
         try {
           result = solveGreedy(model);
           patchIdleToTC0(result);
-          if (activeMode === 'default') defaultResult = result;
-          else customResult = result;
           xref.flowRoutes = buildFlowRoutes(result);
           renderTopology(model, failedLink, result);
           renderGantt(model, result);
           renderE2E(model, result);
           renderBoardGCL(model, result);
-
+    
           const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
           const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
           setStatus(`<span style="color:var(--red);">ILP failed</span> \u2192 Greedy fallback | Pkts: ${result.packetRows.length} | Util: ${result.worst_util_percent}% | Worst E2E: ${round3(worst)}\u00b5s`);
-          document.getElementById('ganttTitle').textContent = `GCL Schedule \u2014 ${activeMode === 'default' ? 'Default' : 'Custom'} (Greedy fallback)`;
+          document.getElementById('ganttTitle').textContent = 'GCL Schedule \u2014 Greedy (ILP fallback)';
         } catch (e2) {
           setStatus(`<span style="color:var(--red);">Error: ${e.message}</span>`);
         }
@@ -1421,7 +1378,7 @@
       .text(`Cycle: ${model.cycle_time_us}\u00b5s | Active: ${activeLinks.length}/${model.links.length} links`);
   }
 
-  /* ═══════ E2E Delay Chart (comparison view) ═══════ */
+  /* ═══════ E2E Delay Chart (with hover highlight) ═══════ */
   let lastResult = null;
   function renderE2E(model, result) {
     lastResult = result;
@@ -1430,49 +1387,20 @@
     xref.e2eBars = [];
     if (!result || result.error || !result.packetRows) return;
 
-    // Current result E2E
     const flowE2E = {};
     for (const pkt of result.packetRows) {
       if (pkt.status === 'NON-ST') continue;
       const fid = pkt.flow_id;
       if (!flowE2E[fid] || pkt.e2e_delay_us > flowE2E[fid]) flowE2E[fid] = pkt.e2e_delay_us;
     }
-
-    // Other result E2E (for comparison)
-    const otherResult = activeMode === 'default' ? customResult : defaultResult;
-    const otherE2E = {};
-    if (otherResult && !otherResult.error && otherResult.packetRows) {
-      for (const pkt of otherResult.packetRows) {
-        if (pkt.status === 'NON-ST') continue;
-        const fid = pkt.flow_id;
-        if (!otherE2E[fid] || pkt.e2e_delay_us > otherE2E[fid]) otherE2E[fid] = pkt.e2e_delay_us;
-      }
-    }
-    const hasOther = Object.keys(otherE2E).length > 0;
-
-    const flows = getActiveFlows();
-    const entries = flows
+    const entries = baseFlows
       .filter(f => flowE2E[f.id] !== undefined)
-      .map(f => ({ fid: f.id, name: f.id.replace(/^f_/,''), e2e: flowE2E[f.id], otherE2e: otherE2E[f.id], dl: f.deadline_us || model.cycle_time_us, color: flowColor(f.id) || f.color }));
+      .map(f => ({ fid: f.id, name: f.id.replace(/^f_/,''), e2e: flowE2E[f.id], dl: f.deadline_us || model.cycle_time_us, color: flowColor(f.id) || f.color }));
     if (!entries.length) return;
 
-    // Update delta summary
-    const deltaEl = document.getElementById('e2eDelta');
-    if (hasOther && deltaEl) {
-      const otherLabel = activeMode === 'default' ? 'Custom' : 'Default';
-      const pairs = entries.filter(e => e.otherE2e != null);
-      if (pairs.length) {
-        const avgDiff = pairs.reduce((s, e) => s + (e.e2e - e.otherE2e), 0) / pairs.length;
-        const cls = Math.abs(avgDiff) < 0.1 ? 'delta-same' : avgDiff < 0 ? 'delta-down' : 'delta-up';
-        deltaEl.innerHTML = `<span class="delta-badge ${cls}">vs ${otherLabel}: ${avgDiff > 0 ? '+' : ''}${round3(avgDiff)}\u00b5s avg</span>`;
-      }
-    } else if (deltaEl) {
-      deltaEl.innerHTML = '';
-    }
-
     const W = container.clientWidth || 400;
-    const margin = { top: 6, right: 72, bottom: 20, left: 86 };
-    const rowH = hasOther ? 28 : 20;
+    const margin = { top: 6, right: 58, bottom: 20, left: 86 };
+    const rowH = 20;
     const innerW = W - margin.left - margin.right;
     const innerH = entries.length * rowH;
     const H = margin.top + innerH + margin.bottom;
@@ -1484,10 +1412,9 @@
       .on('click', () => { selectedFlowId = null; selectedSwitchId = null; selectedLinkId = null; clearHighlight(); });
 
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
-    const allVals = entries.flatMap(e => [e.e2e, e.dl, ...(e.otherE2e != null ? [e.otherE2e] : [])]);
-    const maxVal = Math.max(...allVals);
+    const maxVal = Math.max(...entries.map(e => Math.max(e.e2e, e.dl)));
     const x = d3.scaleLinear().domain([0, maxVal * 1.1]).range([0, innerW]);
-    const y = d3.scaleBand().domain(entries.map(e => e.fid)).range([0, innerH]).padding(0.15);
+    const y = d3.scaleBand().domain(entries.map(e => e.fid)).range([0, innerH]).padding(0.2);
 
     // Deadline markers
     for (const e of entries) {
@@ -1496,49 +1423,28 @@
         .attr('stroke', 'rgba(239,68,68,0.35)').attr('stroke-width', 1.5).attr('stroke-dasharray', '3,2');
     }
 
-    // E2E bars
+    // E2E bars — hoverable
     for (const e of entries) {
-      const bw = y.bandwidth();
-      const barH = hasOther ? bw * 0.48 : bw;
-      const yTop = y(e.fid);
-
-      // Current bar (top half or full)
       const barW = Math.max(x(e.e2e), 2);
       const miss = e.e2e > e.dl;
       const barEl = g.append('rect').attr('class', 'e2e-bar')
-        .attr('x', 0).attr('y', yTop)
-        .attr('width', barW).attr('height', barH)
+        .attr('x', 0).attr('y', y(e.fid))
+        .attr('width', barW).attr('height', y.bandwidth())
         .attr('fill', e.color).attr('opacity', miss ? 1 : 0.8).attr('rx', 3)
         .attr('stroke', miss ? '#ef4444' : 'none').attr('stroke-width', miss ? 2 : 0)
         .attr('data-fid', e.fid);
 
       const labelEl = g.append('text').attr('class', 'e2e-label')
-        .attr('x', barW + 4).attr('y', yTop + barH / 2)
-        .attr('dominant-baseline', 'central').attr('font-size', '8px')
+        .attr('x', barW + 4).attr('y', y(e.fid) + y.bandwidth()/2)
+        .attr('dominant-baseline', 'central').attr('font-size', '9px')
         .attr('font-weight', '700').attr('fill', miss ? '#ef4444' : '#475569')
         .text(round3(e.e2e) + '\u00b5s');
 
       xref.e2eBars.push({ el: barEl, labelEl, fid: e.fid });
 
-      // Other bar (bottom half) — lighter with hatching
-      if (hasOther && e.otherE2e != null) {
-        const otherW = Math.max(x(e.otherE2e), 2);
-        const yBot = yTop + bw - barH;
-        g.append('rect')
-          .attr('x', 0).attr('y', yBot)
-          .attr('width', otherW).attr('height', barH)
-          .attr('fill', e.color).attr('opacity', 0.3).attr('rx', 3)
-          .attr('stroke', e.color).attr('stroke-width', 0.5).attr('stroke-dasharray', '2,2');
-        g.append('text')
-          .attr('x', otherW + 4).attr('y', yBot + barH / 2)
-          .attr('dominant-baseline', 'central').attr('font-size', '7px')
-          .attr('fill', '#94a3b8')
-          .text(round3(e.otherE2e) + '\u00b5s');
-      }
-
-      // Hit area
-      g.append('rect').attr('x', 0).attr('y', yTop)
-        .attr('width', Math.max(barW, innerW * 0.5)).attr('height', bw)
+      // Hit area for click highlight
+      g.append('rect').attr('x', 0).attr('y', y(e.fid))
+        .attr('width', Math.max(barW, innerW * 0.5)).attr('height', y.bandwidth())
         .attr('fill', 'transparent').style('cursor', 'pointer')
         .on('click', ev => { ev.stopPropagation(); toggleFlowHighlight(e.fid); });
     }
@@ -1553,18 +1459,6 @@
     g.append('g').attr('class', 'gcl-axis').attr('transform', `translate(0,${innerH})`)
       .call(d3.axisBottom(x).ticks(5).tickFormat(d => d + '\u00b5s'))
       .selectAll('text').attr('font-size', '9px');
-
-    // Legend when comparison active
-    if (hasOther) {
-      const otherLabel = activeMode === 'default' ? 'Custom' : 'Default';
-      const curLabel = activeMode === 'default' ? 'Default' : 'Custom';
-      const lg = g.append('g').attr('transform', `translate(${innerW - 120}, -2)`);
-      lg.append('rect').attr('width', 8).attr('height', 8).attr('fill', '#3b82f6').attr('opacity', 0.8).attr('rx', 1);
-      lg.append('text').attr('x', 11).attr('y', 7).text(curLabel).attr('font-size', '7px').attr('fill', '#475569');
-      lg.append('rect').attr('x', 55).attr('width', 8).attr('height', 8).attr('fill', '#3b82f6').attr('opacity', 0.3).attr('rx', 1)
-        .attr('stroke', '#3b82f6').attr('stroke-width', 0.5).attr('stroke-dasharray', '2,2');
-      lg.append('text').attr('x', 66).attr('y', 7).text(otherLabel).attr('font-size', '7px').attr('fill', '#94a3b8');
-    }
   }
 
   /* ═══════ Board GCL ═══════ */
@@ -1632,64 +1526,22 @@
     });
   }
 
-  /* ═══════ Mode Toggle ═══════ */
-  function switchMode(mode) {
-    if (activeMode === mode) return;
-    activeMode = mode;
-    baseFlows = getActiveFlows();
-    document.getElementById('btnDefault').className = 'btn-mode' + (mode === 'default' ? ' active' : '');
-    document.getElementById('btnCustom').className = 'btn-mode' + (mode === 'custom' ? ' active-custom' : '');
-    renderFlowTable();
-    // If we have a cached result, show it; otherwise solve
-    const cached = mode === 'default' ? defaultResult : customResult;
-    if (cached) {
-      const model = buildModel();
-      const failedLink = document.getElementById('pFail').value;
-      const solver = document.getElementById('pSolver').value;
-      xref.flowRoutes = buildFlowRoutes(cached);
-      const m = getResultMetrics(cached);
-      const otherResult = mode === 'default' ? customResult : defaultResult;
-      const otherMetrics = getResultMetrics(otherResult);
-      let s = `\u2713 <strong>${mode === 'default' ? 'Default' : 'Custom'}</strong> (cached)`;
-      s += ` | ${m.pkts} pkts | Util ${cached.worst_util_percent}%`;
-      if (otherMetrics) s += deltaHtml(m.util, otherMetrics.util, '%', true);
-      s += ` | Worst E2E ${round3(m.worst)}\u00b5s`;
-      if (otherMetrics) s += deltaHtml(m.worst, otherMetrics.worst, '\u00b5s', true);
-      const failCount = m.miss + m.overlap;
-      if (failCount === 0) s += ` | <span style="color:var(--green);font-weight:700;">ALL OK</span>`;
-      else s += ` | <span style="color:var(--red);font-weight:700;">${failCount} FAIL</span>`;
-      setStatus(s);
-      document.getElementById('ganttTitle').textContent =
-        `GCL Schedule \u2014 ${mode === 'default' ? 'Default' : 'Custom'}`;
-      renderTopology(model, failedLink, cached);
-      renderGantt(model, cached);
-      renderE2E(model, cached);
-      renderBoardGCL(model, cached);
-    } else {
-      solve();
-    }
-  }
-
   /* ═══════ Events ═══════ */
-  const autoSolve = () => {
-    // Invalidate cached results on param change
-    defaultResult = null;
-    customResult = null;
-    renderFlowTable();
-    solve();
-  };
-  document.getElementById('btnSolve').addEventListener('click', () => { renderFlowTable(); solve(); });
+  const autoSolve = () => { renderFlowTable(); solve(); };
+  document.getElementById('btnSolve').addEventListener('click', autoSolve);
   document.getElementById('pSpeed').addEventListener('change', autoSolve);
   document.getElementById('pCycle').addEventListener('change', autoSolve);
   document.getElementById('pGuard').addEventListener('change', autoSolve);
   document.getElementById('pDelay').addEventListener('change', autoSolve);
   document.getElementById('pFail').addEventListener('change', autoSolve);
   document.getElementById('btnExportGCL').addEventListener('click', exportGCL);
-  document.getElementById('btnDefault').addEventListener('click', () => switchMode('default'));
-  document.getElementById('btnCustom').addEventListener('click', () => switchMode('custom'));
+  document.getElementById('pProfile').addEventListener('change', () => {
+    applyProfile(document.getElementById('pProfile').value);
+    autoSolve();
+  });
   document.getElementById('btnAddFlow').addEventListener('click', () => {
     addCounter++;
-    customFlows.push({
+    baseFlows.push({
       id: `f_custom_${addCounter}`, PCP: 0, payload_bytes: 1500,
       period_us: 500, deadline_us: 500, traffic_type: 'radar',
       src: 'SW_FL', dst: 'ACU_IT', k_paths: 1,
@@ -1698,7 +1550,8 @@
     renderFlowTable();
   });
 
-  /* ═══════ Init: Solve Default first, then ILP ═══════ */
+  /* ═══════ Init: Apply Medium profile, then solve ═══════ */
+  applyProfile('medium');
   renderFlowTable();
   const initSolver = document.getElementById('pSolver').value;
   document.getElementById('pSolver').value = 'greedy';
