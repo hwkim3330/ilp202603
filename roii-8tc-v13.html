@@ -349,7 +349,7 @@
   <script type="module">
   const _v = '?v=' + Date.now();
   const { ROII_REAL_8TC, ROII_REAL_SWITCHES, getRealPositions, ROII_REAL_NODE_COLORS } = await import('./js/roii-real-data.js' + _v);
-  const { solveGreedy, solveILP, initTooltip, flowColor, getFlowColorsHex } = await import('./js/ilp-core.js' + _v);
+  const { solveGreedy, solveILP, initTooltip, flowColor, getFlowColorsHex, generateKPaths } = await import('./js/ilp-core.js' + _v);
 
   initTooltip();
   const round3 = v => Math.round(v * 1000) / 1000;
@@ -645,7 +645,7 @@
   }
 
   /* ═══════ Flow Data ═══════ */
-  const NODE_IDS = ROII_REAL_8TC.nodes.map(n => n.id);
+  const NODE_IDS = [...ROII_REAL_8TC.nodes.map(n => n.id), 'BG'];
   let addCounter = 0;
   let currentCase = 1;
   const CUSTOM_COLORS = ['#e11d48','#f97316','#84cc16','#06b6d4','#8b5cf6','#ec4899','#14b8a6','#f59e0b'];
@@ -677,10 +677,10 @@
   ];
 
   /* ── Case 2: Heavy load (Greedy MISS, ILP OK) ── */
-  /* 9 ST flows only — no BG. k_paths=2 for LiDAR (route optimization),
-     k_paths=1 for radar (small, single route OK).
+  /* k_paths=2 for LiDAR (route optimization), k_paths=1 for radar.
      Tight 300µs deadline + ~70% bottleneck util → Greedy can't schedule
-     later-priority LiDAR within deadline; ILP finds global optimum. */
+     later-priority LiDAR within deadline; ILP finds global optimum.
+     BG flows (deadline=null) are excluded from ILP, placed in gaps after. */
   const CASE2_FLOWS = [
     { id: 'f_lidar_fc', PCP: 5, payload_bytes: 6000, period_us: 200, deadline_us: 300,
       traffic_type: 'lidar', src: 'LIDAR_FC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_fc') },
@@ -700,6 +700,10 @@
       traffic_type: 'radar', src: 'RADAR_RLC', dst: 'ACU_IT', k_paths: 1, color: flowColor('f_radar_rlc') },
     { id: 'f_radar_rrc', PCP: 2, payload_bytes: 320, period_us: 500, deadline_us: 300,
       traffic_type: 'radar', src: 'RADAR_RRC', dst: 'ACU_IT', k_paths: 1, color: flowColor('f_radar_rrc') },
+    { id: 'f_bg_small', PCP: 0, payload_bytes: 200, period_us: 500, deadline_us: null,
+      traffic_type: 'bg', src: 'BG', dst: 'ACU_IT', k_paths: 1, color: '#ec4899' },
+    { id: 'f_bg_large', PCP: 0, payload_bytes: 1400, period_us: 1000, deadline_us: null,
+      traffic_type: 'bg', src: 'BG', dst: 'ACU_IT', k_paths: 1, color: '#f472b6' },
   ];
 
   function initFlows(caseNum) {
@@ -773,6 +777,12 @@
     for (const lnk of m.links) lnk.rate_mbps = speed;
     m.flows = baseFlows.map(f => ({ ...f }));
 
+    // Case 2: add BG node + link to SW_FR
+    if (currentCase === 2) {
+      m.nodes.push({ id: 'BG', type: 'endstation' });
+      m.links.push({ id: 'l_bg_swfr', from: 'BG', to: 'SW_FR', rate_mbps: speed, prop_delay_us: 0.3 });
+    }
+
     const failedLink = document.getElementById('pFail').value;
     if (failedLink) {
       const revId = BACKBONE_REVERSE[failedLink];
@@ -810,6 +820,79 @@
     }
   }
 
+  /* ═══════ BG Packet Placement (post-ILP) ═══════ */
+  function addBgPackets(fullModel, bgFlows, result) {
+    const cycleTime = fullModel.cycle_time_us;
+    const lm = new Map(fullModel.links.map(l => [l.id, l]));
+    const adj = new Map();
+    for (const l of fullModel.links) {
+      if (!adj.has(l.from)) adj.set(l.from, []);
+      adj.get(l.from).push({ to: l.to, lid: l.id });
+    }
+    const occ = {};
+    for (const lnk of fullModel.links) occ[lnk.id] = [];
+    for (const pk of result.packetRows) {
+      for (const h of pk.hops) occ[h.link_id].push([h.start_us, h.end_us]);
+    }
+    for (const lid of Object.keys(occ)) occ[lid].sort((a, b) => a[0] - b[0]);
+
+    function findSlot(lid, earliest, duration) {
+      let t = Math.max(0, earliest);
+      for (let iter = 0; iter < 500; iter++) {
+        if (t + duration > cycleTime) return null;
+        let conflict = false;
+        for (const [s, e] of occ[lid]) {
+          if (t < e && t + duration > s) { t = e; conflict = true; break; }
+        }
+        if (!conflict) return t;
+      }
+      return null;
+    }
+
+    const bgPkts = [];
+    for (const f of bgFlows) {
+      const reps = Math.max(1, Math.round(cycleTime / f.period_us));
+      const paths = generateKPaths(adj, f.src, f.dst, 1, fullModel.nodes.length + 2);
+      if (!paths.length) continue;
+      for (let k = 0; k < reps; k++) {
+        bgPkts.push({
+          pid: `${f.id}#${k}`, fid: f.id, pri: f.PCP ?? 0,
+          rel: (f.rel != null ? f.rel : 0) + k * f.period_us,
+          hopsTemplate: paths[0].map(lid => ({
+            lid, tx: round3((f.payload_bytes + 38) * 8 / lm.get(lid).rate_mbps),
+            pd: lm.get(lid).prop_delay_us
+          }))
+        });
+      }
+    }
+    bgPkts.sort((a, b) => a.rel - b.rel);
+
+    for (const pk of bgPkts) {
+      const hops = [];
+      let t = pk.rel, valid = true;
+      for (const hp of pk.hopsTemplate) {
+        const s = findSlot(hp.lid, t, hp.tx);
+        if (s == null) { valid = false; break; }
+        hops.push({ link_id: hp.lid, start_us: round3(s), end_us: round3(s + hp.tx), duration_us: round3(hp.tx), queue: 0 });
+        t = round3(s + hp.tx + hp.pd + fullModel.processing_delay_us);
+      }
+      if (!valid || !hops.length) continue;
+      for (const h of hops) { occ[h.link_id].push([h.start_us, h.end_us]); occ[h.link_id].sort((a, b) => a[0] - b[0]); }
+      for (const h of hops) {
+        const le = result.gcl.links[h.link_id];
+        if (le) le.entries.push({ index: le.entries.length, gate_mask: '00000001', start_us: h.start_us, end_us: h.end_us, duration_us: h.duration_us, note: `${pk.pid} (non-ST)` });
+      }
+      const fin = round3(hops.at(-1).end_us + pk.hopsTemplate.at(-1).pd);
+      result.packetRows.push({
+        packet_id: pk.pid, flow_id: pk.fid, priority: pk.pri,
+        selected_route: 0, release_us: round3(pk.rel), end_us: fin,
+        e2e_delay_us: round3(fin - pk.rel), deadline_abs_us: null, slack_us: null,
+        status: 'NON-ST', hops
+      });
+    }
+    result.packetRows.sort((a, b) => a.end_us - b.end_us);
+  }
+
   /* ═══════ Solve ═══════ */
   let solving = false;
   async function solve() {
@@ -835,9 +918,16 @@
         const glpk = await ensureGLPK();
         if (!glpk) { setStatus('<span style="color:var(--red);">GLPK failed to load</span>'); solving = false; btn.disabled = false; return; }
         const tmlim = parseInt(document.getElementById('pTmlim').value) || 30;
-        result = await solveILP(model, glpk, { tmlim, onProgress: info => {
+
+        // Separate ST and BG flows — only ST enters ILP
+        const stFlows = model.flows.filter(f => f.deadline_us != null);
+        const bgFlows = model.flows.filter(f => f.deadline_us == null);
+        const ilpModel = bgFlows.length > 0 ? { ...model, flows: stFlows } : model;
+
+        result = await solveILP(ilpModel, glpk, { tmlim, onProgress: info => {
           if (info.phase === 'building') {
-            setStatus(`<span class="spinner-sm"></span> <strong>ILP</strong> \u2014 ${info.pkts} pkts from ${info.flows} flows...`);
+            const bgNote = bgFlows.length > 0 ? ` (${bgFlows.length} BG deferred)` : '';
+            setStatus(`<span class="spinner-sm"></span> <strong>ILP</strong> \u2014 ${info.pkts} pkts from ${info.flows} flows${bgNote}...`);
           } else if (info.phase === 'solving') {
             const p = info.pruning || {};
             let detail = `${info.bins} bins, ${info.constraints} cstr`;
@@ -847,6 +937,11 @@
             setStatus(`<span class="spinner-sm"></span> <strong>ILP</strong> \u2014 GLPK: ${info.pkts} pkts, ${detail}...`);
           }
         }});
+
+        // Place BG packets in gaps after ILP
+        if (bgFlows.length > 0 && !result.error) {
+          addBgPackets(model, bgFlows, result);
+        }
       } else {
         result = solveGreedy(model);
       }
@@ -882,7 +977,13 @@
             cmpResult = solveGreedy(model);
           } else {
             const glpk2 = await ensureGLPK();
-            if (glpk2) cmpResult = await solveILP(model, glpk2, { tmlim: 15 });
+            if (glpk2) {
+              const cmpST = model.flows.filter(f => f.deadline_us != null);
+              const cmpBG = model.flows.filter(f => f.deadline_us == null);
+              const cmpModel = cmpBG.length > 0 ? { ...model, flows: cmpST } : model;
+              cmpResult = await solveILP(cmpModel, glpk2, { tmlim: 15 });
+              if (cmpBG.length > 0 && cmpResult && !cmpResult.error) addBgPackets(model, cmpBG, cmpResult);
+            }
           }
           if (cmpResult && !cmpResult.error) {
             const cmpST = cmpResult.packetRows.filter(p => p.status !== 'NON-ST');
@@ -950,6 +1051,7 @@
     const H = rect.height || Math.max(340, W * 0.75);
     const pos = getRealPositions(W, H);
     pos.LIDAR_R = { x: W * 0.32, y: H * 0.70 };
+    if (currentCase === 2) pos.BG = { x: W * 0.93, y: H * 0.20 };
     const svg = d3.select(container).append('svg')
       .attr('viewBox', `0 0 ${W} ${H}`)
       .attr('preserveAspectRatio', 'xMidYMid meet')
@@ -957,6 +1059,10 @@
       .on('click', () => { selectedFlowId = null; selectedSwitchId = null; selectedLinkId = null; clearHighlight(); });
 
     const topoBase = JSON.parse(JSON.stringify(ROII_REAL_8TC));
+    if (currentCase === 2) {
+      topoBase.nodes.push({ id: 'BG', type: 'endstation' });
+      topoBase.links.push({ id: 'l_bg_swfr', from: 'BG', to: 'SW_FR', rate_mbps: 1000, prop_delay_us: 0.3 });
+    }
     const backboneIds = new Set(Object.keys(BACKBONE_REVERSE));
     const failedSet = new Set();
     if (failedLink) { failedSet.add(failedLink); const rv = BACKBONE_REVERSE[failedLink]; if (rv) failedSet.add(rv); }
@@ -1051,7 +1157,9 @@
     for (const node of topoBase.nodes) {
       const p = pos[node.id];
       if (!p) continue;
-      const nc = ROII_REAL_NODE_COLORS[node.id] || { fill: '#e2e8f0', stroke: '#94a3b8', shortLabel: node.id, label: node.id };
+      const nc = node.id === 'BG'
+        ? { fill: '#fce7f3', stroke: '#ec4899', shortLabel: 'BG', label: 'Background' }
+        : ROII_REAL_NODE_COLORS[node.id] || { fill: '#e2e8f0', stroke: '#94a3b8', shortLabel: node.id, label: node.id };
       const isSwitch = node.type === 'switch';
       const isACU = node.id === 'ACU_IT';
       const isLidar = node.id.startsWith('LIDAR');
@@ -1092,7 +1200,8 @@
         })
         .on('mouseover', () => {
           let html = `<div class="tt-title">${nc.label || node.id}</div>`;
-          html += `<div class="tt-row"><span class="tt-k">Type</span><span class="tt-v">${isSwitch ? 'Switch' : isACU ? 'ACU' : isLidar ? 'LiDAR' : 'Radar'}</span></div>`;
+          const isBG = node.id === 'BG';
+          html += `<div class="tt-row"><span class="tt-k">Type</span><span class="tt-v">${isSwitch ? 'Switch' : isACU ? 'ACU' : isLidar ? 'LiDAR' : isBG ? 'Background' : 'Radar'}</span></div>`;
           if (sensorFid) {
             const f = baseFlows.find(bf => bf.id === sensorFid);
             if (f) html += `<div class="tt-row"><span class="tt-k">PCP</span><span class="tt-v">${f.PCP} (TC${f.PCP})</span></div>`;
