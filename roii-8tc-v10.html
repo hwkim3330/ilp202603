@@ -680,7 +680,7 @@
     let html = '';
     for (let i = 0; i < baseFlows.length; i++) {
       const f = baseFlows[i];
-      const tx = round3((f.payload_bytes + 38) * 8 / speed);
+      const tx = round3((f.payload_bytes + 70) * 8 / speed);
       const pkts = Math.round(cycle / f.period_us);
       const c = f.color || '#7b61ff';
       const name = f.id.replace(/^f_/, '');
@@ -823,7 +823,7 @@
                 }
               }
               result.boardConfigs[lnk.from].ports[lnk.id] = {
-                to: lnk.to, cycle_time_us: model.cycle_time_us, guard_band_us: model.guard_band_us,
+                to: lnk.to, cycle_time_us: result.gcl?.cycleTime || model.cycle_time_us, guard_band_us: model.guard_band_us,
                 num_entries: gclEntries.length,
                 pcp_queue_map: [...pcpSet].sort((a, b) => b - a).map(q => ({ pcp: q, queue: q })),
                 entries: gclEntries
@@ -852,6 +852,11 @@
       }
 
       patchIdleToTC0(result);
+      // Sync model cycle time with solver's actual cycle time
+      if (result.gcl?.cycleTime) {
+        model.cycle_time_us = result.gcl.cycleTime;
+        document.getElementById('pCycle').value = model.cycle_time_us;
+      }
       xref.flowRoutes = buildFlowRoutes(result);
 
       if (result.error) {
@@ -892,6 +897,10 @@
         try {
           result = solveGreedy(model);
           patchIdleToTC0(result);
+          if (result.gcl?.cycleTime) {
+            model.cycle_time_us = result.gcl.cycleTime;
+            document.getElementById('pCycle').value = model.cycle_time_us;
+          }
           xref.flowRoutes = buildFlowRoutes(result);
           renderTopology(model, failedLink, result);
           renderGantt(model, result);
