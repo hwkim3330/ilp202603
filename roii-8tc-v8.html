@@ -270,6 +270,15 @@
         <option value="l_swfr_swrear">FR &harr; REAR</option>
       </select>
     </label>
+    <div class="tsep"></div>
+    <label>Profile
+      <select id="pProfile">
+        <option value="light">Light</option>
+        <option value="medium" selected>Medium</option>
+        <option value="heavy">Heavy</option>
+        <option value="custom">Custom</option>
+      </select>
+    </label>
     <button class="btn-solve" id="btnSolve">&#9654; Solve</button>
   </div>
 
@@ -653,6 +662,63 @@
     for (const f of baseFlows) map[f.id] = f.color;
   }
 
+  /* ═══════ Traffic Profiles ═══════ */
+  const PROFILES = {
+    light: {
+      f_lidar_fc:  { payload_bytes: 1276, period_us: 500 },
+      f_lidar_r:   { payload_bytes: 1276, period_us: 500 },
+      f_lidar_fl:  { payload_bytes: 1290, period_us: 1000 },
+      f_lidar_fr:  { payload_bytes: 1290, period_us: 1000 },
+      f_radar_f:   { payload_bytes: 64, period_us: 1000 },
+      f_radar_flc: { payload_bytes: 64, period_us: 1000 },
+      f_radar_frc: { payload_bytes: 64, period_us: 1000 },
+      f_radar_rlc: { payload_bytes: 64, period_us: 1000 },
+      f_radar_rrc: { payload_bytes: 64, period_us: 1000 },
+      f_bg_small:  { payload_bytes: 100, period_us: 1000 },
+      f_bg_large:  { payload_bytes: 500, period_us: 1000 },
+    },
+    medium: {
+      f_lidar_fc:  { payload_bytes: 4500, period_us: 250 },
+      f_lidar_r:   { payload_bytes: 4500, period_us: 250 },
+      f_lidar_fl:  { payload_bytes: 4500, period_us: 500 },
+      f_lidar_fr:  { payload_bytes: 4500, period_us: 500 },
+      f_radar_f:   { payload_bytes: 1500, period_us: 500 },
+      f_radar_flc: { payload_bytes: 1500, period_us: 500 },
+      f_radar_frc: { payload_bytes: 1500, period_us: 500 },
+      f_radar_rlc: { payload_bytes: 1500, period_us: 500 },
+      f_radar_rrc: { payload_bytes: 1500, period_us: 500 },
+      f_bg_small:  { payload_bytes: 200, period_us: 500 },
+      f_bg_large:  { payload_bytes: 1400, period_us: 1000 },
+    },
+    heavy: {
+      f_lidar_fc:  { payload_bytes: 4500, period_us: 200 },
+      f_lidar_r:   { payload_bytes: 4500, period_us: 200 },
+      f_lidar_fl:  { payload_bytes: 4500, period_us: 250 },
+      f_lidar_fr:  { payload_bytes: 4500, period_us: 250 },
+      f_radar_f:   { payload_bytes: 1500, period_us: 250 },
+      f_radar_flc: { payload_bytes: 1500, period_us: 250 },
+      f_radar_frc: { payload_bytes: 1500, period_us: 250 },
+      f_radar_rlc: { payload_bytes: 1500, period_us: 250 },
+      f_radar_rrc: { payload_bytes: 1500, period_us: 250 },
+      f_bg_small:  { payload_bytes: 1400, period_us: 500 },
+      f_bg_large:  { payload_bytes: 1400, period_us: 500 },
+    }
+  };
+
+  function applyProfile(name) {
+    if (name === 'custom') return;
+    const preset = PROFILES[name];
+    if (!preset) return;
+    for (const f of baseFlows) {
+      const p = preset[f.id];
+      if (p) {
+        f.payload_bytes = p.payload_bytes;
+        f.period_us = p.period_us;
+        if (f.deadline_us !== undefined) f.deadline_us = p.period_us;
+      }
+    }
+  }
+
   /* ═══════ Flow Table ═══════ */
   function renderFlowTable() {
     const speed = getP('pSpeed') || 1000;
@@ -691,6 +757,9 @@
           baseFlows[idx][field] = el.value;
         } else {
           baseFlows[idx][field] = el.value === '' ? null : parseFloat(el.value);
+        }
+        if (field === 'payload_bytes' || field === 'period_us') {
+          document.getElementById('pProfile').value = 'custom';
         }
         renderFlowTable();
       });
@@ -1456,6 +1525,10 @@
   document.getElementById('pDelay').addEventListener('change', autoSolve);
   document.getElementById('pFail').addEventListener('change', autoSolve);
   document.getElementById('btnExportGCL').addEventListener('click', exportGCL);
+  document.getElementById('pProfile').addEventListener('change', () => {
+    applyProfile(document.getElementById('pProfile').value);
+    autoSolve();
+  });
   document.getElementById('btnAddFlow').addEventListener('click', () => {
     addCounter++;
     baseFlows.push({
@@ -1467,7 +1540,8 @@
     renderFlowTable();
   });
 
-  /* ═══════ Init: Greedy first, then ILP when GLPK ready ═══════ */
+  /* ═══════ Init: Apply Medium profile, then solve ═══════ */
+  applyProfile('medium');
   renderFlowTable();
   const initSolver = document.getElementById('pSolver').value;
   document.getElementById('pSolver').value = 'greedy';
