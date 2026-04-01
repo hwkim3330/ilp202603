@@ -344,56 +344,46 @@ function buildResult(model, pkts, schedHops, method, stats) {
       gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries };
     }
   } else {
-    // ── Standard mode: pre-computed gate schedule ──
-    const gateSchedule = computeGateSchedule(model, pkts);
+    // ── Standard mode: demo-style guard bands (before TSN on trunk links) ──
+    const guard_us = model.guard_band_us != null ? model.guard_band_us : 12.304;
+    const nodeType = Object.fromEntries(model.nodes.map(n => [n.id, n.type]));
 
     for (const lnk of model.links) {
-      const linkGate = (gateSchedule[lnk.from] || {})[lnk.id];
+      const isTrunk = nodeType[lnk.from] === 'switch';
+      const rows = linkRows[lnk.id].slice().sort((a, b) => a.start_us - b.start_us);
+      const entries = []; let cur = 0, idx = 0;
 
-      if (linkGate) {
-        const rows = linkRows[lnk.id].slice().sort((a, b) => a.start_us - b.start_us);
-        const entries = [];
-        let idx = 0;
-
-        for (const gs of linkGate) {
-          if (gs.type === 'guard') {
-            entries.push({ index: idx++, gate_mask: '00000000', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'guard' });
-          } else if (gs.type === 'closed') {
-            entries.push({ index: idx++, gate_mask: '00000000', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'all-gates-closed' });
-          } else if (gs.type === 'be') {
-            entries.push({ index: idx++, gate_mask: '11111111', start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'non-ST' });
+      for (let ri = 0; ri < rows.length; ri++) {
+        const r = rows[ri];
+        if (r.start_us > cur + 0.001) {
+          const gapStart = round3(cur), gapEnd = round3(r.start_us), gapDur = round3(gapEnd - gapStart);
+          if (isTrunk && r.tsn && guard_us > 0 && gapDur > guard_us) {
+            // BE window + guard band before TSN packet
+            const guardStart = round3(gapEnd - guard_us);
+            entries.push({ index: idx++, gate_mask: '11111111', start_us: gapStart, end_us: guardStart, duration_us: round3(guardStart - gapStart), note: 'non-ST' });
+            entries.push({ index: idx++, gate_mask: '00000000', start_us: guardStart, end_us: gapEnd, duration_us: round3(guard_us), note: 'guard' });
+          } else if (isTrunk && r.tsn && guard_us > 0 && gapDur > 0) {
+            // Gap <= guard band: entire gap is guard (no BE frame can start)
+            entries.push({ index: idx++, gate_mask: '00000000', start_us: gapStart, end_us: gapEnd, duration_us: gapDur, note: 'guard' });
           } else {
-            const tc = gs.queue;
-            const mask = Array(8).fill('0'); mask[7 - tc] = '1';
-            const gateMask = mask.join('');
-            const windowPkts = rows.filter(r => r.start_us >= gs.open - 1e-9 && r.end_us <= gs.close + 1e-9);
-            if (windowPkts.length > 0) {
-              for (const wp of windowPkts) {
-                entries.push({ index: idx++, gate_mask: gateMask, start_us: wp.start_us, end_us: wp.end_us, duration_us: wp.duration_us, note: wp.note });
-              }
-            } else {
-              entries.push({ index: idx++, gate_mask: gateMask, start_us: gs.open, end_us: gs.close, duration_us: round3(gs.close - gs.open), note: 'non-ST' });
-            }
+            // Non-trunk, non-TSN next, or no guard: open for BE
+            entries.push({ index: idx++, gate_mask: '11111111', start_us: gapStart, end_us: gapEnd, duration_us: gapDur, note: 'non-ST' });
           }
         }
-        gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries };
-      } else {
-        const rows = linkRows[lnk.id].slice().sort((a, b) => a.start_us - b.start_us);
-        const entries = [];
-        let idx = 0;
-        if (rows.length > 0) {
-          for (const r of rows) {
-            entries.push({ index: idx++, gate_mask: '11111111', start_us: r.start_us, end_us: r.end_us, duration_us: r.duration_us, note: r.note });
-          }
-          const lastEnd = rows.at(-1).end_us;
-          if (lastEnd < model.cycle_time_us - 1) {
-            entries.push({ index: idx++, gate_mask: '11111111', start_us: round3(lastEnd), end_us: model.cycle_time_us, duration_us: round3(model.cycle_time_us - lastEnd), note: 'non-ST' });
-          }
-        } else {
-          entries.push({ index: 0, gate_mask: '11111111', start_us: 0, end_us: model.cycle_time_us, duration_us: model.cycle_time_us, note: 'non-ST' });
-        }
-        gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries };
+        // Packet entry with TC-specific gate mask
+        const tc = r.queue >= 0 ? r.queue : r.priority;
+        const mask = Array(8).fill('0'); mask[7 - tc] = '1';
+        entries.push({ index: idx++, gate_mask: mask.join(''), start_us: r.start_us, end_us: r.end_us, duration_us: r.duration_us, note: r.note });
+        cur = Math.max(cur, r.end_us);
       }
+      // Remaining time after last packet
+      if (cur < model.cycle_time_us - 0.001) {
+        entries.push({ index: idx++, gate_mask: '11111111', start_us: round3(cur), end_us: model.cycle_time_us, duration_us: round3(model.cycle_time_us - cur), note: 'non-ST' });
+      }
+      if (entries.length === 0) {
+        entries.push({ index: 0, gate_mask: '11111111', start_us: 0, end_us: model.cycle_time_us, duration_us: model.cycle_time_us, note: 'non-ST' });
+      }
+      gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries };
     }
   }
 
