@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>8-TC Case 1/2 &mdash; KETI</title>
+  <style>
+    :root {
+      --bg-page: #f1f5f9;   --bg-card: #ffffff;    --bg-hover: #f8fafc;
+      --border: #e2e8f0;     --border-focus: #93c5fd;
+      --text-1: #0f172a;     --text-2: #475569;     --text-3: #94a3b8;
+      --blue: #3b82f6;       --cyan: #06b6d4;       --red: #ef4444;
+      --green: #22c55e;      --orange: #f59e0b;     --guard: #d97706;
+      --radius: 10px;        --shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-page); color: var(--text-1);
+      height: 100vh; overflow: hidden; display: flex; flex-direction: column;
+    }
+
+    /* ── Top Bar ── */
+    .top-bar {
+      background: var(--bg-card); border-bottom: 1px solid var(--border);
+      padding: 6px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      flex-shrink: 0; z-index: 10; box-shadow: var(--shadow);
+    }
+    .top-bar .logo {
+      display: flex; align-items: center; gap: 8px; margin-right: 4px;
+    }
+    .top-bar .logo img { height: 26px; width: auto; }
+    .top-bar .logo h1 {
+      font-size: 0.95rem; font-weight: 800; letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--blue) 0%, var(--cyan) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      white-space: nowrap;
+    }
+    .top-bar label {
+      font-size: 0.78rem; font-weight: 600; color: var(--text-2);
+      display: flex; flex-direction: column; gap: 1px;
+    }
+    .top-bar input, .top-bar select {
+      padding: 3px 6px; border-radius: 6px; border: 1px solid var(--border);
+      font-size: 0.82rem; width: 70px; transition: border-color 0.15s;
+    }
+    .top-bar select { width: auto; min-width: 70px; }
+    .top-bar input:focus, .top-bar select:focus {
+      outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 2px rgba(59,130,246,0.1);
+    }
+    .tsep { width: 1px; height: 26px; background: var(--border); flex-shrink: 0; }
+    .fail-select { border-color: rgba(239,68,68,0.3) !important; }
+    .btn-solve {
+      padding: 5px 18px; font-size: 0.85rem; font-weight: 700;
+      background: linear-gradient(135deg, var(--blue) 0%, var(--cyan) 100%);
+      color: #fff; border: none; border-radius: 6px; cursor: pointer; white-space: nowrap;
+    }
+    .btn-solve:hover { filter: brightness(1.1); }
+    .btn-solve:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-case {
+      padding: 4px 14px; font-size: 0.8rem; font-weight: 700;
+      border: 2px solid var(--border); border-radius: 6px;
+      background: var(--bg-card); color: var(--text-2); cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-case:hover { border-color: var(--blue); color: var(--blue); }
+    .btn-case.active {
+      background: var(--blue); color: #fff; border-color: var(--blue);
+    }
+
+    /* ── Dashboard Grid ── */
+    .dashboard {
+      flex: 1; display: grid; grid-template-columns: 1fr 1fr;
+      gap: 0; overflow: hidden; min-height: 0;
+    }
+    .topo-pane {
+      border-right: 1px solid var(--border); overflow-y: auto;
+      display: flex; flex-direction: column;
+      scrollbar-width: thin; scrollbar-color: rgba(59,130,246,0.15) transparent;
+    }
+    .topo-pane::-webkit-scrollbar { width: 5px; }
+    .topo-pane::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.15); border-radius: 3px; }
+    .viz-pane {
+      overflow-y: auto; display: flex; flex-direction: column;
+      scrollbar-width: thin; scrollbar-color: rgba(59,130,246,0.15) transparent;
+    }
+    .viz-pane::-webkit-scrollbar { width: 5px; }
+    .viz-pane::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.15); border-radius: 3px; }
+
+    /* ── Cards / Sections ── */
+    .section {
+      padding: 12px 16px; border-bottom: 1px solid var(--border);
+    }
+    .section:last-child { border-bottom: none; }
+    .section-title {
+      font-size: 0.78rem; font-weight: 800; color: var(--text-3);
+      text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .section-title::before {
+      content: ''; width: 3px; height: 14px; border-radius: 2px; background: var(--blue);
+    }
+
+    /* ── Topo Card ── */
+    .topo-card {
+      position: relative; background: var(--bg-card);
+      display: flex; flex-direction: column; flex-shrink: 0;
+    }
+    .topo-header {
+      padding: 10px 14px 0 14px; flex-shrink: 0;
+    }
+    #topoContainer {
+      min-height: 340px;
+    }
+
+    /* ── Flow Table ── */
+    .btn-add {
+      padding: 3px 12px; font-size: 0.76rem; font-weight: 700;
+      border-radius: 5px; border: none; cursor: pointer;
+      background: rgba(34,197,94,0.12); color: #16a34a;
+    }
+    .btn-add:hover { background: rgba(34,197,94,0.22); }
+    .flow-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    .flow-table th {
+      background: rgba(59,130,246,0.04); padding: 3px 4px; text-align: left;
+      font-weight: 700; color: var(--text-3); font-size: 0.68rem;
+      text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap;
+    }
+    .flow-table td { padding: 2px 4px; border-bottom: 1px solid rgba(0,0,0,0.03); white-space: nowrap; }
+    .flow-table td input[type="number"] {
+      width: 52px; padding: 2px 3px; border-radius: 3px;
+      border: 1px solid var(--border); font-size: 0.76rem;
+      font-family: 'Courier New', monospace; text-align: right;
+    }
+    .flow-table td input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 1.5px rgba(59,130,246,0.12); }
+    .flow-table tr:hover { background: rgba(59,130,246,0.03); }
+    .flow-table select {
+      font-size: 0.72rem; padding: 2px; max-width: 82px;
+      border: 1px solid var(--border); border-radius: 3px; background: #fff;
+    }
+    .flow-name-cell { display: flex; align-items: center; gap: 3px; }
+    .flow-color-dot {
+      width: 12px; height: 12px; min-width: 12px; padding: 0; border: none;
+      border-radius: 50%; cursor: pointer; flex-shrink: 0;
+      -webkit-appearance: none; appearance: none; background: none;
+    }
+    .flow-color-dot::-webkit-color-swatch-wrapper { padding: 0; border-radius: 50%; }
+    .flow-color-dot::-webkit-color-swatch { border: 1.5px solid rgba(0,0,0,0.12); border-radius: 50%; }
+    .flow-color-dot::-moz-color-swatch { border: 1.5px solid rgba(0,0,0,0.12); border-radius: 50%; }
+    .flow-tx { font-family: 'Courier New', monospace; font-size: 0.74rem; color: var(--text-3); text-align: right; }
+    .flow-pkts { font-family: 'Courier New', monospace; font-size: 0.74rem; text-align: center; color: var(--text-2); }
+    .btn-row-del {
+      width: 16px; height: 16px; border: none; border-radius: 50%; cursor: pointer;
+      background: transparent; color: #cbd5e1; font-size: 0.75rem;
+      font-weight: 700; line-height: 16px; text-align: center; padding: 0;
+    }
+    .btn-row-del:hover { background: rgba(239,68,68,0.12); color: #ef4444; }
+
+    /* ── Gantt ── */
+    #ganttContainer { min-height: 280px; }
+    .gcl-grid line { stroke: rgba(59,130,246,0.05); stroke-width: 1; }
+    .gcl-axis text { fill: var(--text-2) !important; }
+    .gcl-axis path, .gcl-axis line { stroke: var(--border); }
+    .gcl-label { fill: rgba(0,0,0,0.75); font-weight: 700; pointer-events: none; }
+
+    /* ── E2E ── */
+    #e2eContainer { min-height: 90px; }
+
+    /* ── Board GCL Header ── */
+    .board-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .board-header .section-title { margin-bottom: 0; }
+    .btn-export {
+      padding: 3px 10px; font-size: 0.72rem; font-weight: 600;
+      border-radius: 4px; border: 1px solid var(--border);
+      background: var(--bg-hover); color: var(--blue); cursor: pointer;
+    }
+    .btn-export:hover { background: rgba(59,130,246,0.08); }
+    #gclPanel { margin-top: 0; }
+
+    /* ── Board GCL Tables ── */
+    .board-section {
+      margin-bottom: 10px; padding: 8px 10px;
+      border: 1px solid var(--border); border-radius: 8px;
+      background: var(--bg-hover);
+    }
+    .board-section h3 { font-size: 0.88rem; font-weight: 700; color: var(--blue); margin: 0 0 6px 0; }
+    .board-port { margin-bottom: 8px; }
+    .board-port h4 { font-size: 0.82rem; font-weight: 600; color: var(--text-2); margin: 0 0 4px 0; }
+    .board-port .port-meta { font-size: 0.74rem; color: var(--text-3); margin-bottom: 4px; }
+    .gcl-table { width: 100%; border-collapse: collapse; font-size: 0.76rem; font-family: 'Courier New', monospace; }
+    .gcl-table th {
+      background: rgba(59,130,246,0.04); color: var(--text-2); padding: 3px 6px;
+      text-align: left; font-weight: 700; border-bottom: 1px solid var(--border);
+    }
+    .gcl-table td { padding: 2px 6px; border-bottom: 1px solid rgba(0,0,0,0.03); }
+    .gcl-table tr:hover { background: rgba(59,130,246,0.04); }
+    .gate-bits { display: inline-flex; gap: 1px; }
+    .gate-bit {
+      display: inline-block; width: 13px; height: 16px; border-radius: 2px;
+      font-size: 8px; text-align: center; line-height: 16px; font-weight: 700;
+    }
+    .gate-bit.open { background: rgba(59,130,246,0.3); color: #1e40af; }
+    .gate-bit.closed { background: rgba(100,116,139,0.1); color: var(--text-3); }
+    .gate-bit.guard { background: rgba(217,119,6,0.3); color: #92400e; }
+    .pcp-map { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
+    .pcp-badge {
+      font-size: 0.72rem; padding: 1px 7px; border-radius: 3px;
+      background: rgba(59,130,246,0.06); color: var(--blue); font-weight: 600;
+    }
+
+    /* ── Status Bar (bottom) ── */
+    .status-bar {
+      background: var(--bg-card); border-top: 1px solid var(--border);
+      padding: 5px 20px; font-size: 0.82rem; color: var(--text-2); flex-shrink: 0;
+      min-height: 28px; display: flex; align-items: center;
+      box-shadow: 0 -1px 3px rgba(0,0,0,0.04);
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner-sm {
+      display: inline-block; width: 12px; height: 12px;
+      border: 2px solid rgba(59,130,246,0.2); border-top-color: var(--blue);
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+      vertical-align: middle; margin-right: 5px;
+    }
+
+    /* ── Tooltip ── */
+    .tooltip {
+      position: fixed; z-index: 1000; pointer-events: none; display: none;
+      background: rgba(255,255,255,0.97); border: 1px solid var(--border);
+      color: var(--text-1); box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      border-radius: 8px; padding: 10px 14px; font-size: 0.82rem; max-width: 280px;
+    }
+    .tooltip.show { display: block; }
+    .tooltip .tt-title { font-weight: 800; margin-bottom: 5px; color: var(--blue); }
+    .tooltip .tt-row { display: flex; justify-content: space-between; gap: 12px; padding: 1px 0; }
+    .tooltip .tt-k { color: var(--text-3); }
+    .tooltip .tt-v { font-weight: 600; font-family: 'Courier New', monospace; }
+
+    /* ── E2E bar highlight ── */
+    .e2e-bar { transition: opacity 0.12s; }
+    .e2e-bar.dimmed { opacity: 0.15; }
+    .e2e-bar.lit { opacity: 1; stroke: #fff; stroke-width: 2; }
+    .e2e-label { transition: opacity 0.12s; }
+    .e2e-label.dimmed { opacity: 0.15; }
+
+    /* ── Click hint ── */
+    .topo-card svg, #ganttContainer svg, #e2eContainer svg { cursor: default; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <div class="top-bar">
+    <div class="logo">
+      <img src="keti.png" alt="KETI" onerror="this.style.display='none'">
+      <h1>8-TC Case 1/2</h1>
+    </div>
+    <div class="tsep"></div>
+    <label>Speed (Mbps)<input type="number" id="pSpeed" value="1000" min="100" step="100"></label>
+    <label>Cycle (&micro;s)<input type="number" id="pCycle" value="1000" min="100" step="100"></label>
+    <label>Guard (&micro;s)<input type="number" id="pGuard" value="0" min="0" step="0.5"></label>
+    <label>Proc (&micro;s)<input type="number" id="pDelay" value="3" min="0" step="0.5"></label>
+    <div class="tsep"></div>
+    <label>Solver
+      <select id="pSolver">
+        <option value="greedy">Greedy</option>
+        <option value="ilp" selected>ILP (GLPK)</option>
+      </select>
+    </label>
+    <label>Limit<input type="number" id="pTmlim" value="30" min="5" max="600" step="10" style="width:50px;"></label>
+    <div class="tsep"></div>
+    <label>Fail
+      <select id="pFail" class="fail-select">
+        <option value="">None</option>
+        <option value="l_swfl_swfr">FL &harr; FR</option>
+        <option value="l_swfl_swrear">FL &harr; REAR</option>
+        <option value="l_swfr_swrear">FR &harr; REAR</option>
+      </select>
+    </label>
+    <div class="tsep"></div>
+    <button class="btn-case active" id="btnCase1">Case 1</button>
+    <button class="btn-case" id="btnCase2">Case 2</button>
+    <button class="btn-solve" id="btnSolve">&#9654; Solve</button>
+  </div>
+
+  <!-- 2-Column Dashboard -->
+  <div class="dashboard">
+    <!-- Left: Topology -->
+    <div class="topo-pane">
+      <div class="topo-card">
+        <div class="topo-header">
+          <div class="section-title">Network Topology</div>
+        </div>
+        <div id="topoContainer"></div>
+      </div>
+
+      <!-- Flow Configuration -->
+      <div class="section" id="flowSection">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div class="section-title" style="margin-bottom:0;">Flow Configuration</div>
+          <button class="btn-add" id="btnAddFlow">+ Add</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="flow-table" id="flowTable">
+            <thead><tr>
+              <th>Flow</th><th>PCP</th><th>Bytes</th>
+              <th>TX</th><th>Period</th><th>#</th><th>Src</th><th>Dst</th><th></th>
+            </tr></thead>
+            <tbody id="flowBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- E2E under topology on left -->
+      <div class="section" id="e2eSection">
+        <div class="section-title">E2E Delay</div>
+        <div id="e2eContainer"></div>
+      </div>
+    </div>
+
+    <!-- Right: Gantt + Board GCL -->
+    <div class="viz-pane">
+      <div class="section" id="ganttSection">
+        <div class="section-title" id="ganttTitle">GCL Schedule</div>
+        <div id="ganttContainer"></div>
+      </div>
+
+      <div class="section" id="boardSection">
+        <div class="board-header">
+          <div class="section-title" style="margin-bottom:0;">Board GCL (LAN9692)</div>
+          <button class="btn-export" id="btnExportGCL" title="Copy GCL JSON">Export JSON</button>
+        </div>
+        <div id="gclPanel"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Bar (bottom) -->
+  <div class="status-bar" id="statusBar">
+    <span class="spinner-sm"></span> Loading...
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <script src="vendor/d3.min.js"></script>
+  <script type="module">
+  const _v = '?v=' + Date.now();
+  const { ROII_REAL_8TC, ROII_REAL_SWITCHES, getRealPositions, ROII_REAL_NODE_COLORS } = await import('./js/roii-real-data.js' + _v);
+  const { solveGreedy, solveILP, initTooltip, flowColor, getFlowColorsHex } = await import('./js/ilp-core.js' + _v);
+
+  initTooltip();
+  const round3 = v => Math.round(v * 1000) / 1000;
+
+  const BACKBONE_REVERSE = {
+    'l_swfl_swfr': 'l_swfr_swfl', 'l_swfr_swfl': 'l_swfl_swfr',
+    'l_swfl_swrear': 'l_swrear_swfl', 'l_swrear_swfl': 'l_swfl_swrear',
+    'l_swfr_swrear': 'l_swrear_swfr', 'l_swrear_swfr': 'l_swfr_swrear',
+  };
+
+  /* ═══════ GLPK Lazy Loader ═══════ */
+  let glpkInstance = null;
+  let glpkLoading = false;
+  async function ensureGLPK() {
+    if (glpkInstance) return glpkInstance;
+    if (glpkLoading) { while (glpkLoading) await new Promise(r => setTimeout(r, 80)); return glpkInstance; }
+    glpkLoading = true;
+    try { const GLPK = (await import('./vendor/glpk.js' + _v)).default; glpkInstance = await GLPK(); }
+    catch (e) { console.error('GLPK load error:', e); }
+    glpkLoading = false;
+    return glpkInstance;
+  }
+
+  /* ═══════ Helpers ═══════ */
+  const getP = id => parseFloat(document.getElementById(id).value) || 0;
+  function hexToRgba(hex, alpha) {
+    const r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+  function setStatus(html) { document.getElementById('statusBar').innerHTML = html; }
+
+  /* ═══════ Cross-Reference (xref) System ═══════ */
+  const xref = {
+    bars: [],        // [{el, labelEl, fid, lid}]
+    beBars: [],      // [{el}]
+    guards: [],      // [{el}]
+    nodes: [],       // [{el, nid, fid, baseR, baseFill, baseStroke}]
+    links: [],       // [{el, lid, baseW, baseColor}]
+    flowRoutes: {},  // flowId → Set<linkId>
+    sensorFlowMap: {},
+    e2eBars: [],     // [{el, labelEl, fid}]
+  };
+
+  function buildSensorFlowMap() {
+    xref.sensorFlowMap = {};
+    for (const f of baseFlows) {
+      if (f.src && f.src !== 'ACU_IT' && !f.src.startsWith('SW_')) {
+        xref.sensorFlowMap[f.src] = f.id;
+      }
+    }
+  }
+
+  function buildFlowRoutes(result) {
+    const routes = {};
+    if (!result || !result.packetRows) return routes;
+    for (const pkt of result.packetRows) {
+      const fid = pkt.flow_id;
+      if (!routes[fid]) routes[fid] = new Set();
+      if (pkt.hops) {
+        for (const hop of pkt.hops) {
+          if (hop.link_id) routes[fid].add(hop.link_id);
+        }
+      }
+    }
+    return routes;
+  }
+
+  /* ═══════ Click-based Selection State ═══════ */
+  let selectedFlowId = null;
+  let selectedSwitchId = null;
+
+  function toggleFlowHighlight(flowId) {
+    selectedSwitchId = null;
+    selectedLinkId = null;
+    if (selectedFlowId === flowId) {
+      selectedFlowId = null;
+      clearHighlight();
+    } else {
+      selectedFlowId = flowId;
+      highlightFlow(flowId);
+    }
+  }
+
+  function toggleSwitchHighlight(switchId) {
+    selectedFlowId = null;
+    selectedLinkId = null;
+    clearHighlight();
+    if (selectedSwitchId === switchId) {
+      selectedSwitchId = null;
+      clearBoardGCLHighlight();
+    } else {
+      selectedSwitchId = switchId;
+      highlightBoardGCLSwitch(switchId);
+    }
+  }
+
+  let selectedLinkId = null;
+
+  function toggleLinkHighlight(linkId) {
+    selectedFlowId = null;
+    selectedSwitchId = null;
+    clearHighlight();
+    if (selectedLinkId === linkId) {
+      selectedLinkId = null;
+    } else {
+      selectedLinkId = linkId;
+      highlightLink(linkId);
+    }
+  }
+
+  function highlightLink(linkId) {
+    // Find all flows that traverse this link
+    const flowsOnLink = new Set();
+    for (const [fid, routes] of Object.entries(xref.flowRoutes)) {
+      if (routes.has(linkId)) flowsOnLink.add(fid);
+    }
+
+    // Gantt bars — highlight bars on this link + bars of flows passing through
+    for (const b of xref.bars) {
+      if (b.lid === linkId || flowsOnLink.has(b.fid)) {
+        b.el.attr('opacity', 1).attr('stroke', '#fff').attr('stroke-width', 2);
+        if (b.labelEl) b.labelEl.attr('opacity', 1);
+      } else {
+        b.el.attr('opacity', 0.12);
+        if (b.labelEl) b.labelEl.attr('opacity', 0.12);
+      }
+    }
+    for (const b of xref.beBars) b.el.attr('opacity', 0.05);
+    for (const b of xref.guards) b.el.attr('opacity', 0.15);
+
+    // Topology links — highlight the clicked link
+    for (const l of xref.links) {
+      if (l.lid === linkId) {
+        l.el.attr('stroke', '#3b82f6').attr('stroke-width', l.baseW + 3).attr('opacity', 1);
+      } else {
+        l.el.attr('opacity', 0.08);
+      }
+    }
+
+    // Topology nodes — highlight src/dst nodes of flows on this link
+    const relevantNodes = new Set();
+    for (const fid of flowsOnLink) {
+      const f = baseFlows.find(fl => fl.id === fid);
+      if (f) { relevantNodes.add(f.src); relevantNodes.add(f.dst); }
+    }
+    for (const n of xref.nodes) {
+      if (flowsOnLink.has(n.fid)) {
+        n.el.attr('stroke-width', 4).attr('r', n.baseR + 2);
+      } else if (relevantNodes.has(n.nid)) {
+        n.el.attr('stroke-width', 3).attr('opacity', 0.8);
+      } else {
+        n.el.attr('opacity', 0.2);
+      }
+    }
+
+    // E2E bars
+    for (const b of xref.e2eBars) {
+      if (flowsOnLink.has(b.fid)) {
+        b.el.classed('dimmed', false).classed('lit', true);
+        if (b.labelEl) b.labelEl.classed('dimmed', false);
+      } else {
+        b.el.classed('lit', false).classed('dimmed', true);
+        if (b.labelEl) b.labelEl.classed('dimmed', true);
+      }
+    }
+
+    clearBoardGCLHighlight();
+  }
+
+  /* ═══════ Unified Highlight ═══════ */
+  function highlightFlow(flowId) {
+    const fColor = flowColor(flowId);
+    const routeLinks = xref.flowRoutes[flowId] || new Set();
+    const flowDef = baseFlows.find(f => f.id === flowId);
+    const srcNode = flowDef ? flowDef.src : null;
+
+    // Gantt bars
+    for (const b of xref.bars) {
+      if (b.fid === flowId) {
+        b.el.attr('opacity', 1).attr('stroke', '#fff').attr('stroke-width', 2);
+        if (b.labelEl) b.labelEl.attr('opacity', 1);
+      } else {
+        b.el.attr('opacity', 0.12);
+        if (b.labelEl) b.labelEl.attr('opacity', 0.12);
+      }
+    }
+    for (const b of xref.beBars) b.el.attr('opacity', 0.05);
+    for (const b of xref.guards) b.el.attr('opacity', 0.15);
+
+    // Topology nodes
+    for (const n of xref.nodes) {
+      if (n.fid === flowId) {
+        n.el.attr('stroke-width', 5).attr('r', n.baseR + 4);
+      } else if (n.nid === srcNode) {
+        n.el.attr('stroke', fColor).attr('stroke-width', 4).attr('r', n.baseR + 2);
+      } else if (n.nid === 'ACU_IT') {
+        n.el.attr('stroke-width', 3).attr('opacity', 0.8);
+      } else if (n.fid) {
+        n.el.attr('opacity', 0.2);
+      } else {
+        n.el.attr('opacity', 0.35);
+      }
+    }
+
+    // Topology links
+    const litEls = new Set();
+    for (const l of xref.links) {
+      if (routeLinks.has(l.lid)) {
+        litEls.add(l.el.node());
+        l.el.attr('stroke', fColor).attr('stroke-width', l.baseW + 3).attr('opacity', 1);
+      }
+    }
+    for (const l of xref.links) {
+      if (!litEls.has(l.el.node())) l.el.attr('opacity', 0.08);
+    }
+
+    // E2E bars
+    for (const b of xref.e2eBars) {
+      if (b.fid === flowId) {
+        b.el.classed('dimmed', false).classed('lit', true);
+        if (b.labelEl) b.labelEl.classed('dimmed', false);
+      } else {
+        b.el.classed('lit', false).classed('dimmed', true);
+        if (b.labelEl) b.labelEl.classed('dimmed', true);
+      }
+    }
+
+    // Board GCL
+    highlightBoardGCLFlow(flowId);
+  }
+
+  function clearHighlight() {
+    for (const b of xref.bars) {
+      b.el.attr('opacity', 0.9).attr('stroke', 'rgba(255,255,255,0.4)').attr('stroke-width', 0.8);
+      if (b.labelEl) b.labelEl.attr('opacity', 1);
+    }
+    for (const b of xref.beBars) b.el.attr('opacity', 0.18);
+    for (const b of xref.guards) b.el.attr('opacity', 0.7);
+
+    for (const n of xref.nodes) {
+      n.el.attr('stroke', n.baseStroke).attr('stroke-width', 2).attr('r', n.baseR).attr('opacity', 1);
+    }
+    for (const l of xref.links) {
+      l.el.attr('stroke', l.baseColor).attr('stroke-width', l.baseW).attr('opacity', 1);
+    }
+
+    for (const b of xref.e2eBars) {
+      b.el.classed('dimmed', false).classed('lit', false);
+      if (b.labelEl) b.labelEl.classed('dimmed', false);
+    }
+
+    clearBoardGCLHighlight();
+  }
+
+  /* ═══════ Board GCL Highlight ═══════ */
+  function highlightBoardGCLSwitch(switchId) {
+    const sections = document.querySelectorAll('.board-section');
+    if (!sections.length) return;
+    sections.forEach(sec => {
+      if (sec.dataset.switchId === switchId) {
+        sec.style.borderColor = 'rgba(59,130,246,0.6)';
+        sec.style.background = 'rgba(59,130,246,0.08)';
+        sec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } else {
+        sec.style.opacity = '0.3';
+      }
+    });
+  }
+
+  function highlightBoardGCLFlow(flowId) {
+    const sections = document.querySelectorAll('.board-section');
+    if (!sections.length) return;
+    sections.forEach(sec => { sec.style.opacity = '0.4'; });
+    document.querySelectorAll('.gcl-table tr[data-flow-id]').forEach(tr => {
+      if (tr.dataset.flowId === flowId) {
+        tr.style.background = 'rgba(59,130,246,0.12)';
+        tr.style.fontWeight = '700';
+        const sec = tr.closest('.board-section');
+        if (sec) { sec.style.opacity = '1'; sec.style.borderColor = 'rgba(59,130,246,0.5)'; }
+      } else if (tr.dataset.flowId) {
+        tr.style.opacity = '0.3';
+      }
+    });
+  }
+
+  function clearBoardGCLHighlight() {
+    document.querySelectorAll('.board-section').forEach(sec => {
+      sec.style.borderColor = ''; sec.style.background = ''; sec.style.opacity = '';
+    });
+    document.querySelectorAll('.gcl-table tr[data-flow-id]').forEach(tr => {
+      tr.style.background = ''; tr.style.fontWeight = ''; tr.style.opacity = '';
+    });
+  }
+
+  /* ═══════ Flow Data ═══════ */
+  const NODE_IDS = [...ROII_REAL_8TC.nodes.map(n => n.id), 'BG', 'BG2'];
+  let addCounter = 0;
+  let currentCase = 1;
+  const CUSTOM_COLORS = ['#e11d48','#f97316','#84cc16','#06b6d4','#8b5cf6','#ec4899','#14b8a6','#f59e0b'];
+
+  /* ── Case 1: Standard (v8 Medium) ── */
+  const CASE1_FLOWS = [
+    { id: 'f_lidar_fc', PCP: 7, payload_bytes: 4500, period_us: 250, deadline_us: 250,
+      traffic_type: 'lidar', src: 'LIDAR_FC', dst: 'ACU_IT', k_paths: 1, color: flowColor('f_lidar_fc') },
+    { id: 'f_lidar_r',  PCP: 6, payload_bytes: 4500, period_us: 250, deadline_us: 250,
+      traffic_type: 'lidar', src: 'LIDAR_R',  dst: 'ACU_IT', k_paths: 1, color: flowColor('f_lidar_r') },
+    { id: 'f_lidar_fl', PCP: 5, payload_bytes: 4500, period_us: 500, deadline_us: 500,
+      traffic_type: 'lidar', src: 'LIDAR_FL', dst: 'ACU_IT', k_paths: 1, color: flowColor('f_lidar_fl') },
+    { id: 'f_lidar_fr', PCP: 4, payload_bytes: 4500, period_us: 500, deadline_us: 500,
+      traffic_type: 'lidar', src: 'LIDAR_FR', dst: 'ACU_IT', k_paths: 1, color: flowColor('f_lidar_fr') },
+    { id: 'f_radar_f',   PCP: 3, payload_bytes: 1500, period_us: 500, deadline_us: 500,
+      traffic_type: 'radar', src: 'RADAR_F',   dst: 'ACU_IT', k_paths: 1, color: flowColor('f_radar_f') },
+    { id: 'f_radar_flc', PCP: 2, payload_bytes: 1500, period_us: 500, deadline_us: 500,
+      traffic_type: 'radar', src: 'RADAR_FLC', dst: 'ACU_IT', k_paths: 1, color: flowColor('f_radar_flc') },
+    { id: 'f_radar_frc', PCP: 2, payload_bytes: 1500, period_us: 500, deadline_us: 500,
+      traffic_type: 'radar', src: 'RADAR_FRC', dst: 'ACU_IT', k_paths: 1, color: flowColor('f_radar_frc') },
+    { id: 'f_radar_rlc', PCP: 1, payload_bytes: 1500, period_us: 500, deadline_us: 500,
+      traffic_type: 'radar', src: 'RADAR_RLC', dst: 'ACU_IT', k_paths: 1, color: flowColor('f_radar_rlc') },
+    { id: 'f_radar_rrc', PCP: 1, payload_bytes: 1500, period_us: 500, deadline_us: 500,
+      traffic_type: 'radar', src: 'RADAR_RRC', dst: 'ACU_IT', k_paths: 1, color: flowColor('f_radar_rrc') },
+    { id: 'f_bg_small', PCP: 0, payload_bytes: 200, period_us: 500,
+      deadline_us: 500, traffic_type: 'bg', src: 'SW_FR', dst: 'ACU_IT', k_paths: 1, color: '#ec4899' },
+    { id: 'f_bg_large', PCP: 0, payload_bytes: 1400, period_us: 1000,
+      deadline_us: 1000, traffic_type: 'bg', src: 'SW_REAR', dst: 'ACU_IT', k_paths: 1, color: '#f472b6' },
+  ];
+
+  /* ── Case 2: Heavy (Greedy fail, ILP success) ── */
+  const CASE2_FLOWS = [
+    { id: 'f_lidar_fc', PCP: 5, payload_bytes: 6380, period_us: 200, deadline_us: 600,
+      traffic_type: 'lidar', src: 'LIDAR_FC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_fc') },
+    { id: 'f_lidar_fl', PCP: 6, payload_bytes: 6450, period_us: 500, deadline_us: 600,
+      traffic_type: 'lidar', src: 'LIDAR_FL', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_fl') },
+    { id: 'f_lidar_fr', PCP: 4, payload_bytes: 6450, period_us: 500, deadline_us: 600,
+      traffic_type: 'lidar', src: 'LIDAR_FR', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_fr') },
+    { id: 'f_lidar_r',  PCP: 1, payload_bytes: 6380, period_us: 200, deadline_us: 600,
+      traffic_type: 'lidar', src: 'LIDAR_R',  dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_r') },
+    { id: 'f_radar_f',   PCP: 7, payload_bytes: 320, period_us: 500, deadline_us: 600,
+      traffic_type: 'radar', src: 'RADAR_F',   dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_f') },
+    { id: 'f_radar_flc', PCP: 7, payload_bytes: 320, period_us: 500, deadline_us: 600,
+      traffic_type: 'radar', src: 'RADAR_FLC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_flc') },
+    { id: 'f_radar_frc', PCP: 3, payload_bytes: 320, period_us: 500, deadline_us: 600,
+      traffic_type: 'radar', src: 'RADAR_FRC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_frc') },
+    { id: 'f_radar_rlc', PCP: 2, payload_bytes: 320, period_us: 500, deadline_us: 600,
+      traffic_type: 'radar', src: 'RADAR_RLC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_rlc') },
+    { id: 'f_radar_rrc', PCP: 2, payload_bytes: 320, period_us: 500, deadline_us: 600,
+      traffic_type: 'radar', src: 'RADAR_RRC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_rrc') },
+    { id: 'f_bg_small',  PCP: 0, payload_bytes: 256, period_us: 200, deadline_us: null, rel: 0,
+      traffic_type: 'background', src: 'BG', dst: 'ACU_IT', k_paths: 2, color: '#ec4899' },
+    { id: 'f_bg_med',    PCP: 0, payload_bytes: 1500, period_us: 250, deadline_us: null, rel: 100,
+      traffic_type: 'background', src: 'BG', dst: 'ACU_IT', k_paths: 2, color: '#f472b6' },
+    { id: 'f_bg_large',  PCP: 0, payload_bytes: 9000, period_us: 500, deadline_us: null, rel: 200,
+      traffic_type: 'background', src: 'BG2', dst: 'ACU_IT', k_paths: 2, color: '#f472b6' },
+  ];
+
+  function initFlows(caseNum) {
+    return JSON.parse(JSON.stringify(caseNum === 2 ? CASE2_FLOWS : CASE1_FLOWS));
+  }
+
+  let baseFlows = initFlows(1);
+  function syncColors() {
+    const map = getFlowColorsHex();
+    for (const f of baseFlows) map[f.id] = f.color;
+  }
+
+  /* ═══════ Flow Table ═══════ */
+  function renderFlowTable() {
+    const speed = getP('pSpeed') || 1000;
+    const cycle = getP('pCycle') || 1000;
+    const tbody = document.getElementById('flowBody');
+    let html = '';
+    for (let i = 0; i < baseFlows.length; i++) {
+      const f = baseFlows[i];
+      const tx = round3((f.payload_bytes + 38) * 8 / speed);
+      const pkts = Math.round(cycle / f.period_us);
+      const c = f.color || '#7b61ff';
+      const name = f.id.replace(/^f_/, '');
+      const srcOpts = NODE_IDS.map(n => `<option${n===f.src?' selected':''}>${n}</option>`).join('');
+      const dstOpts = NODE_IDS.map(n => `<option${n===f.dst?' selected':''}>${n}</option>`).join('');
+      html += `<tr>`;
+      html += `<td><div class="flow-name-cell"><input type="color" value="${c}" class="flow-color-dot" data-idx="${i}" data-field="color"><span style="font-weight:600;font-size:0.76rem;">${name}</span></div></td>`;
+      html += `<td><input type="number" value="${f.PCP}" min="0" max="7" data-idx="${i}" data-field="PCP" style="width:32px;"></td>`;
+      html += `<td><input type="number" value="${f.payload_bytes}" min="1" data-idx="${i}" data-field="payload_bytes" style="width:52px;"></td>`;
+      html += `<td class="flow-tx">${tx}</td>`;
+      html += `<td><input type="number" value="${f.period_us}" min="1" data-idx="${i}" data-field="period_us" style="width:48px;"></td>`;
+      html += `<td class="flow-pkts">${pkts}</td>`;
+      html += `<td><select data-idx="${i}" data-field="src" style="max-width:72px;">${srcOpts}</select></td>`;
+      html += `<td><select data-idx="${i}" data-field="dst" style="max-width:72px;">${dstOpts}</select></td>`;
+      html += `<td><button class="btn-row-del" data-idx="${i}" title="Remove">&times;</button></td>`;
+      html += `</tr>`;
+    }
+    tbody.innerHTML = html;
+    syncColors();
+    tbody.querySelectorAll('input, select').forEach(el => {
+      el.addEventListener('change', () => {
+        const idx = parseInt(el.dataset.idx);
+        const field = el.dataset.field;
+        if (field === 'color') {
+          baseFlows[idx].color = el.value;
+        } else if (field === 'src' || field === 'dst') {
+          baseFlows[idx][field] = el.value;
+        } else {
+          baseFlows[idx][field] = el.value === '' ? null : parseFloat(el.value);
+        }
+        renderFlowTable();
+      });
+    });
+    tbody.querySelectorAll('.btn-row-del').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (baseFlows.length <= 1) return;
+        baseFlows.splice(parseInt(btn.dataset.idx), 1);
+        renderFlowTable();
+      });
+    });
+  }
+
+  /* ═══════ Build Model ═══════ */
+  function buildModel() {
+    const m = JSON.parse(JSON.stringify(ROII_REAL_8TC));
+    m.cycle_time_us = getP('pCycle') || 1000;
+    m.guard_band_us = getP('pGuard');
+    m.processing_delay_us = getP('pDelay') || 5;
+    const speed = getP('pSpeed') || 1000;
+    for (const lnk of m.links) lnk.rate_mbps = speed;
+    m.flows = baseFlows.map(f => ({ ...f }));
+
+    // Case 2: add BG / BG2 nodes + links to all 3 switches
+    if (currentCase === 2) {
+      m.nodes.push({ id: 'BG', type: 'endstation' });
+      m.nodes.push({ id: 'BG2', type: 'endstation' });
+      m.links.push(
+        { id: 'l_bg_swfl',   from: 'BG', to: 'SW_FL',   rate_mbps: speed, prop_delay_us: 0.3 },
+        { id: 'l_bg_swfr',   from: 'BG', to: 'SW_FR',   rate_mbps: speed, prop_delay_us: 0.3 },
+        { id: 'l_bg_swrear', from: 'BG', to: 'SW_REAR', rate_mbps: speed, prop_delay_us: 0.3 },
+        { id: 'l_bg2_swfl',   from: 'BG2', to: 'SW_FL',   rate_mbps: speed, prop_delay_us: 0.3 },
+        { id: 'l_bg2_swfr',   from: 'BG2', to: 'SW_FR',   rate_mbps: speed, prop_delay_us: 0.3 },
+        { id: 'l_bg2_swrear', from: 'BG2', to: 'SW_REAR', rate_mbps: speed, prop_delay_us: 0.3 },
+      );
+    }
+
+    const failedLink = document.getElementById('pFail').value;
+    if (failedLink) {
+      const revId = BACKBONE_REVERSE[failedLink];
+      m.links = m.links.filter(l => l.id !== failedLink && l.id !== revId);
+    }
+    return m;
+  }
+
+  /* ═══════ Patch idle → TC0 Best Effort ═══════ */
+  function patchIdleToTC0(result) {
+    if (!result?.gcl?.links) return;
+    for (const linkData of Object.values(result.gcl.links)) {
+      for (const e of linkData.entries) {
+        if (e.gate_mask === '00000000' && e.note !== 'guard') {
+          e.gate_mask = '00000001'; e.note = 'BE (TC0)';
+        }
+        if (e.gate_mask === '11111111' && e.note.includes('non-ST')) {
+          e.gate_mask = '00000001'; e.note = 'BE (TC0)';
+        }
+      }
+    }
+    if (result.boardConfigs) {
+      for (const sw of Object.values(result.boardConfigs)) {
+        for (const port of Object.values(sw.ports)) {
+          for (const e of port.entries) {
+            if (e.gate_mask === '00000000' && e.note !== 'guard') {
+              e.gate_mask = '00000001'; e.note = 'BE (TC0)';
+            }
+            if (e.gate_mask === '11111111' && e.note.includes('non-ST')) {
+              e.gate_mask = '00000001'; e.note = 'BE (TC0)';
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /* ═══════ Solve ═══════ */
+  let solving = false;
+  async function solve() {
+    if (solving) return;
+    solving = true;
+    selectedFlowId = null;
+    selectedSwitchId = null;
+    selectedLinkId = null;
+    const btn = document.getElementById('btnSolve');
+    btn.disabled = true;
+
+    const solver = document.getElementById('pSolver').value;
+    syncColors();
+    buildSensorFlowMap();
+    const model = buildModel();
+    const failedLink = document.getElementById('pFail').value;
+
+    setStatus(`<span class="spinner-sm"></span> Case ${currentCase} | <strong>${solver === 'ilp' ? 'ILP' : 'Greedy'}</strong> | ${model.flows.length} flows | cycle ${model.cycle_time_us}\u00b5s`);
+
+    let result;
+    try {
+      if (solver === 'ilp') {
+        const glpk = await ensureGLPK();
+        if (!glpk) { setStatus('<span style="color:var(--red);">GLPK failed to load</span>'); solving = false; btn.disabled = false; return; }
+        const tmlim = parseInt(document.getElementById('pTmlim').value) || 30;
+        result = await solveILP(model, glpk, { tmlim, onProgress: info => {
+          if (info.phase === 'building') {
+            setStatus(`<span class="spinner-sm"></span> <strong>ILP</strong> \u2014 ${info.pkts} pkts from ${info.flows} flows...`);
+          } else if (info.phase === 'solving') {
+            const p = info.pruning || {};
+            let detail = `${info.bins} bins, ${info.constraints} cstr`;
+            if (p.window || p.dominance || p.symmetry) {
+              detail += ` (pruned: ${p.window||0} win, ${p.dominance||0} dom, ${p.symmetry||0} sym)`;
+            }
+            setStatus(`<span class="spinner-sm"></span> <strong>ILP</strong> \u2014 GLPK: ${info.pkts} pkts, ${detail}...`);
+          }
+        }});
+      } else {
+        result = solveGreedy(model);
+      }
+
+      patchIdleToTC0(result);
+      xref.flowRoutes = buildFlowRoutes(result);
+
+      if (result.error) {
+        setStatus(`<span style="color:var(--red);">Error: ${result.error}</span>`);
+      } else {
+        const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
+        const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
+        const missCount = stPkts.filter(p => p.status === 'MISS').length;
+        const overlapCount = stPkts.filter(p => p.status === 'OVERLAP').length;
+        const failCount = missCount + overlapCount;
+        let s = `\u2713 <strong>${solver === 'ilp' ? 'ILP' : 'Greedy'}</strong>`;
+        s += ` | ${result.packetRows.length} pkts`;
+        s += ` | Util ${result.worst_util_percent}%`;
+        s += ` | Worst E2E ${round3(worst)}\u00b5s`;
+        if (result.stats) {
+          s += ` | ${result.stats.binaries} bins, ${Math.round(result.stats.runtime_ms)}ms`;
+          if (result.method && result.method.includes('optimal')) s += ` <span style="color:var(--green);">\u2713 optimal</span>`;
+        }
+        if (failCount === 0) s += ` | <span style="color:var(--green);font-weight:700;">ALL OK</span>`;
+        else if (overlapCount > 0) s += ` | <span style="color:var(--red);font-weight:700;">${overlapCount} OVERLAP</span>`;
+        else s += ` | <span style="color:var(--red);font-weight:700;">${missCount} MISS</span>`;
+        if (failedLink) s += ` | <span style="color:var(--red);">FAILOVER</span>`;
+        setStatus(s);
+      }
+
+      document.getElementById('ganttTitle').textContent =
+        `GCL Schedule \u2014 Case ${currentCase} (${solver === 'ilp' ? 'ILP' : 'Greedy'})${failedLink ? ' [FAILOVER]' : ''}`;
+
+      renderTopology(model, failedLink, result);
+      renderGantt(model, result);
+      renderE2E(model, result);
+      renderBoardGCL(model, result);
+
+
+    } catch (e) {
+      console.error(e);
+      if (solver === 'ilp') {
+        try {
+          result = solveGreedy(model);
+          patchIdleToTC0(result);
+          xref.flowRoutes = buildFlowRoutes(result);
+          renderTopology(model, failedLink, result);
+          renderGantt(model, result);
+          renderE2E(model, result);
+          renderBoardGCL(model, result);
+    
+          const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
+          const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
+          setStatus(`<span style="color:var(--red);">ILP failed</span> \u2192 Greedy fallback | Pkts: ${result.packetRows.length} | Util: ${result.worst_util_percent}% | Worst E2E: ${round3(worst)}\u00b5s`);
+          document.getElementById('ganttTitle').textContent = `GCL Schedule \u2014 Case ${currentCase} (Greedy fallback)`;
+        } catch (e2) {
+          setStatus(`<span style="color:var(--red);">Error: ${e.message}</span>`);
+        }
+      } else {
+        setStatus(`<span style="color:var(--red);">Error: ${e.message}</span>`);
+      }
+    }
+
+    btn.disabled = false;
+    solving = false;
+  }
+
+  /* ═══════ Topology (clean — no badges) ═══════ */
+  function renderTopology(model, failedLink, result) {
+    const container = document.getElementById('topoContainer');
+    container.innerHTML = '';
+    xref.nodes = [];
+    xref.links = [];
+
+    const rect = container.getBoundingClientRect();
+    const W = rect.width || 420;
+    const H = rect.height || Math.max(340, W * 0.75);
+    const pos = getRealPositions(W, H);
+    pos.LIDAR_R = { x: W * 0.32, y: H * 0.70 };
+    // BG/BG2 positions (Case 2) — center of switch triangle
+    if (currentCase === 2) {
+      pos.BG  = { x: W * 0.48, y: H * 0.40 };
+      pos.BG2 = { x: W * 0.56, y: H * 0.44 };
+    }
+
+    const svg = d3.select(container).append('svg')
+      .attr('viewBox', `0 0 ${W} ${H}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet')
+      .style('width', '100%').style('height', '100%')
+      .on('click', () => { selectedFlowId = null; selectedSwitchId = null; selectedLinkId = null; clearHighlight(); });
+
+    const topoBase = JSON.parse(JSON.stringify(ROII_REAL_8TC));
+    const backboneIds = new Set(Object.keys(BACKBONE_REVERSE));
+    const failedSet = new Set();
+    if (failedLink) { failedSet.add(failedLink); const rv = BACKBONE_REVERSE[failedLink]; if (rv) failedSet.add(rv); }
+    const drawnBi = new Set();
+    const tooltip = document.getElementById('tooltip');
+
+    // Per-link utilization
+    const linkUtil = {};
+    if (result && result.gcl && result.gcl.links) {
+      for (const [lid, ld] of Object.entries(result.gcl.links)) {
+        let used = 0;
+        for (const e of (ld.entries || [])) {
+          if (!e.note.includes('all-gates-closed') && !e.note.includes('non-ST') && e.note !== 'BE (TC0)') used += e.duration_us;
+        }
+        linkUtil[lid] = round3(used / model.cycle_time_us * 100);
+      }
+    }
+
+    // Draw links
+    for (const lnk of topoBase.links) {
+      const p1 = pos[lnk.from], p2 = pos[lnk.to];
+      if (!p1 || !p2) continue;
+      const isBackbone = backboneIds.has(lnk.id);
+      if (isBackbone) {
+        const biKey = [lnk.from, lnk.to].sort().join('|');
+        if (drawnBi.has(biKey)) continue;
+        drawnBi.add(biKey);
+      }
+      const isFailed = failedSet.has(lnk.id);
+      const isGateway = lnk.id === 'l_swrear_acu';
+      let color, width, dash;
+      if (isFailed) { color = 'rgba(239,68,68,0.6)'; width = 3; dash = '8,5'; }
+      else if (isBackbone) { color = 'rgba(59,130,246,0.3)'; width = 2.5; dash = 'none'; }
+      else if (isGateway) { color = 'rgba(6,182,212,0.45)'; width = 3; dash = 'none'; }
+      else { color = 'rgba(148,163,184,0.35)'; width = 1.5; dash = 'none'; }
+
+      const baseLine = svg.append('line')
+        .attr('x1', p1.x).attr('y1', p1.y).attr('x2', p2.x).attr('y2', p2.y)
+        .attr('stroke', color).attr('stroke-width', width);
+      if (dash !== 'none') baseLine.attr('stroke-dasharray', dash);
+
+      if (!isFailed) {
+        if (isBackbone) {
+          const revId = BACKBONE_REVERSE[lnk.id];
+          xref.links.push({ el: baseLine, lid: lnk.id, baseW: width, baseColor: color });
+          if (revId) xref.links.push({ el: baseLine, lid: revId, baseW: width, baseColor: color });
+        } else {
+          xref.links.push({ el: baseLine, lid: lnk.id, baseW: width, baseColor: color });
+        }
+      }
+
+      if (isFailed) {
+        const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+        svg.append('circle').attr('cx', mx).attr('cy', my).attr('r', 12)
+          .attr('fill', 'rgba(239,68,68,0.1)').attr('stroke', '#ef4444').attr('stroke-width', 2);
+        svg.append('text').attr('x', mx).attr('y', my + 1)
+          .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+          .attr('font-size', '14px').attr('font-weight', '900').attr('fill', '#ef4444').text('\u2716');
+      }
+
+      // Link hover
+      const util1 = linkUtil[lnk.id] || 0;
+      const revLnk = isBackbone ? BACKBONE_REVERSE[lnk.id] : null;
+      const util2 = revLnk ? (linkUtil[revLnk] || 0) : 0;
+      svg.append('line')
+        .attr('x1', p1.x).attr('y1', p1.y).attr('x2', p2.x).attr('y2', p2.y)
+        .attr('stroke', 'transparent').attr('stroke-width', 14)
+        .style('cursor', 'pointer')
+        .on('click', ev => {
+          ev.stopPropagation();
+          if (!isFailed) toggleLinkHighlight(lnk.id);
+        })
+        .on('mouseover', () => {
+          baseLine.attr('stroke-width', width + 2).attr('stroke', isFailed ? '#ef4444' : '#3b82f6');
+          let html = `<div class="tt-title">${lnk.from} \u2194 ${lnk.to}</div>`;
+          html += `<div class="tt-row"><span class="tt-k">Speed</span><span class="tt-v">${lnk.rate_mbps} Mbps</span></div>`;
+          if (!isFailed) {
+            html += `<div class="tt-row"><span class="tt-k">${lnk.from}\u2192${lnk.to}</span><span class="tt-v">${util1}%</span></div>`;
+            if (isBackbone) html += `<div class="tt-row"><span class="tt-k">${lnk.to}\u2192${lnk.from}</span><span class="tt-v">${util2}%</span></div>`;
+          }
+          tooltip.innerHTML = html;
+          tooltip.classList.add('show');
+        })
+        .on('mousemove', ev => { tooltip.style.left = (ev.clientX+14)+'px'; tooltip.style.top = (ev.clientY-20)+'px'; })
+        .on('mouseout', () => {
+          baseLine.attr('stroke-width', width).attr('stroke', color);
+          tooltip.classList.remove('show');
+        });
+    }
+
+    // Draw nodes — clean circles only
+    for (const node of topoBase.nodes) {
+      const p = pos[node.id];
+      if (!p) continue;
+      const BG_COLORS = {
+        BG:  { fill: '#fef3c7', stroke: '#f59e0b', label: 'BG', shortLabel: 'BG' },
+        BG2: { fill: '#fce7f3', stroke: '#ec4899', label: 'BG2', shortLabel: 'BG2' },
+      };
+      const nc = BG_COLORS[node.id] || ROII_REAL_NODE_COLORS[node.id] || { fill: '#e2e8f0', stroke: '#94a3b8', shortLabel: node.id, label: node.id };
+      const isSwitch = node.type === 'switch';
+      const isACU = node.id === 'ACU_IT';
+      const isLidar = node.id.startsWith('LIDAR');
+      const isRadar = node.id.startsWith('RADAR');
+      const r = isACU ? 24 : isSwitch ? 22 : isLidar ? 19 : 16;
+
+      const sensorFid = xref.sensorFlowMap[node.id];
+      let nodeFill, nodeStroke;
+      if (sensorFid) {
+        const fc = flowColor(sensorFid);
+        nodeFill = hexToRgba(fc, 0.15);
+        nodeStroke = fc;
+      } else {
+        nodeFill = nc.fill;
+        nodeStroke = nc.stroke;
+      }
+
+      const circle = svg.append('circle').attr('cx', p.x).attr('cy', p.y).attr('r', r)
+        .attr('fill', nodeFill).attr('stroke', nodeStroke).attr('stroke-width', 2);
+      xref.nodes.push({ el: circle, nid: node.id, fid: sensorFid || null, baseR: r, baseFill: nodeFill, baseStroke: nodeStroke });
+
+      svg.append('text').attr('x', p.x).attr('y', p.y + 1)
+        .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+        .attr('font-size', '10px').attr('font-weight', '800').attr('fill', nodeStroke)
+        .style('pointer-events', 'none').text(nc.shortLabel);
+
+      svg.append('text').attr('x', p.x).attr('y', p.y + r + 12)
+        .attr('text-anchor', 'middle').attr('font-size', '9px').attr('font-weight', '700')
+        .attr('fill', '#475569').style('pointer-events', 'none').text(nc.label || node.id);
+
+      // Click hitbox for highlight + hover for tooltip
+      svg.append('circle').attr('cx', p.x).attr('cy', p.y).attr('r', r + 4)
+        .attr('fill', 'transparent').style('cursor', 'pointer')
+        .on('click', ev => {
+          ev.stopPropagation();
+          if (sensorFid) toggleFlowHighlight(sensorFid);
+          else if (isSwitch) toggleSwitchHighlight(node.id);
+        })
+        .on('mouseover', () => {
+          let html = `<div class="tt-title">${nc.label || node.id}</div>`;
+          html += `<div class="tt-row"><span class="tt-k">Type</span><span class="tt-v">${isSwitch ? 'Switch' : isACU ? 'ACU' : isLidar ? 'LiDAR' : 'Radar'}</span></div>`;
+          if (sensorFid) {
+            const f = baseFlows.find(bf => bf.id === sensorFid);
+            if (f) html += `<div class="tt-row"><span class="tt-k">PCP</span><span class="tt-v">${f.PCP} (TC${f.PCP})</span></div>`;
+          }
+          tooltip.innerHTML = html;
+          tooltip.classList.add('show');
+        })
+        .on('mousemove', ev => { tooltip.style.left = (ev.clientX+14)+'px'; tooltip.style.top = (ev.clientY-20)+'px'; })
+        .on('mouseout', () => { tooltip.classList.remove('show'); });
+    }
+
+    // Draw extra flow nodes — flows from switches (BG) or custom flows not in sensor map
+    const extraFlows = baseFlows.filter(f => {
+      if (!f.src) return false;
+      // Already drawn as a sensor node
+      if (xref.sensorFlowMap[f.src] === f.id) return false;
+      // Source is a switch or ACU — draw as satellite node
+      const srcNode = topoBase.nodes.find(n => n.id === f.src);
+      return srcNode && (srcNode.type === 'switch' || f.src === 'ACU_IT');
+    });
+    const swExtraCount = {};  // track offset index per switch
+    for (const ef of extraFlows) {
+      const swPos = pos[ef.src];
+      if (!swPos) continue;
+      const idx = swExtraCount[ef.src] || 0;
+      swExtraCount[ef.src] = idx + 1;
+      // Spread nodes around the switch
+      const angle = -Math.PI/2 + idx * (Math.PI / 4);
+      const dist = 34;
+      const bx = swPos.x + Math.cos(angle) * dist;
+      const by = swPos.y + Math.sin(angle) * dist;
+      const br = 10;
+      const fColor = ef.color || flowColor(ef.id) || '#a3a3a3';
+      const isBG = ef.traffic_type === 'bg';
+      const label = isBG ? 'BG' : ef.id.replace(/^f_/, '').slice(0, 3).toUpperCase();
+
+      svg.append('line').attr('x1', bx).attr('y1', by).attr('x2', swPos.x).attr('y2', swPos.y)
+        .attr('stroke', fColor).attr('stroke-width', 1.5).attr('stroke-dasharray', '3,2').attr('opacity', 0.5);
+
+      const circle = svg.append('circle').attr('cx', bx).attr('cy', by).attr('r', br)
+        .attr('fill', hexToRgba(fColor, 0.2)).attr('stroke', fColor).attr('stroke-width', 1.5);
+
+      svg.append('text').attr('x', bx).attr('y', by + 1)
+        .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+        .attr('font-size', '7px').attr('font-weight', '900').attr('fill', fColor)
+        .style('pointer-events', 'none').text(label);
+
+      xref.nodes.push({ el: circle, nid: ef.src, fid: ef.id, baseR: br, baseFill: hexToRgba(fColor, 0.2), baseStroke: fColor });
+
+      svg.append('circle').attr('cx', bx).attr('cy', by).attr('r', br + 4)
+        .attr('fill', 'transparent').style('cursor', 'pointer')
+        .on('click', ev => { ev.stopPropagation(); toggleFlowHighlight(ef.id); });
+    }
+  }
+
+  /* ═══════ Gantt ═══════ */
+  function renderGantt(model, result) {
+    const container = document.getElementById('ganttContainer');
+    container.innerHTML = '';
+    xref.bars = [];
+    xref.beBars = [];
+    xref.guards = [];
+
+    if (!result || result.error || !result.gcl) return;
+
+    const activeLinks = model.links.filter(l => {
+      const entries = result.gcl?.links?.[l.id]?.entries;
+      return entries?.some(e => !e.note.includes('non-ST') && !e.note.includes('all-gates-closed') && e.note !== 'BE (TC0)');
+    });
+    const bgFlows = baseFlows.filter(f => f.traffic_type === 'bg');
+    const bgFlowIds = bgFlows.map(f => f.id);
+    const allRowIds = [...activeLinks.map(l => l.id), ...bgFlowIds];
+    if (!allRowIds.length) return;
+
+    const W = container.clientWidth || 700;
+    const margin = { top: 20, right: 48, bottom: 30, left: 105 };
+    const rowH = 28;
+    const innerW = W - margin.left - margin.right;
+    const innerH = allRowIds.length * rowH;
+    const H = margin.top + innerH + margin.bottom;
+
+    const svg = d3.select(container).append('svg')
+      .attr('viewBox', `0 0 ${W} ${H}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet')
+      .style('width', '100%')
+      .on('click', () => { selectedFlowId = null; selectedSwitchId = null; selectedLinkId = null; clearHighlight(); });
+
+    const defs = svg.append('defs');
+    const gp = defs.append('pattern').attr('id', 'guardH')
+      .attr('patternUnits', 'userSpaceOnUse').attr('width', 6).attr('height', 6)
+      .attr('patternTransform', 'rotate(45)');
+    gp.append('rect').attr('width', 6).attr('height', 6).attr('fill', '#f9a825');
+    gp.append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 6)
+      .attr('stroke', 'rgba(0,0,0,0.2)').attr('stroke-width', 2);
+
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+    const x = d3.scaleLinear().domain([0, model.cycle_time_us]).range([0, innerW]);
+    const y = d3.scaleBand().domain(allRowIds).range([0, innerH]).padding(0.12);
+
+    g.append('g').attr('class', 'gcl-grid')
+      .selectAll('line').data(x.ticks(8)).enter().append('line')
+      .attr('x1', d => x(d)).attr('x2', d => x(d)).attr('y1', 0).attr('y2', innerH);
+
+    g.append('g').attr('class', 'gcl-axis').attr('transform', `translate(0,${innerH})`)
+      .call(d3.axisBottom(x).ticks(8).tickFormat(d => d + '\u00b5s'))
+      .selectAll('text').attr('font-size', '10px');
+
+    g.append('g').attr('class', 'gcl-axis')
+      .call(d3.axisLeft(y).tickSize(0).tickPadding(6))
+      .selectAll('text').text(d => {
+        const lnk = model.links.find(l => l.id === d);
+        if (lnk) return `${lnk.from} \u2192 ${lnk.to}`;
+        return d.replace(/^f_/, '');
+      }).attr('font-size', '9.5px')
+      .attr('fill', d => bgFlowIds.includes(d) ? '#ec4899' : null)
+      .attr('font-weight', d => bgFlowIds.includes(d) ? '800' : null);
+
+    g.selectAll('.rbg').data(allRowIds).enter().append('rect')
+      .attr('x', 0).attr('y', d => y(d)).attr('width', innerW).attr('height', y.bandwidth())
+      .attr('fill', (d, i) => bgFlowIds.includes(d) ? 'rgba(236,72,153,0.04)' : (i % 2 === 0 ? 'rgba(59,130,246,0.02)' : 'transparent')).attr('rx', 2);
+
+    // Separator line between link rows and BG rows
+    if (activeLinks.length > 0 && bgFlowIds.length > 0) {
+      const sepY = y(bgFlowIds[0]) - y.step() * y.padding() / 2;
+      g.append('line').attr('x1', -8).attr('x2', innerW).attr('y1', sepY).attr('y2', sepY)
+        .attr('stroke', 'rgba(236,72,153,0.3)').attr('stroke-width', 1).attr('stroke-dasharray', '4,3');
+    }
+
+    const tooltip = document.getElementById('tooltip');
+    for (const lnk of activeLinks) {
+      const entries = result.gcl.links[lnk.id]?.entries || [];
+      let used = 0;
+      for (const e of entries) {
+        const xPos = x(e.start_us); const actualW = x(e.end_us) - xPos;
+        const yPos = y(lnk.id); if (yPos === undefined) continue;
+        const bw = y.bandwidth();
+
+        if (e.note === 'guard') {
+          const guardEl = g.append('rect').attr('x', xPos).attr('y', yPos)
+            .attr('width', Math.max(actualW, 1)).attr('height', bw)
+            .attr('fill', 'url(#guardH)').attr('opacity', 0.7).attr('rx', 2);
+          xref.guards.push({ el: guardEl });
+        } else if (e.note === 'BE (TC0)') {
+          const beEl = g.append('rect').attr('x', xPos).attr('y', yPos)
+            .attr('width', Math.max(actualW, 1)).attr('height', bw)
+            .attr('fill', '#93c5fd').attr('opacity', 0.18).attr('rx', 2);
+          xref.beBars.push({ el: beEl });
+          if (actualW > 30) {
+            g.append('text').attr('class', 'gcl-label')
+              .attr('x', xPos + actualW/2).attr('y', yPos + bw/2)
+              .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+              .attr('font-size', '8px').attr('fill', 'rgba(59,130,246,0.35)')
+              .text('BE');
+          }
+        } else if (e.note.includes('all-gates-closed') || e.note.includes('non-ST')) {
+          // skip
+        } else {
+          const fid = e.note.split('#')[0];
+          const color = flowColor(fid) || '#3b82f6';
+          const displayW = Math.max(actualW, 1);
+
+          const barEl = g.append('rect').attr('x', xPos).attr('y', yPos)
+            .attr('width', displayW).attr('height', bw)
+            .attr('fill', color).attr('stroke', 'rgba(255,255,255,0.4)')
+            .attr('stroke-width', 0.8).attr('rx', 3).attr('opacity', 0.9);
+
+          let labelEl = null;
+          if (actualW > 20) {
+            labelEl = g.append('text').attr('class', 'gcl-label')
+              .attr('x', xPos + actualW/2).attr('y', yPos + bw/2)
+              .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+              .attr('font-size', '9px')
+              .text(e.note.replace('#', '.'));
+          }
+
+          xref.bars.push({ el: barEl, labelEl, fid, lid: lnk.id });
+
+          const hitW = Math.max(displayW, 8); const hitOff = (hitW - displayW) / 2;
+          g.append('rect').attr('x', xPos - hitOff).attr('y', yPos)
+            .attr('width', hitW).attr('height', bw)
+            .attr('fill', 'transparent').style('cursor', 'pointer')
+            .on('click', ev => { ev.stopPropagation(); toggleFlowHighlight(fid); })
+            .on('mouseover', () => {
+              let hopPath = '';
+              if (result.packetRows) {
+                const pkt = result.packetRows.find(p => p.flow_id === fid);
+                if (pkt && pkt.hops && pkt.hops.length) {
+                  const nodes = [pkt.hops[0].from, ...pkt.hops.map(h => h.to)];
+                  hopPath = nodes.join(' \u2192 ');
+                }
+              }
+              tooltip.innerHTML = `<div class="tt-title" style="color:${color}">${e.note}</div>`
+                + `<div class="tt-row"><span class="tt-k">Gate</span><span class="tt-v">${e.gate_mask}</span></div>`
+                + `<div class="tt-row"><span class="tt-k">Start</span><span class="tt-v">${e.start_us}\u00b5s</span></div>`
+                + `<div class="tt-row"><span class="tt-k">End</span><span class="tt-v">${e.end_us}\u00b5s</span></div>`
+                + `<div class="tt-row"><span class="tt-k">Duration</span><span class="tt-v">${e.duration_us}\u00b5s</span></div>`
+                + (hopPath ? `<div class="tt-row" style="margin-top:3px;border-top:1px solid var(--border);padding-top:3px;"><span class="tt-k">Path</span><span class="tt-v" style="font-size:0.74rem;">${hopPath}</span></div>` : '');
+              tooltip.classList.add('show');
+            })
+            .on('mousemove', ev => { tooltip.style.left = (ev.clientX+12)+'px'; tooltip.style.top = (ev.clientY-20)+'px'; })
+            .on('mouseout', () => { tooltip.classList.remove('show'); });
+
+          used += e.duration_us;
+        }
+      }
+      g.append('text').attr('x', innerW + 4).attr('y', y(lnk.id) + y.bandwidth()/2)
+        .attr('text-anchor', 'start').attr('dominant-baseline', 'middle')
+        .attr('font-size', '9px').attr('fill', '#94a3b8').attr('font-weight', '700')
+        .text((used / model.cycle_time_us * 100).toFixed(1) + '%');
+    }
+
+    // ── BG flow rows ──
+    for (const bgFid of bgFlowIds) {
+      const bgPkts = (result.packetRows || []).filter(p => p.flow_id === bgFid);
+      const color = flowColor(bgFid);
+      const yPos = y(bgFid);
+      if (yPos === undefined) continue;
+      const bw = y.bandwidth();
+
+      for (const pkt of bgPkts) {
+        // Only show first hop (originating link from source switch)
+        const hop = pkt.hops[0];
+        if (!hop) continue;
+        const xPos = x(hop.start_us);
+        const actualW = x(hop.end_us) - xPos;
+        const displayW = Math.max(actualW, 2);
+
+        const barEl = g.append('rect').attr('x', xPos).attr('y', yPos)
+          .attr('width', displayW).attr('height', bw)
+          .attr('fill', color).attr('stroke', 'rgba(255,255,255,0.5)')
+          .attr('stroke-width', 0.8).attr('rx', 3).attr('opacity', 0.9);
+
+        let labelEl = null;
+        if (actualW > 18) {
+          labelEl = g.append('text').attr('class', 'gcl-label')
+            .attr('x', xPos + actualW / 2).attr('y', yPos + bw / 2)
+            .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+            .attr('font-size', '8px')
+            .text(pkt.packet_id.replace('#', '.'));
+        }
+
+        xref.bars.push({ el: barEl, labelEl, fid: bgFid, lid: hop.link_id });
+
+        const hitW = Math.max(displayW, 10);
+        const hitOff = (hitW - displayW) / 2;
+        const lnk = model.links.find(l => l.id === hop.link_id);
+        const linkLabel = lnk ? `${lnk.from} \u2192 ${lnk.to}` : hop.link_id;
+        g.append('rect').attr('x', xPos - hitOff).attr('y', yPos)
+          .attr('width', hitW).attr('height', bw)
+          .attr('fill', 'transparent').style('cursor', 'pointer')
+          .on('click', ev => { ev.stopPropagation(); toggleFlowHighlight(bgFid); })
+          .on('mouseover', () => {
+            tooltip.innerHTML = `<div class="tt-title" style="color:${color}">${pkt.packet_id}</div>`
+              + `<div class="tt-row"><span class="tt-k">Link</span><span class="tt-v">${linkLabel}</span></div>`
+              + `<div class="tt-row"><span class="tt-k">Start</span><span class="tt-v">${hop.start_us}\u00b5s</span></div>`
+              + `<div class="tt-row"><span class="tt-k">End</span><span class="tt-v">${round3(hop.end_us)}\u00b5s</span></div>`
+              + `<div class="tt-row"><span class="tt-k">Duration</span><span class="tt-v">${hop.duration_us}\u00b5s</span></div>`;
+            tooltip.classList.add('show');
+          })
+          .on('mousemove', ev => { tooltip.style.left = (ev.clientX + 12) + 'px'; tooltip.style.top = (ev.clientY - 20) + 'px'; })
+          .on('mouseout', () => { tooltip.classList.remove('show'); });
+      }
+
+      // E2E label on right
+      const bgE2E = bgPkts.length ? Math.max(...bgPkts.map(p => p.e2e_delay_us)) : 0;
+      g.append('text').attr('x', innerW + 4).attr('y', yPos + bw / 2)
+        .attr('text-anchor', 'start').attr('dominant-baseline', 'middle')
+        .attr('font-size', '9px').attr('fill', '#ec4899').attr('font-weight', '700')
+        .text(round3(bgE2E) + '\u00b5s');
+    }
+
+    svg.append('text').attr('x', margin.left).attr('y', margin.top - 6)
+      .attr('fill', '#94a3b8').attr('font-size', '9px')
+      .text(`Cycle: ${model.cycle_time_us}\u00b5s | Active: ${activeLinks.length}/${model.links.length} links`);
+  }
+
+  /* ═══════ E2E Delay Chart (with hover highlight) ═══════ */
+  let lastResult = null;
+  function renderE2E(model, result) {
+    lastResult = result;
+    const container = document.getElementById('e2eContainer');
+    container.innerHTML = '';
+    xref.e2eBars = [];
+    if (!result || result.error || !result.packetRows) return;
+
+    const flowE2E = {};
+    for (const pkt of result.packetRows) {
+      if (pkt.status === 'NON-ST') continue;
+      const fid = pkt.flow_id;
+      if (!flowE2E[fid] || pkt.e2e_delay_us > flowE2E[fid]) flowE2E[fid] = pkt.e2e_delay_us;
+    }
+    const entries = baseFlows
+      .filter(f => flowE2E[f.id] !== undefined)
+      .map(f => ({ fid: f.id, name: f.id.replace(/^f_/,''), e2e: flowE2E[f.id], dl: f.deadline_us || model.cycle_time_us, color: flowColor(f.id) || f.color }));
+    if (!entries.length) return;
+
+    const W = container.clientWidth || 400;
+    const margin = { top: 6, right: 58, bottom: 20, left: 86 };
+    const rowH = 20;
+    const innerW = W - margin.left - margin.right;
+    const innerH = entries.length * rowH;
+    const H = margin.top + innerH + margin.bottom;
+
+    const svg = d3.select(container).append('svg')
+      .attr('viewBox', `0 0 ${W} ${H}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet')
+      .style('width', '100%')
+      .on('click', () => { selectedFlowId = null; selectedSwitchId = null; selectedLinkId = null; clearHighlight(); });
+
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+    const maxVal = Math.max(...entries.map(e => Math.max(e.e2e, e.dl)));
+    const x = d3.scaleLinear().domain([0, maxVal * 1.1]).range([0, innerW]);
+    const y = d3.scaleBand().domain(entries.map(e => e.fid)).range([0, innerH]).padding(0.2);
+
+    // Deadline markers
+    for (const e of entries) {
+      g.append('line').attr('x1', x(e.dl)).attr('x2', x(e.dl))
+        .attr('y1', y(e.fid)).attr('y2', y(e.fid) + y.bandwidth())
+        .attr('stroke', 'rgba(239,68,68,0.35)').attr('stroke-width', 1.5).attr('stroke-dasharray', '3,2');
+    }
+
+    // E2E bars — hoverable
+    for (const e of entries) {
+      const barW = Math.max(x(e.e2e), 2);
+      const miss = e.e2e > e.dl;
+      const barEl = g.append('rect').attr('class', 'e2e-bar')
+        .attr('x', 0).attr('y', y(e.fid))
+        .attr('width', barW).attr('height', y.bandwidth())
+        .attr('fill', e.color).attr('opacity', miss ? 1 : 0.8).attr('rx', 3)
+        .attr('stroke', miss ? '#ef4444' : 'none').attr('stroke-width', miss ? 2 : 0)
+        .attr('data-fid', e.fid);
+
+      const labelEl = g.append('text').attr('class', 'e2e-label')
+        .attr('x', barW + 4).attr('y', y(e.fid) + y.bandwidth()/2)
+        .attr('dominant-baseline', 'central').attr('font-size', '9px')
+        .attr('font-weight', '700').attr('fill', miss ? '#ef4444' : '#475569')
+        .text(round3(e.e2e) + '\u00b5s');
+
+      xref.e2eBars.push({ el: barEl, labelEl, fid: e.fid });
+
+      // Hit area for click highlight
+      g.append('rect').attr('x', 0).attr('y', y(e.fid))
+        .attr('width', Math.max(barW, innerW * 0.5)).attr('height', y.bandwidth())
+        .attr('fill', 'transparent').style('cursor', 'pointer')
+        .on('click', ev => { ev.stopPropagation(); toggleFlowHighlight(e.fid); });
+    }
+
+    g.append('g').attr('class', 'gcl-axis')
+      .call(d3.axisLeft(y).tickSize(0).tickPadding(4))
+      .selectAll('text').text(d => {
+        const e = entries.find(en => en.fid === d);
+        return e ? e.name : d;
+      }).attr('font-size', '9px').attr('font-weight', '600');
+
+    g.append('g').attr('class', 'gcl-axis').attr('transform', `translate(0,${innerH})`)
+      .call(d3.axisBottom(x).ticks(5).tickFormat(d => d + '\u00b5s'))
+      .selectAll('text').attr('font-size', '9px');
+  }
+
+  /* ═══════ Board GCL ═══════ */
+  function renderBoardGCL(model, result) {
+    const panel = document.getElementById('gclPanel');
+    if (!result || result.error || !result.boardConfigs) {
+      panel.innerHTML = '<p style="color:var(--text-3);padding:6px;">No GCL data</p>';
+      return;
+    }
+    let html = '';
+    for (const sw of ROII_REAL_SWITCHES) {
+      const cfg = result.boardConfigs[sw.id];
+      if (!cfg) continue;
+      html += `<div class="board-section" data-switch-id="${sw.id}"><h3>${sw.label} (${sw.chip})</h3>`;
+      for (const [portId, port] of Object.entries(cfg.ports)) {
+        html += `<div class="board-port">`;
+        html += `<h4>Egress &rarr; ${port.to} <span style="color:var(--text-3);font-weight:400;">(${portId})</span></h4>`;
+        const usToNs = v => Math.round(v * 1000);
+        const fmtTime = v => `${v} \u00b5s<br><span style="color:var(--text-3);font-size:0.68rem;">${usToNs(v)} ns</span>`;
+        html += `<div class="port-meta">Cycle: ${port.cycle_time_us} \u00b5s (${usToNs(port.cycle_time_us)} ns) | Guard: ${port.guard_band_us} \u00b5s (${usToNs(port.guard_band_us)} ns) | Entries: ${port.num_entries}</div>`;
+        if (port.pcp_queue_map && port.pcp_queue_map.length) {
+          html += `<div class="pcp-map">`;
+          for (const m of port.pcp_queue_map) html += `<span class="pcp-badge">PCP ${m.pcp} \u2192 Q${m.queue}</span>`;
+          html += `</div>`;
+        }
+        html += `<table class="gcl-table"><thead><tr><th>#</th><th>Gate Mask</th><th>Start (\u00b5s / ns)</th><th>End (\u00b5s / ns)</th><th>Dur (\u00b5s / ns)</th><th>TC</th><th>Note</th></tr></thead><tbody>`;
+        for (const e of port.entries) {
+          const bits = e.gate_mask.split('');
+          const isGuard = e.note === 'guard';
+          const isClosed = e.note === 'all-gates-closed';
+          let bitsHtml = '<span class="gate-bits">';
+          for (let b = 0; b < 8; b++) {
+            const cls = isGuard ? 'guard' : (bits[b] === '1' ? 'open' : 'closed');
+            bitsHtml += `<span class="gate-bit ${cls}">${7-b}</span>`;
+          }
+          bitsHtml += '</span>';
+          const isBE = e.note === 'BE (TC0)';
+          let tc = '-';
+          if (isGuard) tc = 'Guard';
+          else if (isClosed) tc = 'Closed';
+          else if (isBE) tc = 'TC0 (BE)';
+          else if (e.gate_mask === '11111111') tc = 'BE';
+          else { const q = e.gate_mask.split('').reverse().indexOf('1'); if (q >= 0) tc = 'TC' + q; }
+          const rowFid = (!isGuard && !isClosed && !isBE && e.note) ? e.note.split('#')[0] : '';
+          const dataAttr = rowFid ? ` data-flow-id="${rowFid}"` : '';
+          html += `<tr${dataAttr}><td>${e.index}</td><td>${bitsHtml}</td><td>${fmtTime(e.start_us)}</td><td>${fmtTime(e.end_us)}</td><td>${fmtTime(e.duration_us)}</td><td>${tc}</td><td>${e.note}</td></tr>`;
+        }
+        html += `</tbody></table></div>`;
+      }
+      html += `</div>`;
+    }
+    panel.innerHTML = html;
+  }
+
+  /* ═══════ GCL Export ═══════ */
+  function exportGCL() {
+    if (!lastResult || !lastResult.boardConfigs) return;
+    const json = JSON.stringify(lastResult.boardConfigs, null, 2);
+    navigator.clipboard.writeText(json).then(() => {
+      const btn = document.getElementById('btnExportGCL');
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      btn.style.color = '#22c55e';
+      setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 1500);
+    });
+  }
+
+  /* ═══════ Events ═══════ */
+  const autoSolve = () => { renderFlowTable(); solve(); };
+  document.getElementById('btnSolve').addEventListener('click', autoSolve);
+  document.getElementById('pSpeed').addEventListener('change', autoSolve);
+  document.getElementById('pCycle').addEventListener('change', autoSolve);
+  document.getElementById('pGuard').addEventListener('change', autoSolve);
+  document.getElementById('pDelay').addEventListener('change', autoSolve);
+  document.getElementById('pFail').addEventListener('change', autoSolve);
+  document.getElementById('btnExportGCL').addEventListener('click', exportGCL);
+
+  /* ═══════ Case Switch ═══════ */
+  function switchCase(caseNum) {
+    if (currentCase === caseNum) return;
+    currentCase = caseNum;
+    document.querySelectorAll('.btn-case').forEach(b => b.classList.remove('active'));
+    document.getElementById('btnCase' + caseNum).classList.add('active');
+    baseFlows = initFlows(caseNum);
+    renderFlowTable();
+    solve();
+  }
+  document.getElementById('btnCase1').addEventListener('click', () => switchCase(1));
+  document.getElementById('btnCase2').addEventListener('click', () => switchCase(2));
+
+  document.getElementById('btnAddFlow').addEventListener('click', () => {
+    addCounter++;
+    baseFlows.push({
+      id: `f_custom_${addCounter}`, PCP: 0, payload_bytes: 1500,
+      period_us: 500, deadline_us: 500, traffic_type: 'radar',
+      src: 'SW_FL', dst: 'ACU_IT', k_paths: 1,
+      color: CUSTOM_COLORS[(addCounter - 1) % CUSTOM_COLORS.length]
+    });
+    renderFlowTable();
+  });
+
+  /* ═══════ Init ═══════ */
+  renderFlowTable();
+  const initSolver = document.getElementById('pSolver').value;
+  document.getElementById('pSolver').value = 'greedy';
+  solve().then(async () => {
+    await ensureGLPK();
+    if (initSolver === 'ilp') {
+      document.getElementById('pSolver').value = 'ilp';
+      solve();
+    }
+  });
+  </script>
+</body>
+</html>
