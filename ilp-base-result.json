@@ -1,0 +1,1498 @@
+{
+  "method": "Greedy (priority-based list scheduler)",
+  "objective": 573.128,
+  "worst_util_percent": 18.221,
+  "packetRows": [
+    {
+      "packet_id": "f_radar_rlc#0",
+      "flow_id": "f_radar_rlc",
+      "priority": 2,
+      "selected_route": 0,
+      "release_us": 0,
+      "end_us": 7.944,
+      "e2e_delay_us": 7.944,
+      "deadline_abs_us": 1112,
+      "slack_us": 1104.056,
+      "status": "OK",
+      "hops": [
+        {
+          "link_id": "l_radarrlc_swrear",
+          "start_us": 0,
+          "end_us": 2.072,
+          "duration_us": 2.072
+        },
+        {
+          "link_id": "l_swrear_acu",
+          "start_us": 5.572,
+          "end_us": 7.644,
+          "duration_us": 2.072
+        }
+      ]
+    },
+    {
+      "packet_id": "f_radar_rrc#0",
+      "flow_id": "f_radar_rrc",
+      "priority": 2,
+      "selected_route": 0,
+      "release_us": 0,
+      "end_us": 10.016,
+      "e2e_delay_us": 10.016,
+      "deadline_abs_us": 1112,
+      "slack_us": 1101.984,
+      "status": "OK",
+      "hops": [
+        {
+          "link_id": "l_radarrrc_swrear",
+          "start_us": 0,
+          "end_us": 2.072,
+          "duration_us": 2.072
+        },
+        {
+          "link_id": "l_swrear_acu",
+          "start_us": 7.644,
+          "end_us": 9.716,
+          "duration_us": 2.072
+        }
+      ]
+    },
+    {
+      "packet_id": "f_radar_f#0",
+      "flow_id": "f_radar_f",
+      "priority": 7,
+      "selected_route": 0,
+      "release_us": 0,
+      "end_us": 13.516,
+      "e2e_delay_us": 13.516,
+      "deadline_abs_us": 1112,
+      "slack_us": 1098.484,
+      "status": "OK",
+      "hops": [
+        {
+          "link_id": "l_radarf_swfl",
+          "start_us": 0,
+          "end_us": 2.072,
+          "duration_us": 2.072
+        },
+        {
+          "link_id": "l_swfl_swrear",
+          "start_us": 5.572,
+          "end_us": 7.644,
+          "duration_us": 2.072
+        },
+        {
+          "link_id": "l_swrear_acu",
+          "start_us": 11.144,
+          "end_us": 13.216,
+          "duration_us": 2.072
+        }
+      ]
+    },
+    {
+      "packet_id": "f_radar_flc#0",
+      "flow_id": "f_radar_flc",
+      "priority": 7,
+      "selected_route": 0,
+      "release_us": 0,
+      "end_us": 15.588,
+      "e2e_delay_us": 15.588,
+      "deadline_abs_us": 1112,
+      "slack_us": 1096.412,
+      "status": "OK",
+      "hops": [
+        {
+          "link_id": "l_radarflc_swfl",
+          "start_us": 0,
+          "end_us": 2.072,
+          "duration_us": 2.072
+        },
+        {
+          "link_id": "l_swfl_swrear",
+          "start_us": 7.644,
+          "end_us": 9.716,
+          "duration_us": 2.072
+        },
+        {
+          "link_id": "l_swrear_acu",
+          "start_us": 13.216,
+          "end_us": 15.288,
+          "duration_us": 2.072
+        }
+      ]
+    },
+    {
+      "packet_id": "f_radar_frc#0",
+      "flow_id": "f_radar_frc",
+      "priority": 3,
+      "selected_route": 0,
+      "release_us": 0,
+      "end_us": 17.66,
+      "e2e_delay_us": 17.66,
+      "deadline_abs_us": 1112,
+      "slack_us": 1094.34,
+      "status": "OK",
+      "hops": [
+        {
+          "link_id": "l_radarfrc_swfr",
+          "start_us": 0,
+          "end_us": 2.072,
+          "duration_us": 2.072
+        },
+        {
+          "link_id": "l_swfr_swrear",
+          "start_us": 5.572,
+          "end_us": 7.644,
+          "duration_us": 2.072
+        },
+        {
+          "link_id": "l_swrear_acu",
+          "start_us": 15.288,
+          "end_us": 17.36,
+          "duration_us": 2.072
+        }
+      ]
+    },
+    {
+      "packet_id": "f_lidar_r#0",
+      "flow_id": "f_lidar_r",
+      "priority": 1,
+      "selected_route": 0,
+      "release_us": 0,
+      "end_us": 28.732,
+      "e2e_delay_us": 28.732,
+      "deadline_abs_us": 278,
+      "slack_us": 249.268,
+      "status": "OK",
+      "hops": [
+        {
+          "link_id": "l_lidarr_swrear",
+          "start_us": 0,
+          "end_us": 11.072,
+          "duration_us": 11.072
+        },
+        {
+          "link_id": "l_swrear_acu",
+          "start_us": 17.36,
+          "end_us": 28.432,
+          "duration_us": 11.072
+        }
+      ]
+    },
+    {
+      "packet_id": "f_lidar_fl#0",
+      "flow_id": "f_lidar_fl",
+      "priority": 6,
+      "selected_route": 0,
+      "release_us": 0,
+      "end_us": 42.268,
+      "e2e_delay_us": 42.268,
+      "deadline_abs_us": 555.6,
+      "slack_us": 513.332,
+      "status": "OK",
+      "hops": [
+        {
+          "link_id": "l_lidarfl_swfl",
+          "start_us": 0,
+          "end_us": 11.656,
+          "duration_us": 11.656
+        },
+        {
+          "link_id": "l_swfl_swrear",
+          "start_us": 15.156,
+          "end_us": 26.812,
+          "duration_us": 11.656
+        },
+        {
+          "link_id": "l_swrear_acu",
+          "start_us": 30.312,
+          "end_us": 41.968,
+          "duration_us": 11.656
+        }
+      ]
+    },
+    {
+      "packet_id": "f_lidar_fc#0",
+      "flow_id": "f_lidar_fc",
+      "priority": 5,
+      "selected_route": 0,
+      "release_us": 0,
+      "end_us": 53.34,
+      "e2e_delay_us": 53.34,
+      "deadline_abs_us": 278,
+      "slack_us": 224.66,
+      "status": "OK",
+      "hops": [
+        {
+          "link_id": "l_lidarfc_swfl",
+          "start_us": 0,
+          "end_us": 11.072,
+          "duration_us": 11.072
+        },
+        {
+          "link_id": "l_swfl_swrear",
+          "start_us": 26.812,
+          "end_us": 37.884,
+          "duration_us": 11.072
+        },
+        {
+          "link_id": "l_swrear_acu",
+          "start_us": 41.968,
+          "end_us": 53.04,
+          "duration_us": 11.072
+        }
+      ]
+    },
+    {
+      "packet_id": "f_lidar_fr#0",
+      "flow_id": "f_lidar_fr",
+      "priority": 4,
+      "selected_route": 0,
+      "release_us": 0,
+      "end_us": 64.996,
+      "e2e_delay_us": 64.996,
+      "deadline_abs_us": 555.6,
+      "slack_us": 490.604,
+      "status": "OK",
+      "hops": [
+        {
+          "link_id": "l_lidarfr_swfr",
+          "start_us": 0,
+          "end_us": 11.656,
+          "duration_us": 11.656
+        },
+        {
+          "link_id": "l_swfr_swrear",
+          "start_us": 15.156,
+          "end_us": 26.812,
+          "duration_us": 11.656
+        },
+        {
+          "link_id": "l_swrear_acu",
+          "start_us": 53.04,
+          "end_us": 64.696,
+          "duration_us": 11.656
+        }
+      ]
+    },
+    {
+      "packet_id": "f_bg_small#0",
+      "flow_id": "f_bg_small",
+      "priority": 0,
+      "selected_route": 0,
+      "release_us": 0,
+      "end_us": 68.156,
+      "e2e_delay_us": 68.156,
+      "deadline_abs_us": null,
+      "slack_us": null,
+      "status": "NON-ST",
+      "hops": [
+        {
+          "link_id": "l_bg_swfr",
+          "start_us": 0,
+          "end_us": 3.16,
+          "duration_us": 3.16,
+          "queue": 7
+        },
+        {
+          "link_id": "l_swfr_swrear",
+          "start_us": 26.812,
+          "end_us": 29.972,
+          "duration_us": 3.16,
+          "queue": 7
+        },
+        {
+          "link_id": "l_swrear_acu",
+          "start_us": 64.696,
+          "end_us": 67.856,
+          "duration_us": 3.16,
+          "queue": 7
+        }
+      ]
+    },
+    {
+      "packet_id": "f_bg_large#0",
+      "flow_id": "f_bg_large",
+      "priority": 0,
+      "selected_route": 0,
+      "release_us": 200,
+      "end_us": 229.32,
+      "e2e_delay_us": 29.32,
+      "deadline_abs_us": null,
+      "slack_us": null,
+      "status": "NON-ST",
+      "hops": [
+        {
+          "link_id": "l_bg2_swrear",
+          "start_us": 200,
+          "end_us": 212.76,
+          "duration_us": 12.76,
+          "queue": 7
+        },
+        {
+          "link_id": "l_swrear_acu",
+          "start_us": 216.26,
+          "end_us": 229.02,
+          "duration_us": 12.76,
+          "queue": 7
+        }
+      ]
+    },
+    {
+      "packet_id": "f_lidar_r#1",
+      "flow_id": "f_lidar_r",
+      "priority": 1,
+      "selected_route": 0,
+      "release_us": 278,
+      "end_us": 303.944,
+      "e2e_delay_us": 25.944,
+      "deadline_abs_us": 556,
+      "slack_us": 252.056,
+      "status": "OK",
+      "hops": [
+        {
+          "link_id": "l_lidarr_swrear",
+          "start_us": 278,
+          "end_us": 289.072,
+          "duration_us": 11.072
+        },
+        {
+          "link_id": "l_swrear_acu",
+          "start_us": 292.572,
+          "end_us": 303.644,
+          "duration_us": 11.072
+        }
+      ]
+    },
+    {
+      "packet_id": "f_lidar_fc#1",
+      "flow_id": "f_lidar_fc",
+      "priority": 5,
+      "selected_route": 0,
+      "release_us": 278,
+      "end_us": 318.516,
+      "e2e_delay_us": 40.516,
+      "deadline_abs_us": 556,
+      "slack_us": 237.484,
+      "status": "OK",
+      "hops": [
+        {
+          "link_id": "l_lidarfc_swfl",
+          "start_us": 278,
+          "end_us": 289.072,
+          "duration_us": 11.072
+        },
+        {
+          "link_id": "l_swfl_swrear",
+          "start_us": 292.572,
+          "end_us": 303.644,
+          "duration_us": 11.072
+        },
+        {
+          "link_id": "l_swrear_acu",
+          "start_us": 307.144,
+          "end_us": 318.216,
+          "duration_us": 11.072
+        }
+      ]
+    },
+    {
+      "packet_id": "f_bg_small#1",
+      "flow_id": "f_bg_small",
+      "priority": 0,
+      "selected_route": 0,
+      "release_us": 500,
+      "end_us": 516.78,
+      "e2e_delay_us": 16.78,
+      "deadline_abs_us": null,
+      "slack_us": null,
+      "status": "NON-ST",
+      "hops": [
+        {
+          "link_id": "l_bg_swfr",
+          "start_us": 500,
+          "end_us": 503.16,
+          "duration_us": 3.16,
+          "queue": 7
+        },
+        {
+          "link_id": "l_swfr_swrear",
+          "start_us": 506.66,
+          "end_us": 509.82,
+          "duration_us": 3.16,
+          "queue": 7
+        },
+        {
+          "link_id": "l_swrear_acu",
+          "start_us": 513.32,
+          "end_us": 516.48,
+          "duration_us": 3.16,
+          "queue": 7
+        }
+      ]
+    },
+    {
+      "packet_id": "f_lidar_r#2",
+      "flow_id": "f_lidar_r",
+      "priority": 1,
+      "selected_route": 0,
+      "release_us": 556,
+      "end_us": 581.944,
+      "e2e_delay_us": 25.944,
+      "deadline_abs_us": 834,
+      "slack_us": 252.056,
+      "status": "OK",
+      "hops": [
+        {
+          "link_id": "l_lidarr_swrear",
+          "start_us": 556,
+          "end_us": 567.072,
+          "duration_us": 11.072
+        },
+        {
+          "link_id": "l_swrear_acu",
+          "start_us": 570.572,
+          "end_us": 581.644,
+          "duration_us": 11.072
+        }
+      ]
+    },
+    {
+      "packet_id": "f_lidar_fl#1",
+      "flow_id": "f_lidar_fl",
+      "priority": 6,
+      "selected_route": 0,
+      "release_us": 555.6,
+      "end_us": 597.868,
+      "e2e_delay_us": 42.268,
+      "deadline_abs_us": 1111.2,
+      "slack_us": 513.332,
+      "status": "OK",
+      "hops": [
+        {
+          "link_id": "l_lidarfl_swfl",
+          "start_us": 555.6,
+          "end_us": 567.256,
+          "duration_us": 11.656
+        },
+        {
+          "link_id": "l_swfl_swrear",
+          "start_us": 570.756,
+          "end_us": 582.412,
+          "duration_us": 11.656
+        },
+        {
+          "link_id": "l_swrear_acu",
+          "start_us": 585.912,
+          "end_us": 597.568,
+          "duration_us": 11.656
+        }
+      ]
+    },
+    {
+      "packet_id": "f_lidar_fc#2",
+      "flow_id": "f_lidar_fc",
+      "priority": 5,
+      "selected_route": 0,
+      "release_us": 556,
+      "end_us": 608.94,
+      "e2e_delay_us": 52.94,
+      "deadline_abs_us": 834,
+      "slack_us": 225.06,
+      "status": "OK",
+      "hops": [
+        {
+          "link_id": "l_lidarfc_swfl",
+          "start_us": 556,
+          "end_us": 567.072,
+          "duration_us": 11.072
+        },
+        {
+          "link_id": "l_swfl_swrear",
+          "start_us": 582.412,
+          "end_us": 593.484,
+          "duration_us": 11.072
+        },
+        {
+          "link_id": "l_swrear_acu",
+          "start_us": 597.568,
+          "end_us": 608.64,
+          "duration_us": 11.072
+        }
+      ]
+    },
+    {
+      "packet_id": "f_lidar_fr#1",
+      "flow_id": "f_lidar_fr",
+      "priority": 4,
+      "selected_route": 0,
+      "release_us": 555.6,
+      "end_us": 620.596,
+      "e2e_delay_us": 64.996,
+      "deadline_abs_us": 1111.2,
+      "slack_us": 490.604,
+      "status": "OK",
+      "hops": [
+        {
+          "link_id": "l_lidarfr_swfr",
+          "start_us": 555.6,
+          "end_us": 567.256,
+          "duration_us": 11.656
+        },
+        {
+          "link_id": "l_swfr_swrear",
+          "start_us": 570.756,
+          "end_us": 582.412,
+          "duration_us": 11.656
+        },
+        {
+          "link_id": "l_swrear_acu",
+          "start_us": 608.64,
+          "end_us": 620.296,
+          "duration_us": 11.656
+        }
+      ]
+    },
+    {
+      "packet_id": "f_lidar_r#3",
+      "flow_id": "f_lidar_r",
+      "priority": 1,
+      "selected_route": 0,
+      "release_us": 834,
+      "end_us": 859.944,
+      "e2e_delay_us": 25.944,
+      "deadline_abs_us": 1112,
+      "slack_us": 252.056,
+      "status": "OK",
+      "hops": [
+        {
+          "link_id": "l_lidarr_swrear",
+          "start_us": 834,
+          "end_us": 845.072,
+          "duration_us": 11.072
+        },
+        {
+          "link_id": "l_swrear_acu",
+          "start_us": 848.572,
+          "end_us": 859.644,
+          "duration_us": 11.072
+        }
+      ]
+    },
+    {
+      "packet_id": "f_lidar_fc#3",
+      "flow_id": "f_lidar_fc",
+      "priority": 5,
+      "selected_route": 0,
+      "release_us": 834,
+      "end_us": 874.516,
+      "e2e_delay_us": 40.516,
+      "deadline_abs_us": 1112,
+      "slack_us": 237.484,
+      "status": "OK",
+      "hops": [
+        {
+          "link_id": "l_lidarfc_swfl",
+          "start_us": 834,
+          "end_us": 845.072,
+          "duration_us": 11.072
+        },
+        {
+          "link_id": "l_swfl_swrear",
+          "start_us": 848.572,
+          "end_us": 859.644,
+          "duration_us": 11.072
+        },
+        {
+          "link_id": "l_swrear_acu",
+          "start_us": 863.144,
+          "end_us": 874.216,
+          "duration_us": 11.072
+        }
+      ]
+    }
+  ],
+  "gcl": {
+    "cycleTime": 1112,
+    "base_time_us": 0,
+    "links": {
+      "l_lidarfc_swfl": {
+        "from": "LIDAR_FC",
+        "to": "SW_FL",
+        "entries": [
+          {
+            "index": 0,
+            "gate_mask": "00100000",
+            "start_us": 0,
+            "end_us": 11.072,
+            "duration_us": 11.072,
+            "note": "f_lidar_fc#0"
+          },
+          {
+            "index": 1,
+            "gate_mask": "00000000",
+            "start_us": 11.072,
+            "end_us": 278,
+            "duration_us": 266.928,
+            "note": "non-ST gap"
+          },
+          {
+            "index": 2,
+            "gate_mask": "00100000",
+            "start_us": 278,
+            "end_us": 289.072,
+            "duration_us": 11.072,
+            "note": "f_lidar_fc#1"
+          },
+          {
+            "index": 3,
+            "gate_mask": "00000000",
+            "start_us": 289.072,
+            "end_us": 556,
+            "duration_us": 266.928,
+            "note": "non-ST gap"
+          },
+          {
+            "index": 4,
+            "gate_mask": "00100000",
+            "start_us": 556,
+            "end_us": 567.072,
+            "duration_us": 11.072,
+            "note": "f_lidar_fc#2"
+          },
+          {
+            "index": 5,
+            "gate_mask": "00000000",
+            "start_us": 567.072,
+            "end_us": 834,
+            "duration_us": 266.928,
+            "note": "non-ST gap"
+          },
+          {
+            "index": 6,
+            "gate_mask": "00100000",
+            "start_us": 834,
+            "end_us": 845.072,
+            "duration_us": 11.072,
+            "note": "f_lidar_fc#3"
+          },
+          {
+            "index": 7,
+            "gate_mask": "00000000",
+            "start_us": 845.072,
+            "end_us": 1112,
+            "duration_us": 266.928,
+            "note": "non-ST remainder"
+          }
+        ]
+      },
+      "l_lidarfl_swfl": {
+        "from": "LIDAR_FL",
+        "to": "SW_FL",
+        "entries": [
+          {
+            "index": 0,
+            "gate_mask": "01000000",
+            "start_us": 0,
+            "end_us": 11.656,
+            "duration_us": 11.656,
+            "note": "f_lidar_fl#0"
+          },
+          {
+            "index": 1,
+            "gate_mask": "00000000",
+            "start_us": 11.656,
+            "end_us": 555.6,
+            "duration_us": 543.944,
+            "note": "non-ST gap"
+          },
+          {
+            "index": 2,
+            "gate_mask": "01000000",
+            "start_us": 555.6,
+            "end_us": 567.256,
+            "duration_us": 11.656,
+            "note": "f_lidar_fl#1"
+          },
+          {
+            "index": 3,
+            "gate_mask": "00000000",
+            "start_us": 567.256,
+            "end_us": 1112,
+            "duration_us": 544.744,
+            "note": "non-ST remainder"
+          }
+        ]
+      },
+      "l_lidarfr_swfr": {
+        "from": "LIDAR_FR",
+        "to": "SW_FR",
+        "entries": [
+          {
+            "index": 0,
+            "gate_mask": "00010000",
+            "start_us": 0,
+            "end_us": 11.656,
+            "duration_us": 11.656,
+            "note": "f_lidar_fr#0"
+          },
+          {
+            "index": 1,
+            "gate_mask": "00000000",
+            "start_us": 11.656,
+            "end_us": 555.6,
+            "duration_us": 543.944,
+            "note": "non-ST gap"
+          },
+          {
+            "index": 2,
+            "gate_mask": "00010000",
+            "start_us": 555.6,
+            "end_us": 567.256,
+            "duration_us": 11.656,
+            "note": "f_lidar_fr#1"
+          },
+          {
+            "index": 3,
+            "gate_mask": "00000000",
+            "start_us": 567.256,
+            "end_us": 1112,
+            "duration_us": 544.744,
+            "note": "non-ST remainder"
+          }
+        ]
+      },
+      "l_lidarr_swrear": {
+        "from": "LIDAR_R",
+        "to": "SW_REAR",
+        "entries": [
+          {
+            "index": 0,
+            "gate_mask": "00000010",
+            "start_us": 0,
+            "end_us": 11.072,
+            "duration_us": 11.072,
+            "note": "f_lidar_r#0"
+          },
+          {
+            "index": 1,
+            "gate_mask": "00000000",
+            "start_us": 11.072,
+            "end_us": 278,
+            "duration_us": 266.928,
+            "note": "non-ST gap"
+          },
+          {
+            "index": 2,
+            "gate_mask": "00000010",
+            "start_us": 278,
+            "end_us": 289.072,
+            "duration_us": 11.072,
+            "note": "f_lidar_r#1"
+          },
+          {
+            "index": 3,
+            "gate_mask": "00000000",
+            "start_us": 289.072,
+            "end_us": 556,
+            "duration_us": 266.928,
+            "note": "non-ST gap"
+          },
+          {
+            "index": 4,
+            "gate_mask": "00000010",
+            "start_us": 556,
+            "end_us": 567.072,
+            "duration_us": 11.072,
+            "note": "f_lidar_r#2"
+          },
+          {
+            "index": 5,
+            "gate_mask": "00000000",
+            "start_us": 567.072,
+            "end_us": 834,
+            "duration_us": 266.928,
+            "note": "non-ST gap"
+          },
+          {
+            "index": 6,
+            "gate_mask": "00000010",
+            "start_us": 834,
+            "end_us": 845.072,
+            "duration_us": 11.072,
+            "note": "f_lidar_r#3"
+          },
+          {
+            "index": 7,
+            "gate_mask": "00000000",
+            "start_us": 845.072,
+            "end_us": 1112,
+            "duration_us": 266.928,
+            "note": "non-ST remainder"
+          }
+        ]
+      },
+      "l_radarf_swfl": {
+        "from": "RADAR_F",
+        "to": "SW_FL",
+        "entries": [
+          {
+            "index": 0,
+            "gate_mask": "10000000",
+            "start_us": 0,
+            "end_us": 2.072,
+            "duration_us": 2.072,
+            "note": "f_radar_f#0"
+          },
+          {
+            "index": 1,
+            "gate_mask": "00000000",
+            "start_us": 2.072,
+            "end_us": 1112,
+            "duration_us": 1109.928,
+            "note": "non-ST remainder"
+          }
+        ]
+      },
+      "l_radarflc_swfl": {
+        "from": "RADAR_FLC",
+        "to": "SW_FL",
+        "entries": [
+          {
+            "index": 0,
+            "gate_mask": "10000000",
+            "start_us": 0,
+            "end_us": 2.072,
+            "duration_us": 2.072,
+            "note": "f_radar_flc#0"
+          },
+          {
+            "index": 1,
+            "gate_mask": "00000000",
+            "start_us": 2.072,
+            "end_us": 1112,
+            "duration_us": 1109.928,
+            "note": "non-ST remainder"
+          }
+        ]
+      },
+      "l_radarfrc_swfr": {
+        "from": "RADAR_FRC",
+        "to": "SW_FR",
+        "entries": [
+          {
+            "index": 0,
+            "gate_mask": "00001000",
+            "start_us": 0,
+            "end_us": 2.072,
+            "duration_us": 2.072,
+            "note": "f_radar_frc#0"
+          },
+          {
+            "index": 1,
+            "gate_mask": "00000000",
+            "start_us": 2.072,
+            "end_us": 1112,
+            "duration_us": 1109.928,
+            "note": "non-ST remainder"
+          }
+        ]
+      },
+      "l_radarrlc_swrear": {
+        "from": "RADAR_RLC",
+        "to": "SW_REAR",
+        "entries": [
+          {
+            "index": 0,
+            "gate_mask": "00000100",
+            "start_us": 0,
+            "end_us": 2.072,
+            "duration_us": 2.072,
+            "note": "f_radar_rlc#0"
+          },
+          {
+            "index": 1,
+            "gate_mask": "00000000",
+            "start_us": 2.072,
+            "end_us": 1112,
+            "duration_us": 1109.928,
+            "note": "non-ST remainder"
+          }
+        ]
+      },
+      "l_radarrrc_swrear": {
+        "from": "RADAR_RRC",
+        "to": "SW_REAR",
+        "entries": [
+          {
+            "index": 0,
+            "gate_mask": "00000100",
+            "start_us": 0,
+            "end_us": 2.072,
+            "duration_us": 2.072,
+            "note": "f_radar_rrc#0"
+          },
+          {
+            "index": 1,
+            "gate_mask": "00000000",
+            "start_us": 2.072,
+            "end_us": 1112,
+            "duration_us": 1109.928,
+            "note": "non-ST remainder"
+          }
+        ]
+      },
+      "l_bg_swfr": {
+        "from": "BG",
+        "to": "SW_FR",
+        "entries": [
+          {
+            "index": 0,
+            "gate_mask": "11111111",
+            "start_us": 0,
+            "end_us": 1112,
+            "duration_us": 1112,
+            "note": "non-ST remainder"
+          }
+        ]
+      },
+      "l_bg2_swrear": {
+        "from": "BG2",
+        "to": "SW_REAR",
+        "entries": [
+          {
+            "index": 0,
+            "gate_mask": "11111111",
+            "start_us": 0,
+            "end_us": 1112,
+            "duration_us": 1112,
+            "note": "non-ST remainder"
+          }
+        ]
+      },
+      "l_swfl_swfr": {
+        "from": "SW_FL",
+        "to": "SW_FR",
+        "entries": [
+          {
+            "index": 0,
+            "gate_mask": "11111111",
+            "start_us": 0,
+            "end_us": 1112,
+            "duration_us": 1112,
+            "note": "non-ST remainder"
+          }
+        ]
+      },
+      "l_swfr_swfl": {
+        "from": "SW_FR",
+        "to": "SW_FL",
+        "entries": [
+          {
+            "index": 0,
+            "gate_mask": "11111111",
+            "start_us": 0,
+            "end_us": 1112,
+            "duration_us": 1112,
+            "note": "non-ST remainder"
+          }
+        ]
+      },
+      "l_swfl_swrear": {
+        "from": "SW_FL",
+        "to": "SW_REAR",
+        "entries": [
+          {
+            "index": 0,
+            "gate_mask": "00000000",
+            "start_us": 0,
+            "end_us": 5.572,
+            "duration_us": 5.572,
+            "note": "closed"
+          },
+          {
+            "index": 1,
+            "gate_mask": "10000000",
+            "start_us": 5.572,
+            "end_us": 7.644,
+            "duration_us": 2.072,
+            "note": "f_radar_f#0"
+          },
+          {
+            "index": 2,
+            "gate_mask": "10000000",
+            "start_us": 7.644,
+            "end_us": 9.716,
+            "duration_us": 2.072,
+            "note": "f_radar_flc#0"
+          },
+          {
+            "index": 3,
+            "gate_mask": "00000000",
+            "start_us": 9.716,
+            "end_us": 15.156,
+            "duration_us": 5.44,
+            "note": "closed"
+          },
+          {
+            "index": 4,
+            "gate_mask": "01000000",
+            "start_us": 15.156,
+            "end_us": 26.812,
+            "duration_us": 11.656,
+            "note": "f_lidar_fl#0"
+          },
+          {
+            "index": 5,
+            "gate_mask": "00100000",
+            "start_us": 26.812,
+            "end_us": 37.884,
+            "duration_us": 11.072,
+            "note": "f_lidar_fc#0"
+          },
+          {
+            "index": 6,
+            "gate_mask": "11111111",
+            "start_us": 37.884,
+            "end_us": 280.268,
+            "duration_us": 242.384,
+            "note": "non-ST gap"
+          },
+          {
+            "index": 7,
+            "gate_mask": "00000000",
+            "start_us": 280.268,
+            "end_us": 292.572,
+            "duration_us": 12.304,
+            "note": "guard band"
+          },
+          {
+            "index": 8,
+            "gate_mask": "00100000",
+            "start_us": 292.572,
+            "end_us": 303.644,
+            "duration_us": 11.072,
+            "note": "f_lidar_fc#1"
+          },
+          {
+            "index": 9,
+            "gate_mask": "11111111",
+            "start_us": 303.644,
+            "end_us": 558.452,
+            "duration_us": 254.808,
+            "note": "non-ST gap"
+          },
+          {
+            "index": 10,
+            "gate_mask": "00000000",
+            "start_us": 558.452,
+            "end_us": 570.756,
+            "duration_us": 12.304,
+            "note": "guard band"
+          },
+          {
+            "index": 11,
+            "gate_mask": "01000000",
+            "start_us": 570.756,
+            "end_us": 582.412,
+            "duration_us": 11.656,
+            "note": "f_lidar_fl#1"
+          },
+          {
+            "index": 12,
+            "gate_mask": "00100000",
+            "start_us": 582.412,
+            "end_us": 593.484,
+            "duration_us": 11.072,
+            "note": "f_lidar_fc#2"
+          },
+          {
+            "index": 13,
+            "gate_mask": "11111111",
+            "start_us": 593.484,
+            "end_us": 836.268,
+            "duration_us": 242.784,
+            "note": "non-ST gap"
+          },
+          {
+            "index": 14,
+            "gate_mask": "00000000",
+            "start_us": 836.268,
+            "end_us": 848.572,
+            "duration_us": 12.304,
+            "note": "guard band"
+          },
+          {
+            "index": 15,
+            "gate_mask": "00100000",
+            "start_us": 848.572,
+            "end_us": 859.644,
+            "duration_us": 11.072,
+            "note": "f_lidar_fc#3"
+          },
+          {
+            "index": 16,
+            "gate_mask": "11111111",
+            "start_us": 859.644,
+            "end_us": 1112,
+            "duration_us": 252.356,
+            "note": "non-ST remainder"
+          }
+        ]
+      },
+      "l_swrear_swfl": {
+        "from": "SW_REAR",
+        "to": "SW_FL",
+        "entries": [
+          {
+            "index": 0,
+            "gate_mask": "11111111",
+            "start_us": 0,
+            "end_us": 1112,
+            "duration_us": 1112,
+            "note": "non-ST remainder"
+          }
+        ]
+      },
+      "l_swfr_swrear": {
+        "from": "SW_FR",
+        "to": "SW_REAR",
+        "entries": [
+          {
+            "index": 0,
+            "gate_mask": "00000000",
+            "start_us": 0,
+            "end_us": 5.572,
+            "duration_us": 5.572,
+            "note": "closed"
+          },
+          {
+            "index": 1,
+            "gate_mask": "00001000",
+            "start_us": 5.572,
+            "end_us": 7.644,
+            "duration_us": 2.072,
+            "note": "f_radar_frc#0"
+          },
+          {
+            "index": 2,
+            "gate_mask": "00000000",
+            "start_us": 7.644,
+            "end_us": 15.156,
+            "duration_us": 7.512,
+            "note": "closed"
+          },
+          {
+            "index": 3,
+            "gate_mask": "00010000",
+            "start_us": 15.156,
+            "end_us": 26.812,
+            "duration_us": 11.656,
+            "note": "f_lidar_fr#0"
+          },
+          {
+            "index": 4,
+            "gate_mask": "11111111",
+            "start_us": 26.812,
+            "end_us": 558.452,
+            "duration_us": 531.64,
+            "note": "non-ST gap"
+          },
+          {
+            "index": 5,
+            "gate_mask": "00000000",
+            "start_us": 558.452,
+            "end_us": 570.756,
+            "duration_us": 12.304,
+            "note": "guard band"
+          },
+          {
+            "index": 6,
+            "gate_mask": "00010000",
+            "start_us": 570.756,
+            "end_us": 582.412,
+            "duration_us": 11.656,
+            "note": "f_lidar_fr#1"
+          },
+          {
+            "index": 7,
+            "gate_mask": "11111111",
+            "start_us": 582.412,
+            "end_us": 1112,
+            "duration_us": 529.588,
+            "note": "non-ST remainder"
+          }
+        ]
+      },
+      "l_swrear_swfr": {
+        "from": "SW_REAR",
+        "to": "SW_FR",
+        "entries": [
+          {
+            "index": 0,
+            "gate_mask": "11111111",
+            "start_us": 0,
+            "end_us": 1112,
+            "duration_us": 1112,
+            "note": "non-ST remainder"
+          }
+        ]
+      },
+      "l_swrear_acu": {
+        "from": "SW_REAR",
+        "to": "ACU_IT",
+        "entries": [
+          {
+            "index": 0,
+            "gate_mask": "00000000",
+            "start_us": 0,
+            "end_us": 5.572,
+            "duration_us": 5.572,
+            "note": "closed"
+          },
+          {
+            "index": 1,
+            "gate_mask": "00000100",
+            "start_us": 5.572,
+            "end_us": 7.644,
+            "duration_us": 2.072,
+            "note": "f_radar_rlc#0"
+          },
+          {
+            "index": 2,
+            "gate_mask": "00000100",
+            "start_us": 7.644,
+            "end_us": 9.716,
+            "duration_us": 2.072,
+            "note": "f_radar_rrc#0"
+          },
+          {
+            "index": 3,
+            "gate_mask": "00000000",
+            "start_us": 9.716,
+            "end_us": 11.144,
+            "duration_us": 1.428,
+            "note": "closed"
+          },
+          {
+            "index": 4,
+            "gate_mask": "10000000",
+            "start_us": 11.144,
+            "end_us": 13.216,
+            "duration_us": 2.072,
+            "note": "f_radar_f#0"
+          },
+          {
+            "index": 5,
+            "gate_mask": "10000000",
+            "start_us": 13.216,
+            "end_us": 15.288,
+            "duration_us": 2.072,
+            "note": "f_radar_flc#0"
+          },
+          {
+            "index": 6,
+            "gate_mask": "00001000",
+            "start_us": 15.288,
+            "end_us": 17.36,
+            "duration_us": 2.072,
+            "note": "f_radar_frc#0"
+          },
+          {
+            "index": 7,
+            "gate_mask": "00000010",
+            "start_us": 17.36,
+            "end_us": 28.432,
+            "duration_us": 11.072,
+            "note": "f_lidar_r#0"
+          },
+          {
+            "index": 8,
+            "gate_mask": "00000000",
+            "start_us": 28.432,
+            "end_us": 30.312,
+            "duration_us": 1.88,
+            "note": "closed"
+          },
+          {
+            "index": 9,
+            "gate_mask": "01000000",
+            "start_us": 30.312,
+            "end_us": 41.968,
+            "duration_us": 11.656,
+            "note": "f_lidar_fl#0"
+          },
+          {
+            "index": 10,
+            "gate_mask": "00100000",
+            "start_us": 41.968,
+            "end_us": 53.04,
+            "duration_us": 11.072,
+            "note": "f_lidar_fc#0"
+          },
+          {
+            "index": 11,
+            "gate_mask": "00010000",
+            "start_us": 53.04,
+            "end_us": 64.696,
+            "duration_us": 11.656,
+            "note": "f_lidar_fr#0"
+          },
+          {
+            "index": 12,
+            "gate_mask": "11111111",
+            "start_us": 64.696,
+            "end_us": 280.268,
+            "duration_us": 215.572,
+            "note": "non-ST gap"
+          },
+          {
+            "index": 13,
+            "gate_mask": "00000000",
+            "start_us": 280.268,
+            "end_us": 292.572,
+            "duration_us": 12.304,
+            "note": "guard band"
+          },
+          {
+            "index": 14,
+            "gate_mask": "00000010",
+            "start_us": 292.572,
+            "end_us": 303.644,
+            "duration_us": 11.072,
+            "note": "f_lidar_r#1"
+          },
+          {
+            "index": 15,
+            "gate_mask": "00000000",
+            "start_us": 303.644,
+            "end_us": 307.144,
+            "duration_us": 3.5,
+            "note": "closed"
+          },
+          {
+            "index": 16,
+            "gate_mask": "00100000",
+            "start_us": 307.144,
+            "end_us": 318.216,
+            "duration_us": 11.072,
+            "note": "f_lidar_fc#1"
+          },
+          {
+            "index": 17,
+            "gate_mask": "11111111",
+            "start_us": 318.216,
+            "end_us": 558.268,
+            "duration_us": 240.052,
+            "note": "non-ST gap"
+          },
+          {
+            "index": 18,
+            "gate_mask": "00000000",
+            "start_us": 558.268,
+            "end_us": 570.572,
+            "duration_us": 12.304,
+            "note": "guard band"
+          },
+          {
+            "index": 19,
+            "gate_mask": "00000010",
+            "start_us": 570.572,
+            "end_us": 581.644,
+            "duration_us": 11.072,
+            "note": "f_lidar_r#2"
+          },
+          {
+            "index": 20,
+            "gate_mask": "00000000",
+            "start_us": 581.644,
+            "end_us": 585.912,
+            "duration_us": 4.268,
+            "note": "closed"
+          },
+          {
+            "index": 21,
+            "gate_mask": "01000000",
+            "start_us": 585.912,
+            "end_us": 597.568,
+            "duration_us": 11.656,
+            "note": "f_lidar_fl#1"
+          },
+          {
+            "index": 22,
+            "gate_mask": "00100000",
+            "start_us": 597.568,
+            "end_us": 608.64,
+            "duration_us": 11.072,
+            "note": "f_lidar_fc#2"
+          },
+          {
+            "index": 23,
+            "gate_mask": "00010000",
+            "start_us": 608.64,
+            "end_us": 620.296,
+            "duration_us": 11.656,
+            "note": "f_lidar_fr#1"
+          },
+          {
+            "index": 24,
+            "gate_mask": "11111111",
+            "start_us": 620.296,
+            "end_us": 836.268,
+            "duration_us": 215.972,
+            "note": "non-ST gap"
+          },
+          {
+            "index": 25,
+            "gate_mask": "00000000",
+            "start_us": 836.268,
+            "end_us": 848.572,
+            "duration_us": 12.304,
+            "note": "guard band"
+          },
+          {
+            "index": 26,
+            "gate_mask": "00000010",
+            "start_us": 848.572,
+            "end_us": 859.644,
+            "duration_us": 11.072,
+            "note": "f_lidar_r#3"
+          },
+          {
+            "index": 27,
+            "gate_mask": "00000000",
+            "start_us": 859.644,
+            "end_us": 863.144,
+            "duration_us": 3.5,
+            "note": "closed"
+          },
+          {
+            "index": 28,
+            "gate_mask": "00100000",
+            "start_us": 863.144,
+            "end_us": 874.216,
+            "duration_us": 11.072,
+            "note": "f_lidar_fc#3"
+          },
+          {
+            "index": 29,
+            "gate_mask": "11111111",
+            "start_us": 874.216,
+            "end_us": 1112,
+            "duration_us": 237.784,
+            "note": "non-ST remainder"
+          }
+        ]
+      }
+    }
+  },
+  "stats": {
+    "constraints": 0,
+    "variables": 0,
+    "binaries": 0,
+    "status": "heuristic",
+    "runtime_ms": 0,
+    "fallback_packets": 0,
+    "overlap_conflicts": 0,
+    "ilp_error": "RuntimeError: Aborted(). Build with -s ASSERTIONS=1 for more info.",
+    "fallback": "greedy (ILP memory error)"
+  }
+}
