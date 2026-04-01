@@ -671,9 +671,9 @@
     { id: 'f_radar_rrc', PCP: 1, payload_bytes: 1500, period_us: 500, deadline_us: 500,
       traffic_type: 'radar', src: 'RADAR_RRC', dst: 'ACU_IT', k_paths: 1, color: flowColor('f_radar_rrc') },
     { id: 'f_bg_small', PCP: 0, payload_bytes: 200, period_us: 500,
-      deadline_us: 500, traffic_type: 'bg', src: 'SW_FR', dst: 'ACU_IT', k_paths: 1, color: '#ec4899' },
+      deadline_us: 500, traffic_type: 'bg', src: 'BG1', dst: 'ACU_IT', k_paths: 1, color: '#ec4899' },
     { id: 'f_bg_large', PCP: 0, payload_bytes: 1400, period_us: 1000,
-      deadline_us: 1000, traffic_type: 'bg', src: 'SW_REAR', dst: 'ACU_IT', k_paths: 1, color: '#f472b6' },
+      deadline_us: 1000, traffic_type: 'bg', src: 'BG2', dst: 'ACU_IT', k_paths: 1, color: '#f472b6' },
   ];
 
   /* ── Case 2: Heavy load (Greedy MISS, ILP OK) ── */
@@ -777,8 +777,9 @@
     for (const lnk of m.links) lnk.rate_mbps = speed;
     m.flows = baseFlows.map(f => ({ ...f }));
 
-    // Case 2: add BG1 → SW_FR, BG2 → SW_REAR
-    if (currentCase === 2) {
+    // Add BG1 → SW_FR, BG2 → SW_REAR (both cases have BG flows)
+    const hasBG = baseFlows.some(f => f.src === 'BG1' || f.src === 'BG2');
+    if (hasBG) {
       m.nodes.push({ id: 'BG1', type: 'endstation' }, { id: 'BG2', type: 'endstation' });
       m.links.push(
         { id: 'l_bg1_swfr',   from: 'BG1', to: 'SW_FR',   rate_mbps: speed, prop_delay_us: 0.3 },
@@ -1054,10 +1055,8 @@
     const H = rect.height || Math.max(340, W * 0.75);
     const pos = getRealPositions(W, H);
     pos.LIDAR_R = { x: W * 0.32, y: H * 0.70 };
-    if (currentCase === 2) {
-      pos.BG1 = { x: W * 0.96, y: H * 0.06 };
-      pos.BG2 = { x: W * 0.96, y: H * 0.60 };
-    }
+    pos.BG1 = { x: W * 0.96, y: H * 0.06 };
+    pos.BG2 = { x: W * 0.68, y: H * 0.70 };
     const svg = d3.select(container).append('svg')
       .attr('viewBox', `0 0 ${W} ${H}`)
       .attr('preserveAspectRatio', 'xMidYMid meet')
@@ -1065,7 +1064,8 @@
       .on('click', () => { selectedFlowId = null; selectedSwitchId = null; selectedLinkId = null; clearHighlight(); });
 
     const topoBase = JSON.parse(JSON.stringify(ROII_REAL_8TC));
-    if (currentCase === 2) {
+    const hasBG = baseFlows.some(f => f.src === 'BG1' || f.src === 'BG2');
+    if (hasBG) {
       topoBase.nodes.push({ id: 'BG1', type: 'endstation' }, { id: 'BG2', type: 'endstation' });
       topoBase.links.push(
         { id: 'l_bg1_swfr',   from: 'BG1', to: 'SW_FR',   rate_mbps: 1000, prop_delay_us: 0.3 },
