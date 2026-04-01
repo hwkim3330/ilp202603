@@ -349,7 +349,7 @@
   <script type="module">
   const _v = '?v=' + Date.now();
   const { ROII_REAL_8TC, ROII_REAL_SWITCHES, getRealPositions, ROII_REAL_NODE_COLORS } = await import('./js/roii-real-data.js' + _v);
-  const { solveGreedy, solveILP, initTooltip, flowColor, getFlowColorsHex } = await import('./js/ilp-core.js' + _v);
+  const { solveGreedy, solveILP, initTooltip, flowColor, getFlowColorsHex, generateKPaths } = await import('./js/ilp-core.js' + _v);
 
   initTooltip();
   const round3 = v => Math.round(v * 1000) / 1000;
@@ -826,6 +826,90 @@
     }
   }
 
+  /* ═══════ BG Packet Placement (post-ILP) ═══════ */
+  function addBgPackets(fullModel, bgFlows, result) {
+    const cycleTime = fullModel.cycle_time_us;
+    const lm = new Map(fullModel.links.map(l => [l.id, l]));
+    const adj = new Map();
+    for (const l of fullModel.links) {
+      if (!adj.has(l.from)) adj.set(l.from, []);
+      adj.get(l.from).push({ to: l.to, lid: l.id });
+    }
+
+    // Collect occupied intervals per link from ILP result
+    const occ = {};
+    for (const lnk of fullModel.links) occ[lnk.id] = [];
+    for (const pk of result.packetRows) {
+      for (const h of pk.hops) {
+        occ[h.link_id].push([h.start_us, h.end_us]);
+      }
+    }
+    for (const lid of Object.keys(occ)) occ[lid].sort((a, b) => a[0] - b[0]);
+
+    function findSlot(lid, earliest, duration) {
+      let t = Math.max(0, earliest);
+      for (let iter = 0; iter < 500; iter++) {
+        if (t + duration > cycleTime) return null;
+        let conflict = false;
+        for (const [s, e] of occ[lid]) {
+          if (t < e && t + duration > s) { t = e; conflict = true; break; }
+        }
+        if (!conflict) return t;
+      }
+      return null;
+    }
+
+    // Expand BG flows into packets
+    const bgPkts = [];
+    for (const f of bgFlows) {
+      const reps = Math.max(1, Math.round(cycleTime / f.period_us));
+      const paths = generateKPaths(adj, f.src, f.dst, 1, fullModel.nodes.length + 2);
+      if (!paths.length) { console.warn(`[BG] No route for ${f.id}: ${f.src}→${f.dst}`); continue; }
+      for (let k = 0; k < reps; k++) {
+        const rel = (f.rel != null ? f.rel : 0) + k * f.period_us;
+        bgPkts.push({
+          pid: `${f.id}#${k}`, fid: f.id, pri: f.PCP ?? 0, rel,
+          hopsTemplate: paths[0].map(lid => ({
+            lid,
+            tx: round3((f.payload_bytes + 38) * 8 / lm.get(lid).rate_mbps),
+            pd: lm.get(lid).prop_delay_us
+          }))
+        });
+      }
+    }
+    bgPkts.sort((a, b) => a.rel - b.rel);
+
+    for (const pk of bgPkts) {
+      const hops = [];
+      let t = pk.rel, valid = true;
+      for (const hp of pk.hopsTemplate) {
+        const s = findSlot(hp.lid, t, hp.tx);
+        if (s == null) { valid = false; break; }
+        hops.push({ link_id: hp.lid, start_us: round3(s), end_us: round3(s + hp.tx), duration_us: round3(hp.tx), queue: 0 });
+        t = round3(s + hp.tx + hp.pd + fullModel.processing_delay_us);
+      }
+      if (!valid || !hops.length) continue;
+      // Commit occupancy
+      for (const h of hops) {
+        occ[h.link_id].push([h.start_us, h.end_us]);
+        occ[h.link_id].sort((a, b) => a[0] - b[0]);
+      }
+      // Add GCL entries
+      for (const h of hops) {
+        const le = result.gcl.links[h.link_id];
+        if (le) le.entries.push({ index: le.entries.length, gate_mask: '00000001', start_us: h.start_us, end_us: h.end_us, duration_us: h.duration_us, note: `${pk.pid} (non-ST)` });
+      }
+      const fin = round3(hops.at(-1).end_us + pk.hopsTemplate.at(-1).pd);
+      result.packetRows.push({
+        packet_id: pk.pid, flow_id: pk.fid, priority: pk.pri,
+        selected_route: 0, release_us: round3(pk.rel), end_us: fin,
+        e2e_delay_us: round3(fin - pk.rel), deadline_abs_us: null, slack_us: null,
+        status: 'NON-ST', hops
+      });
+    }
+    result.packetRows.sort((a, b) => a.end_us - b.end_us);
+  }
+
   /* ═══════ Solve ═══════ */
   let solving = false;
   async function solve() {
@@ -851,9 +935,16 @@
         const glpk = await ensureGLPK();
         if (!glpk) { setStatus('<span style="color:var(--red);">GLPK failed to load</span>'); solving = false; btn.disabled = false; return; }
         const tmlim = parseInt(document.getElementById('pTmlim').value) || 30;
-        result = await solveILP(model, glpk, { tmlim, onProgress: info => {
+
+        // Separate ST and BG flows — only ST enters ILP (BG placed in gaps after)
+        const stFlows = model.flows.filter(f => f.deadline_us != null);
+        const bgFlows = model.flows.filter(f => f.deadline_us == null);
+
+        const ilpModel = bgFlows.length > 0 ? { ...model, flows: stFlows } : model;
+
+        result = await solveILP(ilpModel, glpk, { tmlim, onProgress: info => {
           if (info.phase === 'building') {
-            setStatus(`<span class="spinner-sm"></span> <strong>ILP</strong> \u2014 ${info.pkts} pkts from ${info.flows} flows...`);
+            setStatus(`<span class="spinner-sm"></span> <strong>ILP</strong> \u2014 ${info.pkts} pkts from ${info.flows} ST flows (${bgFlows.length} BG deferred)...`);
           } else if (info.phase === 'solving') {
             const p = info.pruning || {};
             let detail = `${info.bins} bins, ${info.constraints} cstr`;
@@ -863,6 +954,11 @@
             setStatus(`<span class="spinner-sm"></span> <strong>ILP</strong> \u2014 GLPK: ${info.pkts} pkts, ${detail}...`);
           }
         }});
+
+        // After ILP succeeds, place BG packets in gaps
+        if (bgFlows.length > 0 && !result.error) {
+          addBgPackets(model, bgFlows, result);
+        }
       } else {
         result = solveGreedy(model);
       }
@@ -955,6 +1051,19 @@
       .on('click', () => { selectedFlowId = null; selectedSwitchId = null; selectedLinkId = null; clearHighlight(); });
 
     const topoBase = JSON.parse(JSON.stringify(ROII_REAL_8TC));
+    // Add BG/BG2 nodes and links for Case 2 topology rendering
+    if (currentCase === 2) {
+      topoBase.nodes.push({ id: 'BG', type: 'endstation' }, { id: 'BG2', type: 'endstation' });
+      const speed = model.links[0]?.rate_mbps || 1000;
+      topoBase.links.push(
+        { id: 'l_bg_swfl',   from: 'BG', to: 'SW_FL',   rate_mbps: speed, prop_delay_us: 0.3 },
+        { id: 'l_bg_swfr',   from: 'BG', to: 'SW_FR',   rate_mbps: speed, prop_delay_us: 0.3 },
+        { id: 'l_bg_swrear', from: 'BG', to: 'SW_REAR', rate_mbps: speed, prop_delay_us: 0.3 },
+        { id: 'l_bg2_swfl',   from: 'BG2', to: 'SW_FL',   rate_mbps: speed, prop_delay_us: 0.3 },
+        { id: 'l_bg2_swfr',   from: 'BG2', to: 'SW_FR',   rate_mbps: speed, prop_delay_us: 0.3 },
+        { id: 'l_bg2_swrear', from: 'BG2', to: 'SW_REAR', rate_mbps: speed, prop_delay_us: 0.3 },
+      );
+    }
     const backboneIds = new Set(Object.keys(BACKBONE_REVERSE));
     const failedSet = new Set();
     if (failedLink) { failedSet.add(failedLink); const rv = BACKBONE_REVERSE[failedLink]; if (rv) failedSet.add(rv); }
@@ -1128,7 +1237,7 @@
       const by = swPos.y + Math.sin(angle) * dist;
       const br = 10;
       const fColor = ef.color || flowColor(ef.id) || '#a3a3a3';
-      const isBG = ef.traffic_type === 'bg';
+      const isBG = ef.traffic_type === 'bg' || ef.traffic_type === 'background';
       const label = isBG ? 'BG' : ef.id.replace(/^f_/, '').slice(0, 3).toUpperCase();
 
       svg.append('line').attr('x1', bx).attr('y1', by).attr('x2', swPos.x).attr('y2', swPos.y)
@@ -1164,7 +1273,7 @@
       const entries = result.gcl?.links?.[l.id]?.entries;
       return entries?.some(e => !e.note.includes('non-ST') && !e.note.includes('all-gates-closed') && e.note !== 'BE (TC0)');
     });
-    const bgFlows = baseFlows.filter(f => f.traffic_type === 'bg');
+    const bgFlows = baseFlows.filter(f => f.traffic_type === 'bg' || f.traffic_type === 'background');
     const bgFlowIds = bgFlows.map(f => f.id);
     const allRowIds = [...activeLinks.map(l => l.id), ...bgFlowIds];
     if (!allRowIds.length) return;
