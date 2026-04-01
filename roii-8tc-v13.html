@@ -645,7 +645,7 @@
   }
 
   /* ═══════ Flow Data ═══════ */
-  const NODE_IDS = [...ROII_REAL_8TC.nodes.map(n => n.id), 'BG'];
+  const NODE_IDS = [...ROII_REAL_8TC.nodes.map(n => n.id), 'BG1', 'BG2'];
   let addCounter = 0;
   let currentCase = 1;
   const CUSTOM_COLORS = ['#e11d48','#f97316','#84cc16','#06b6d4','#8b5cf6','#ec4899','#14b8a6','#f59e0b'];
@@ -701,9 +701,9 @@
     { id: 'f_radar_rrc', PCP: 2, payload_bytes: 320, period_us: 500, deadline_us: 300,
       traffic_type: 'radar', src: 'RADAR_RRC', dst: 'ACU_IT', k_paths: 1, color: flowColor('f_radar_rrc') },
     { id: 'f_bg_small', PCP: 0, payload_bytes: 200, period_us: 500, deadline_us: null,
-      traffic_type: 'bg', src: 'BG', dst: 'ACU_IT', k_paths: 1, color: '#ec4899' },
+      traffic_type: 'bg', src: 'BG1', dst: 'ACU_IT', k_paths: 1, color: '#ec4899' },
     { id: 'f_bg_large', PCP: 0, payload_bytes: 1400, period_us: 1000, deadline_us: null,
-      traffic_type: 'bg', src: 'BG', dst: 'ACU_IT', k_paths: 1, color: '#f472b6' },
+      traffic_type: 'bg', src: 'BG2', dst: 'ACU_IT', k_paths: 1, color: '#f472b6' },
   ];
 
   function initFlows(caseNum) {
@@ -777,10 +777,13 @@
     for (const lnk of m.links) lnk.rate_mbps = speed;
     m.flows = baseFlows.map(f => ({ ...f }));
 
-    // Case 2: add BG node + link to SW_FR
+    // Case 2: add BG1 → SW_FR, BG2 → SW_REAR
     if (currentCase === 2) {
-      m.nodes.push({ id: 'BG', type: 'endstation' });
-      m.links.push({ id: 'l_bg_swfr', from: 'BG', to: 'SW_FR', rate_mbps: speed, prop_delay_us: 0.3 });
+      m.nodes.push({ id: 'BG1', type: 'endstation' }, { id: 'BG2', type: 'endstation' });
+      m.links.push(
+        { id: 'l_bg1_swfr',   from: 'BG1', to: 'SW_FR',   rate_mbps: speed, prop_delay_us: 0.3 },
+        { id: 'l_bg2_swrear', from: 'BG2', to: 'SW_REAR', rate_mbps: speed, prop_delay_us: 0.3 }
+      );
     }
 
     const failedLink = document.getElementById('pFail').value;
@@ -1051,7 +1054,10 @@
     const H = rect.height || Math.max(340, W * 0.75);
     const pos = getRealPositions(W, H);
     pos.LIDAR_R = { x: W * 0.32, y: H * 0.70 };
-    if (currentCase === 2) pos.BG = { x: W * 0.93, y: H * 0.20 };
+    if (currentCase === 2) {
+      pos.BG1 = { x: W * 0.96, y: H * 0.06 };
+      pos.BG2 = { x: W * 0.96, y: H * 0.60 };
+    }
     const svg = d3.select(container).append('svg')
       .attr('viewBox', `0 0 ${W} ${H}`)
       .attr('preserveAspectRatio', 'xMidYMid meet')
@@ -1060,8 +1066,11 @@
 
     const topoBase = JSON.parse(JSON.stringify(ROII_REAL_8TC));
     if (currentCase === 2) {
-      topoBase.nodes.push({ id: 'BG', type: 'endstation' });
-      topoBase.links.push({ id: 'l_bg_swfr', from: 'BG', to: 'SW_FR', rate_mbps: 1000, prop_delay_us: 0.3 });
+      topoBase.nodes.push({ id: 'BG1', type: 'endstation' }, { id: 'BG2', type: 'endstation' });
+      topoBase.links.push(
+        { id: 'l_bg1_swfr',   from: 'BG1', to: 'SW_FR',   rate_mbps: 1000, prop_delay_us: 0.3 },
+        { id: 'l_bg2_swrear', from: 'BG2', to: 'SW_REAR', rate_mbps: 1000, prop_delay_us: 0.3 }
+      );
     }
     const backboneIds = new Set(Object.keys(BACKBONE_REVERSE));
     const failedSet = new Set();
@@ -1157,9 +1166,12 @@
     for (const node of topoBase.nodes) {
       const p = pos[node.id];
       if (!p) continue;
-      const nc = node.id === 'BG'
-        ? { fill: '#fce7f3', stroke: '#ec4899', shortLabel: 'BG', label: 'Background' }
-        : ROII_REAL_NODE_COLORS[node.id] || { fill: '#e2e8f0', stroke: '#94a3b8', shortLabel: node.id, label: node.id };
+      const BG_COLORS = {
+        BG1: { fill: '#fce7f3', stroke: '#ec4899', shortLabel: 'BG1', label: 'BG Small' },
+        BG2: { fill: '#fdf2f8', stroke: '#f472b6', shortLabel: 'BG2', label: 'BG Large' },
+      };
+      const nc = BG_COLORS[node.id] || ROII_REAL_NODE_COLORS[node.id]
+        || { fill: '#e2e8f0', stroke: '#94a3b8', shortLabel: node.id, label: node.id };
       const isSwitch = node.type === 'switch';
       const isACU = node.id === 'ACU_IT';
       const isLidar = node.id.startsWith('LIDAR');
@@ -1200,7 +1212,7 @@
         })
         .on('mouseover', () => {
           let html = `<div class="tt-title">${nc.label || node.id}</div>`;
-          const isBG = node.id === 'BG';
+          const isBG = node.id.startsWith('BG');
           html += `<div class="tt-row"><span class="tt-k">Type</span><span class="tt-v">${isSwitch ? 'Switch' : isACU ? 'ACU' : isLidar ? 'LiDAR' : isBG ? 'Background' : 'Radar'}</span></div>`;
           if (sensorFid) {
             const f = baseFlows.find(bf => bf.id === sensorFid);
