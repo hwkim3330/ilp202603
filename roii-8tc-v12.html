@@ -775,17 +775,13 @@
     for (const lnk of m.links) lnk.rate_mbps = speed;
     m.flows = baseFlows.map(f => ({ ...f }));
 
-    // Case 2: add BG / BG2 nodes + links to all 3 switches
+    // Case 2: add BG / BG2 nodes + single link each
     if (currentCase === 2) {
       m.nodes.push({ id: 'BG', type: 'endstation' });
       m.nodes.push({ id: 'BG2', type: 'endstation' });
       m.links.push(
-        { id: 'l_bg_swfl',   from: 'BG', to: 'SW_FL',   rate_mbps: speed, prop_delay_us: 0.3 },
-        { id: 'l_bg_swfr',   from: 'BG', to: 'SW_FR',   rate_mbps: speed, prop_delay_us: 0.3 },
-        { id: 'l_bg_swrear', from: 'BG', to: 'SW_REAR', rate_mbps: speed, prop_delay_us: 0.3 },
-        { id: 'l_bg2_swfl',   from: 'BG2', to: 'SW_FL',   rate_mbps: speed, prop_delay_us: 0.3 },
-        { id: 'l_bg2_swfr',   from: 'BG2', to: 'SW_FR',   rate_mbps: speed, prop_delay_us: 0.3 },
-        { id: 'l_bg2_swrear', from: 'BG2', to: 'SW_REAR', rate_mbps: speed, prop_delay_us: 0.3 },
+        { id: 'l_bg_swfr',     from: 'BG',  to: 'SW_FR',   rate_mbps: speed, prop_delay_us: 0.3 },
+        { id: 'l_bg2_swrear',  from: 'BG2', to: 'SW_REAR', rate_mbps: speed, prop_delay_us: 0.3 },
       );
     }
 
@@ -1038,10 +1034,10 @@
     const H = rect.height || Math.max(340, W * 0.75);
     const pos = getRealPositions(W, H);
     pos.LIDAR_R = { x: W * 0.32, y: H * 0.70 };
-    // BG/BG2 positions (Case 2) — center of switch triangle
+    // BG/BG2 positions (Case 2) — near their connected switch
     if (currentCase === 2) {
-      pos.BG  = { x: W * 0.48, y: H * 0.40 };
-      pos.BG2 = { x: W * 0.56, y: H * 0.44 };
+      pos.BG  = { x: W * 0.93, y: H * 0.20 };  // near SW_FR
+      pos.BG2 = { x: W * 0.72, y: H * 0.72 };  // near SW_REAR
     }
 
     const svg = d3.select(container).append('svg')
@@ -1056,11 +1052,7 @@
       topoBase.nodes.push({ id: 'BG', type: 'endstation' }, { id: 'BG2', type: 'endstation' });
       const speed = model.links[0]?.rate_mbps || 1000;
       topoBase.links.push(
-        { id: 'l_bg_swfl',   from: 'BG', to: 'SW_FL',   rate_mbps: speed, prop_delay_us: 0.3 },
-        { id: 'l_bg_swfr',   from: 'BG', to: 'SW_FR',   rate_mbps: speed, prop_delay_us: 0.3 },
-        { id: 'l_bg_swrear', from: 'BG', to: 'SW_REAR', rate_mbps: speed, prop_delay_us: 0.3 },
-        { id: 'l_bg2_swfl',   from: 'BG2', to: 'SW_FL',   rate_mbps: speed, prop_delay_us: 0.3 },
-        { id: 'l_bg2_swfr',   from: 'BG2', to: 'SW_FR',   rate_mbps: speed, prop_delay_us: 0.3 },
+        { id: 'l_bg_swfr',    from: 'BG',  to: 'SW_FR',   rate_mbps: speed, prop_delay_us: 0.3 },
         { id: 'l_bg2_swrear', from: 'BG2', to: 'SW_REAR', rate_mbps: speed, prop_delay_us: 0.3 },
       );
     }
