@@ -44,7 +44,7 @@
       padding: 3px 6px; border-radius: 6px; border: 1px solid var(--border);
       font-size: 0.82rem; width: 70px; transition: border-color 0.15s;
     }
-    .top-bar select { width: auto; min-width: 70px; }
+    .top-bar select { width: auto; min-width: 70px; max-width: 220px; }
     .top-bar input:focus, .top-bar select:focus {
       outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 2px rgba(59,130,246,0.1);
     }
@@ -314,9 +314,13 @@
       </select>
     </label>
     <div class="tsep"></div>
-    <button class="btn-case" id="btnCase1">Case 1</button>
-    <button class="btn-case active" id="btnCase2">Case 2</button>
-    <button class="btn-case" id="btnCompare">Compare</button>
+    <label>Profile
+      <select id="pProfile">
+        <option value="1">Case 1 — Standard (11 flows)</option>
+        <option value="2" selected>Case 2 — Heavy (12 flows)</option>
+        <option value="compare">&#9664;&#9654; Compare</option>
+      </select>
+    </label>
     <div class="tsep"></div>
     <button class="btn-solve" id="btnSolve">&#9654; Solve</button>
   </div>
@@ -2247,7 +2251,7 @@
   document.getElementById('pFail').addEventListener('change', autoSolve);
   document.getElementById('btnExportGCL').addEventListener('click', exportGCL);
 
-  /* ═══════ Case Switch ═══════ */
+  /* ═══════ Profile Switch ═══════ */
   let compareMode = false;
 
   function switchCase(caseNum) {
@@ -2255,8 +2259,6 @@
       if (compareMode) return;
       compareMode = true;
       currentCase = 'compare';
-      document.querySelectorAll('.btn-case').forEach(b => b.classList.remove('active'));
-      document.getElementById('btnCompare').classList.add('active');
       // Hide single-case views
       document.getElementById('topoContainer').parentElement.style.display = 'none';
       document.getElementById('flowSection').style.display = 'none';
@@ -2271,9 +2273,6 @@
     compareMode = false;
     if (currentCase === caseNum) return;
     currentCase = caseNum;
-    document.querySelectorAll('.btn-case').forEach(b => b.classList.remove('active'));
-    const btnId = caseNum === 1 ? 'btnCase1' : 'btnCase2';
-    document.getElementById(btnId).classList.add('active');
     // Show single-case views
     document.getElementById('topoContainer').parentElement.style.display = '';
     document.getElementById('flowSection').style.display = '';
@@ -2284,9 +2283,10 @@
     renderFlowTable();
     solve();
   }
-  document.getElementById('btnCase1').addEventListener('click', () => switchCase(1));
-  document.getElementById('btnCase2').addEventListener('click', () => switchCase(2));
-  document.getElementById('btnCompare').addEventListener('click', () => switchCase('compare'));
+  document.getElementById('pProfile').addEventListener('change', (ev) => {
+    const val = ev.target.value;
+    switchCase(val === 'compare' ? 'compare' : parseInt(val));
+  });
 
   document.getElementById('btnAddFlow').addEventListener('click', () => {
     addCounter++;
