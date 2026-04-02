@@ -1,8 +1,9 @@
-// Pre-computed ILP optimal result for Case 2 (9 ST flows, 1000µs cycle, 1 Gbps)
+// Pre-computed ILP optimal result for Case 2 (9 ST flows, 24 pkts, 1000µs cycle, 1 Gbps)
 // Raw ILP output — BG packets, guard bands, and boardConfigs are added at load time.
 export const CASE2_PROFILE = {
   method: "ILP (GLPK, optimal)",
   worst_util_percent: 91,
+  stats: { constraints: 2293, variables: 1112, binaries: 989, status: "precomputed", runtime_ms: 174034331 },
   packetRows: [
     { packet_id:"f_radar_rlc#0", flow_id:"f_radar_rlc", priority:2, selected_route:0, release_us:0, end_us:11.24, e2e_delay_us:11.24, deadline_abs_us:1000, slack_us:1100.76, status:"OK",
       hops:[{link_id:"l_radarrlc_swrear",start_us:0,end_us:4.12,duration_us:4.12},{link_id:"l_swrear_acu",start_us:7.12,end_us:11.24,duration_us:4.12}]},
@@ -51,7 +52,6 @@ export const CASE2_PROFILE = {
     { packet_id:"f_lidar_r#4", flow_id:"f_lidar_r", priority:1, selected_route:0, release_us:800, end_us:908.3, e2e_delay_us:108.3, deadline_abs_us:1000, slack_us:91.7, status:"OK",
       hops:[{link_id:"l_lidarr_swrear",start_us:800,end_us:852.7,duration_us:52.7},{link_id:"l_swrear_acu",start_us:855.7,end_us:908.3,duration_us:52.6}]},
     { packet_id:"f_lidar_fc#4", flow_id:"f_lidar_fc", priority:5, selected_route:0, release_us:800, end_us:963.9, e2e_delay_us:163.9, deadline_abs_us:1000, slack_us:36.1, status:"OK",
-      hops:[{link_id:"l_lidarfc_swfl",start_us:800,end_us:852.7,duration_us:52.7},{link_id:"l_swfl_swrear",start_us:855.7,end_us:908.3,duration_us:52.6},{link_id:"l_swrear_acu",start_us:911.3,end_us:963.9,duration_us:52.6}]}
-  ],
-  stats: { constraints:2293, variables:1112, binaries:989, tsn_packets:24, status:"optimal", runtime_ms:174034, fallback_packets:0, overlap_conflicts:0 }
+      hops:[{link_id:"l_lidarfc_swfl",start_us:800,end_us:852.7,duration_us:52.7},{link_id:"l_swfl_swrear",start_us:855.7,end_us:908.3,duration_us:52.6},{link_id:"l_swrear_acu",start_us:911.3,end_us:963.9,duration_us:52.6}]},
+  ]
 };

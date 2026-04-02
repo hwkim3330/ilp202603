@@ -1,8 +1,9 @@
-// Pre-computed ILP optimal result for Case 1 (9 ST flows, 1000µs cycle, 1 Gbps)
+// Pre-computed ILP optimal result for Case 1 (9 ST flows, 22 pkts, 1000µs cycle, 1 Gbps)
 // Raw ILP output — BG packets, guard bands, and boardConfigs are added at load time.
 export const CASE1_PROFILE = {
   method: "ILP (GLPK, optimal)",
   worst_util_percent: 60.5,
+  stats: { constraints: 715, variables: 340, binaries: 278, status: "precomputed", runtime_ms: 83145844 },
   packetRows: [
     { packet_id:"f_lidar_fc#0", flow_id:"f_lidar_fc", priority:7, selected_route:0, release_us:0, end_us:187.36, e2e_delay_us:187.36, deadline_abs_us:250, slack_us:62.64, status:"OK",
       hops:[{link_id:"l_lidarfc_swfl",start_us:0,end_us:36.3,duration_us:36.3},{link_id:"l_swfl_swrear",start_us:77.36,end_us:113.66,duration_us:36.3},{link_id:"l_swrear_acu",start_us:151.06,end_us:187.36,duration_us:36.3}]},
@@ -47,7 +48,6 @@ export const CASE1_PROFILE = {
     { packet_id:"f_lidar_fc#3", flow_id:"f_lidar_fc", priority:7, selected_route:0, release_us:750, end_us:868.42, e2e_delay_us:118.42, deadline_abs_us:1000, slack_us:131.58, status:"OK",
       hops:[{link_id:"l_lidarfc_swfl",start_us:750,end_us:786.3,duration_us:36.3},{link_id:"l_swfl_swrear",start_us:791.06,end_us:827.36,duration_us:36.3},{link_id:"l_swrear_acu",start_us:832.12,end_us:868.42,duration_us:36.3}]},
     { packet_id:"f_lidar_fl#3", flow_id:"f_lidar_fl", priority:6, selected_route:0, release_us:750, end_us:904.72, e2e_delay_us:154.72, deadline_abs_us:1000, slack_us:95.28, status:"OK",
-      hops:[{link_id:"l_lidarfl_swfl",start_us:750,end_us:786.3,duration_us:36.3},{link_id:"l_swfl_swrear",start_us:827.36,end_us:863.66,duration_us:36.3},{link_id:"l_swrear_acu",start_us:868.42,end_us:904.72,duration_us:36.3}]}
-  ],
-  stats: { constraints:715, variables:340, binaries:278, tsn_packets:22, status:"optimal", runtime_ms:83145844, fallback_packets:0, overlap_conflicts:0 }
+      hops:[{link_id:"l_lidarfl_swfl",start_us:750,end_us:786.3,duration_us:36.3},{link_id:"l_swfl_swrear",start_us:827.36,end_us:863.66,duration_us:36.3},{link_id:"l_swrear_acu",start_us:868.42,end_us:904.72,duration_us:36.3}]},
+  ]
 };
