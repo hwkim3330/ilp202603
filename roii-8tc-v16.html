@@ -318,8 +318,12 @@
       <select id="pProfile">
         <option value="1">Case 1 — Standard (11 flows)</option>
         <option value="2" selected>Case 2 — Heavy (12 flows)</option>
+        <option value="3">Case 3 — Custom Deadline</option>
         <option value="compare">&#9664;&#9654; Compare</option>
       </select>
+    </label>
+    <label id="lblDeadline" style="display:none;">DL&nbsp;(<span id="deadlineVal">500</span>&micro;s)
+      <input type="range" id="pDeadline" min="50" max="1000" value="500" step="50" style="width:100px;vertical-align:middle;">
     </label>
     <div class="tsep"></div>
     <button class="btn-solve" id="btnSolve">&#9654; Solve</button>
@@ -774,7 +778,13 @@
   ];
 
   function initFlows(caseNum) {
-    return JSON.parse(JSON.stringify(caseNum === 2 ? CASE2_FLOWS : CASE1_FLOWS));
+    const base = caseNum === 2 ? CASE2_FLOWS : CASE1_FLOWS;
+    const flows = JSON.parse(JSON.stringify(base));
+    if (caseNum === 3) {
+      const dl = parseInt(document.getElementById('pDeadline').value) || 500;
+      for (const f of flows) if (f.deadline_us != null) f.deadline_us = dl;
+    }
+    return flows;
   }
 
   let baseFlows = initFlows(2);
@@ -2255,6 +2265,9 @@
   let compareMode = false;
 
   function switchCase(caseNum) {
+    // Show/hide deadline slider
+    document.getElementById('lblDeadline').style.display = (caseNum === 3) ? '' : 'none';
+
     if (caseNum === 'compare') {
       if (compareMode) return;
       compareMode = true;
@@ -2271,7 +2284,7 @@
     }
     // Single case mode
     compareMode = false;
-    if (currentCase === caseNum) return;
+    if (currentCase === caseNum && caseNum !== 3) return;
     currentCase = caseNum;
     // Show single-case views
     document.getElementById('topoContainer').parentElement.style.display = '';
@@ -2286,6 +2299,19 @@
   document.getElementById('pProfile').addEventListener('change', (ev) => {
     const val = ev.target.value;
     switchCase(val === 'compare' ? 'compare' : parseInt(val));
+  });
+
+  // Deadline slider for Case 3
+  document.getElementById('pDeadline').addEventListener('input', (ev) => {
+    document.getElementById('deadlineVal').textContent = ev.target.value;
+    if (currentCase === 3) {
+      const dl = parseInt(ev.target.value);
+      for (const f of baseFlows) if (f.deadline_us != null) f.deadline_us = dl;
+      renderFlowTable();
+    }
+  });
+  document.getElementById('pDeadline').addEventListener('change', () => {
+    if (currentCase === 3) solve();
   });
 
   document.getElementById('btnAddFlow').addEventListener('click', () => {
