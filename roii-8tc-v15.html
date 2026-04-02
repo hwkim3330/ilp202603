@@ -265,11 +265,12 @@
     <label>Proc (&micro;s)<input type="number" id="pDelay" value="3" min="0" step="0.5"></label>
     <div class="tsep"></div>
     <label>Solver
-      <select id="pSolver">
-        <option value="greedy">Greedy</option>
-        <option value="ilp" selected>ILP (GLPK)</option>
+      <select id="pSolver" title="Greedy: PCP 우선 → 릴리스 순 → EDF (Earliest Deadline First)&#10;ILP: GLPK/WASM 최적화 (정확해)">
+        <option value="greedy" selected>Greedy</option>
+        <option value="ilp">ILP (GLPK)</option>
       </select>
     </label>
+    <span id="solverInfo" style="font-size:10px;color:#94a3b8;cursor:help;" title="① 높은 PCP(우선순위) 먼저&#10;② 같은 PCP면 릴리스 시간 빠른 순&#10;③ 같은 릴리스면 데드라인 짧은 순 (EDF)">ⓘ</span>
     <label>Limit<input type="number" id="pTmlim" value="30" min="5" max="600" step="10" style="width:50px;"></label>
     <div class="tsep"></div>
     <label>Fail
@@ -1033,6 +1034,7 @@
         const overlapCount = stPkts.filter(p => p.status === 'OVERLAP').length;
         const failCount = missCount + overlapCount;
         let s = `\u2713 <strong>${solver === 'ilp' ? 'ILP' : 'Greedy'}</strong>`;
+        if (solver === 'greedy') s += ` <span style="color:#94a3b8;font-size:11px;">(PCP\u2193 \u2192 Release\u2191 \u2192 EDF)</span>`;
         s += ` | ${result.packetRows.length} pkts`;
         s += ` | Util ${result.worst_util_percent}%`;
         s += ` | Worst E2E ${round3(worst)}\u00b5s`;
@@ -1129,7 +1131,7 @@
     pos.LIDAR_R = { x: W * 0.32, y: H * 0.70 };
     pos.BG1 = { x: W * 0.96, y: H * 0.06 };
     pos.BG2 = { x: W * 0.68, y: H * 0.70 };
-    pos.BG3 = { x: W * 0.04, y: H * 0.55 };
+    pos.BG3 = { x: W * 0.04, y: H * 0.34 };
     const svg = d3.select(container).append('svg')
       .attr('viewBox', `0 0 ${W} ${H}`)
       .attr('preserveAspectRatio', 'xMidYMid meet')
@@ -1753,17 +1755,16 @@
     renderFlowTable();
   });
 
+  /* ═══════ Solver info toggle ═══════ */
+  const solverSel = document.getElementById('pSolver');
+  const solverInfo = document.getElementById('solverInfo');
+  solverSel.addEventListener('change', () => {
+    solverInfo.style.display = solverSel.value === 'greedy' ? '' : 'none';
+  });
+
   /* ═══════ Init ═══════ */
   renderFlowTable();
-  const initSolver = document.getElementById('pSolver').value;
-  document.getElementById('pSolver').value = 'greedy';
-  solve().then(async () => {
-    await ensureGLPK();
-    if (initSolver === 'ilp') {
-      document.getElementById('pSolver').value = 'ilp';
-      solve();
-    }
-  });
+  solve().then(() => ensureGLPK());
   </script>
 </body>
 </html>
