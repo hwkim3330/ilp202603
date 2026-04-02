@@ -1218,10 +1218,26 @@
     const W = rect.width || 420;
     const H = rect.height || Math.max(340, W * 0.75);
     const pos = getRealPositions(W, H);
-    pos.LIDAR_R = { x: W * 0.32, y: H * 0.70 };
-    pos.BG1 = { x: W * 0.96, y: H * 0.34 };
-    pos.BG2 = { x: W * 0.68, y: H * 0.70 };
-    pos.BG3 = { x: W * 0.04, y: H * 0.34 };
+    // ── SW_FL group (left) ──
+    pos.RADAR_FLC = { x: W * 0.04, y: H * 0.06 };
+    pos.LIDAR_FL  = { x: W * 0.18, y: H * 0.06 };
+    pos.LIDAR_FC  = { x: W * 0.32, y: H * 0.06 };
+    pos.RADAR_F   = { x: W * 0.46, y: H * 0.06 };
+    pos.BG3       = { x: W * 0.04, y: H * 0.34 };
+    // ── SW_FR group (right) ──
+    pos.LIDAR_FR  = { x: W * 0.68, y: H * 0.06 };
+    pos.RADAR_FRC = { x: W * 0.96, y: H * 0.06 };
+    pos.BG1       = { x: W * 0.96, y: H * 0.34 };
+    // ── Switches ──
+    pos.SW_FL     = { x: W * 0.25, y: H * 0.34 };
+    pos.SW_FR     = { x: W * 0.75, y: H * 0.34 };
+    pos.SW_REAR   = { x: W * 0.50, y: H * 0.58 };
+    // ── SW_REAR group (bottom) ──
+    pos.RADAR_RLC = { x: W * 0.08, y: H * 0.60 };
+    pos.LIDAR_R   = { x: W * 0.32, y: H * 0.72 };
+    pos.BG2       = { x: W * 0.68, y: H * 0.72 };
+    pos.RADAR_RRC = { x: W * 0.92, y: H * 0.60 };
+    pos.ACU_IT    = { x: W * 0.50, y: H * 0.92 };
     const svg = d3.select(container).append('svg')
       .attr('viewBox', `0 0 ${W} ${H}`)
       .attr('preserveAspectRatio', 'xMidYMid meet')
