@@ -973,18 +973,54 @@
     result.packetRows.sort((a, b) => a.end_us - b.end_us);
   }
 
-  /* ═══════ Apply pre-computed profile ═══════ */
-  function applyProfile(profile, model) {
+  /* ═══════ Load pre-computed profile ═══════ */
+  // Reconstructs full result (GCL + boardConfigs) from packetRows only.
+  // Then runs the same pipeline as normal solve: addBgPackets → fixGuardBands → patchIdleToTC0.
+  function loadProfile(profile, model) {
+    const C = model.cycle_time_us;
     const result = JSON.parse(JSON.stringify(profile));
-    // Build boardConfigs from gcl.links (same logic as ilp-core buildResult)
+    // Build GCL from packetRows (same as ilp-core buildResult)
+    const linkMap = Object.fromEntries(model.links.map(l => [l.id, l]));
     const nodeType = Object.fromEntries(model.nodes.map(n => [n.id, n.type]));
+    const linkOcc = {};  // link_id → [{start, end, gate_mask, note}]
+    for (const lnk of model.links) linkOcc[lnk.id] = [];
+    for (const pk of result.packetRows) {
+      const pcp = pk.priority;
+      const mask = '0'.repeat(7 - pcp) + '1' + '0'.repeat(pcp);
+      for (const h of pk.hops) {
+        linkOcc[h.link_id]?.push({ start_us: h.start_us, end_us: h.end_us, duration_us: h.duration_us, gate_mask: mask, note: pk.packet_id });
+      }
+    }
+    // Build gcl.links
+    result.gcl = { cycleTime: C, base_time_us: 0, links: {} };
+    for (const lnk of model.links) {
+      const occ = linkOcc[lnk.id].sort((a, b) => a.start_us - b.start_us);
+      const entries = [];
+      let cur = 0, idx = 0;
+      for (const o of occ) {
+        if (o.start_us > cur + 0.001) {
+          entries.push({ index: idx++, gate_mask: '00000000', start_us: round3(cur), end_us: round3(o.start_us), duration_us: round3(o.start_us - cur), note: 'gap' });
+        }
+        entries.push({ index: idx++, ...o });
+        cur = Math.max(cur, o.end_us);
+      }
+      if (cur < C - 0.001) {
+        entries.push({ index: idx++, gate_mask: '11111111', start_us: round3(cur), end_us: C, duration_us: round3(C - cur), note: 'BE' });
+      }
+      result.gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries };
+    }
+    // Add BG packets in gaps
+    const bgFlows = model.flows.filter(f => f.deadline_us == null);
+    if (bgFlows.length) addBgPackets(model, bgFlows, result);
+    // Same post-processing as normal solve
+    fixGuardBands(model, result);
+    patchIdleToTC0(result);
+    // Build boardConfigs
     result.boardConfigs = {};
     for (const lnk of model.links) {
       if (nodeType[lnk.from] !== 'switch') continue;
-      const ld = result.gcl.links[lnk.id];
-      if (!ld) continue;
       if (!result.boardConfigs[lnk.from]) result.boardConfigs[lnk.from] = { ports: {} };
-      const entries = ld.entries || [];
+      const entries = result.gcl.links[lnk.id]?.entries || [];
       const pcpSet = new Set();
       for (const e of entries) {
         if (e.gate_mask && e.gate_mask !== '00000000' && e.gate_mask !== '11111111' && e.gate_mask !== '00000001') {
@@ -993,7 +1029,7 @@
         }
       }
       result.boardConfigs[lnk.from].ports[lnk.id] = {
-        to: lnk.to, cycle_time_us: model.cycle_time_us, guard_band_us: model.guard_band_us,
+        to: lnk.to, cycle_time_us: C, guard_band_us: model.guard_band_us,
         num_entries: entries.length,
         pcp_queue_map: [...pcpSet].sort((a, b) => b - a).map(q => ({ pcp: q, queue: q })),
         entries
@@ -1019,13 +1055,16 @@
     const model = buildModel();
     const failedLink = document.getElementById('pFail').value;
 
-    // Case 2 profile: use pre-computed ILP result (no solver needed)
+    // Case 2 profile: reconstruct full result from pre-computed ILP packetRows
     if (currentCase === 2 && !forceRun && !failedLink) {
-      const result = applyProfile(CASE2_PROFILE, model);
+      const result = loadProfile(CASE2_PROFILE, model);
       xref.flowRoutes = buildFlowRoutes(result);
       const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
       const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
-      setStatus(`\u2713 <strong>ILP</strong> (pre-computed optimal) | ${result.packetRows.length} pkts | Util ${result.worst_util_percent}% | Worst E2E ${round3(worst)}\u00b5s | <span style="color:var(--green);font-weight:700;">ALL OK</span>`);
+      const missCount = stPkts.filter(p => p.status === 'MISS').length;
+      let s = `\u2713 <strong>ILP</strong> (pre-computed optimal) | ${result.packetRows.length} pkts | Util ${result.worst_util_percent}% | Worst E2E ${round3(worst)}\u00b5s`;
+      s += missCount === 0 ? ` | <span style="color:var(--green);font-weight:700;">ALL OK</span>` : ` | <span style="color:var(--red);font-weight:700;">${missCount} MISS</span>`;
+      setStatus(s);
       document.getElementById('ganttTitle').textContent = `GCL Schedule \u2014 Case 2 (ILP optimal)`;
       renderTopology(model, failedLink, result);
       renderGantt(model, result);
