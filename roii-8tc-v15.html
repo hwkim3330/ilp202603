@@ -879,7 +879,7 @@
         if (e.gate_mask === '00000000' && e.note !== 'guard') {
           e.gate_mask = '00000001'; e.note = 'BE (TC0)';
         }
-        if (e.gate_mask === '11111111' && e.note.includes('non-ST')) {
+        if (e.gate_mask === '11111111' && (e.note.includes('non-ST') || e.note === 'BE')) {
           e.gate_mask = '00000001'; e.note = 'BE (TC0)';
         }
       }
@@ -891,7 +891,7 @@
             if (e.gate_mask === '00000000' && e.note !== 'guard') {
               e.gate_mask = '00000001'; e.note = 'BE (TC0)';
             }
-            if (e.gate_mask === '11111111' && e.note.includes('non-ST')) {
+            if (e.gate_mask === '11111111' && (e.note.includes('non-ST') || e.note === 'BE')) {
               e.gate_mask = '00000001'; e.note = 'BE (TC0)';
             }
           }
@@ -1005,7 +1005,7 @@
         cur = Math.max(cur, o.end_us);
       }
       if (cur < C - 0.001) {
-        entries.push({ index: idx++, gate_mask: '11111111', start_us: round3(cur), end_us: C, duration_us: round3(C - cur), note: 'BE' });
+        entries.push({ index: idx++, gate_mask: '00000000', start_us: round3(cur), end_us: C, duration_us: round3(C - cur), note: 'gap' });
       }
       result.gcl.links[lnk.id] = { from: lnk.from, to: lnk.to, entries };
     }
