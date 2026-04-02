@@ -319,13 +319,10 @@
     <div class="tsep"></div>
     <button class="btn-case" id="btnCase1" title="Case 1 flows → solver">Case 1</button>
     <button class="btn-case" id="btnCase2" title="Case 2 flows → solver">Case 2</button>
-    <button class="btn-case" id="btnCase3" title="Case 1 base + deadline 조정 → solver">Case 3</button>
+    <button class="btn-case" id="btnCase3" title="Mixed periods + 600µs deadline → solver">Case 3</button>
     <button class="btn-case btn-json" id="btnJson1" title="Pre-computed ILP 결과 (즉시 로드)">JSON 1</button>
     <button class="btn-case btn-json active" id="btnJson2" title="Pre-computed ILP 결과 (즉시 로드)">JSON 2</button>
     <button class="btn-case" id="btnCompare" title="JSON 1 vs JSON 2 비교">Compare</button>
-    <label id="lblDeadline" style="display:none;">DL <span id="deadlineVal">500</span>&micro;s
-      <input type="range" id="pDeadlineSlider" min="100" max="1000" value="500" step="50" style="width:90px;vertical-align:middle;">
-    </label>
     <div class="tsep"></div>
     <button class="btn-solve" id="btnSolve">&#9654; Solve</button>
   </div>
@@ -778,7 +775,36 @@
       traffic_type: 'bg', src: 'BG2', dst: 'ACU_IT', k_paths: 2, color: '#f472b6' },
   ];
 
+  /* ── Case 3: Mixed periods (200/500µs), uniform 600µs deadline, 3 BG flows ── */
+  const CASE3_FLOWS = [
+    { id: 'f_lidar_fc', PCP: 7, payload_bytes: 4500, period_us: 200, deadline_us: 600,
+      traffic_type: 'lidar', src: 'LIDAR_FC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_fc') },
+    { id: 'f_lidar_fl', PCP: 6, payload_bytes: 4500, period_us: 500, deadline_us: 600,
+      traffic_type: 'lidar', src: 'LIDAR_FL', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_fl') },
+    { id: 'f_lidar_fr', PCP: 5, payload_bytes: 4500, period_us: 500, deadline_us: 600,
+      traffic_type: 'lidar', src: 'LIDAR_FR', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_fr') },
+    { id: 'f_lidar_r',  PCP: 4, payload_bytes: 4500, period_us: 200, deadline_us: 600,
+      traffic_type: 'lidar', src: 'LIDAR_R',  dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_r') },
+    { id: 'f_radar_f',   PCP: 3, payload_bytes: 1500, period_us: 500, deadline_us: 600,
+      traffic_type: 'radar', src: 'RADAR_F',   dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_f') },
+    { id: 'f_radar_flc', PCP: 2, payload_bytes: 1500, period_us: 500, deadline_us: 600,
+      traffic_type: 'radar', src: 'RADAR_FLC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_flc') },
+    { id: 'f_radar_frc', PCP: 2, payload_bytes: 1500, period_us: 500, deadline_us: 600,
+      traffic_type: 'radar', src: 'RADAR_FRC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_frc') },
+    { id: 'f_radar_rlc', PCP: 1, payload_bytes: 1500, period_us: 500, deadline_us: 600,
+      traffic_type: 'radar', src: 'RADAR_RLC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_rlc') },
+    { id: 'f_radar_rrc', PCP: 1, payload_bytes: 1500, period_us: 500, deadline_us: 600,
+      traffic_type: 'radar', src: 'RADAR_RRC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_rrc') },
+    { id: 'f_bg_small', PCP: 0, payload_bytes: 400, period_us: 200, deadline_us: null,
+      traffic_type: 'bg', src: 'BG1', dst: 'ACU_IT', k_paths: 1, color: '#ec4899' },
+    { id: 'f_bg_med',   PCP: 0, payload_bytes: 800, period_us: 250, deadline_us: null,
+      traffic_type: 'bg', src: 'BG3', dst: 'ACU_IT', k_paths: 1, color: '#a855f7' },
+    { id: 'f_bg_large', PCP: 0, payload_bytes: 1400, period_us: 500, deadline_us: null,
+      traffic_type: 'bg', src: 'BG2', dst: 'ACU_IT', k_paths: 1, color: '#f472b6' },
+  ];
+
   function initFlows(caseNum) {
+    if (caseNum === 3) return JSON.parse(JSON.stringify(CASE3_FLOWS));
     return JSON.parse(JSON.stringify(caseNum === 2 ? CASE2_FLOWS : CASE1_FLOWS));
   }
 
@@ -2300,9 +2326,6 @@
     const activeMap = { 1:'btnCase1', 2:'btnCase2', 3:'btnCase3', json1:'btnJson1', json2:'btnJson2', compare:'btnCompare' };
     if (activeMap[caseNum]) document.getElementById(activeMap[caseNum]).classList.add('active');
 
-    // Show deadline slider only for Case 3
-    document.getElementById('lblDeadline').style.display = caseNum === 3 ? '' : 'none';
-
     if (caseNum === 'compare') {
       if (compareMode) return;
       compareMode = true;
@@ -2319,9 +2342,9 @@
 
     // Determine which flow set and whether to force-run solver
     const isJson = caseNum === 'json1' || caseNum === 'json2';
-    const flowCase = isJson ? (caseNum === 'json1' ? 1 : 2) : (caseNum === 3 ? 1 : caseNum);
+    const flowCase = isJson ? (caseNum === 'json1' ? 1 : 2) : caseNum;
 
-    currentCase = isJson ? caseNum : caseNum;  // json1/json2 → profile lookup key
+    currentCase = caseNum;
 
     document.getElementById('topoContainer').parentElement.style.display = '';
     document.getElementById('flowSection').style.display = '';
@@ -2329,10 +2352,6 @@
     document.getElementById('comparePanel').style.display = 'none';
 
     baseFlows = initFlows(flowCase);
-    if (caseNum === 3) {
-      const dl = parseInt(document.getElementById('pDeadlineSlider').value) || 500;
-      for (const f of baseFlows) if (f.deadline_us != null) f.deadline_us = dl;
-    }
     renderFlowTable();
 
     // Case 1/2/3: forceRun=true → always run solver
@@ -2346,19 +2365,6 @@
   document.getElementById('btnJson1').addEventListener('click', () => switchCase('json1'));
   document.getElementById('btnJson2').addEventListener('click', () => switchCase('json2'));
   document.getElementById('btnCompare').addEventListener('click', () => switchCase('compare'));
-
-  // Case 3 deadline slider
-  document.getElementById('pDeadlineSlider').addEventListener('input', (ev) => {
-    document.getElementById('deadlineVal').textContent = ev.target.value;
-    if (currentCase === 3) {
-      const dl = parseInt(ev.target.value);
-      for (const f of baseFlows) if (f.deadline_us != null) f.deadline_us = dl;
-      renderFlowTable();
-    }
-  });
-  document.getElementById('pDeadlineSlider').addEventListener('change', () => {
-    if (currentCase === 3) solve(true);
-  });
 
   document.getElementById('btnAddFlow').addEventListener('click', () => {
     addCounter++;
