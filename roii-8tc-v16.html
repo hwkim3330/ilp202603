@@ -1266,8 +1266,19 @@
     
           const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
           const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
-          setStatus(`<span style="color:var(--red);">ILP failed</span> \u2192 Greedy fallback | Pkts: ${result.packetRows.length} | Util: ${result.worst_util_percent}% | Worst E2E: ${round3(worst)}\u00b5s`);
-          document.getElementById('ganttTitle').textContent = `GCL Schedule \u2014 Case ${currentCase} (Greedy fallback)`;
+          const missCount = stPkts.filter(p => p.status === 'MISS').length;
+          const overlapCount = stPkts.filter(p => p.status === 'OVERLAP').length;
+          const failCount = missCount + overlapCount;
+          let s = `<span style="color:var(--orange);">ILP timeout</span> → <strong>Greedy</strong>`;
+          s += ` <span style="color:#94a3b8;font-size:11px;">(PCP↓ > Release↑ > EDF)</span>`;
+          s += ` | ${result.packetRows.length} pkts | Util ${result.worst_util_percent}%`;
+          s += ` | Worst E2E ${round3(worst)}µs`;
+          if (failCount === 0) s += ` | <span style="color:var(--green);font-weight:700;">ALL OK</span>`;
+          else if (missCount > 0) s += ` | <span style="color:var(--red);font-weight:700;">${missCount} MISS</span>`;
+          if (overlapCount > 0) s += ` | <span style="color:var(--red);font-weight:700;">${overlapCount} OVERLAP</span>`;
+          if (failedLink) s += ` | <span style="color:var(--red);">FAILOVER</span>`;
+          setStatus(s);
+          document.getElementById('ganttTitle').textContent = `GCL Schedule — Case ${currentCase} (Greedy fallback)`;
         } catch (e2) {
           setStatus(`<span style="color:var(--red);">Error: ${e.message}</span>`);
         }
@@ -1562,6 +1573,14 @@
     gp.append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 6)
       .attr('stroke', 'rgba(0,0,0,0.2)').attr('stroke-width', 2);
 
+    // MISS diagonal stripe overlay
+    const mp = defs.append('pattern').attr('id', 'missStripe')
+      .attr('patternUnits', 'userSpaceOnUse').attr('width', 6).attr('height', 6)
+      .attr('patternTransform', 'rotate(45)');
+    mp.append('rect').attr('width', 6).attr('height', 6).attr('fill', 'rgba(239,68,68,0.15)');
+    mp.append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 6)
+      .attr('stroke', 'rgba(239,68,68,0.4)').attr('stroke-width', 2);
+
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
     const x = d3.scaleLinear().domain([0, model.cycle_time_us]).range([0, innerW]);
     const y = d3.scaleBand().domain(allRowIds).range([0, innerH]).padding(0.12);
@@ -1643,13 +1662,26 @@
             .attr('stroke-width', isMiss ? 2 : 0.8)
             .attr('rx', 3).attr('opacity', 0.9);
 
+          // MISS stripe overlay
+          if (isMiss) {
+            g.append('rect').attr('x', xPos).attr('y', yPos)
+              .attr('width', displayW).attr('height', bw)
+              .attr('fill', 'url(#missStripe)').attr('rx', 3)
+              .attr('pointer-events', 'none');
+          }
+
+          // Check if this is the last hop of a MISS packet
+          const isLastHop = isMiss && pkt && pkt.hops && pkt.hops[pkt.hops.length - 1].link_id === lnk.id;
+
           let labelEl = null;
           if (actualW > 20) {
+            const labelText = isLastHop ? 'MISS' : e.note.replace('#', '.');
             labelEl = g.append('text').attr('class', 'gcl-label')
               .attr('x', xPos + actualW/2).attr('y', yPos + bw/2)
               .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
               .attr('font-size', '9px')
-              .text(e.note.replace('#', '.'));
+              .text(labelText);
+            if (isLastHop) labelEl.attr('fill', '#ef4444').attr('font-weight', '800');
           }
 
           xref.bars.push({ el: barEl, labelEl, fid, lid: lnk.id });
@@ -1801,12 +1833,18 @@
     const x = d3.scaleLinear().domain([0, maxVal * 1.1]).range([0, innerW]);
     const y = d3.scaleBand().domain(entries.map(e => e.fid)).range([0, innerH]).padding(0.2);
 
-    // (Deadline markers removed)
-
-    // E2E bars — hoverable
+    // E2E bars + deadline markers
     for (const e of entries) {
       const barW = Math.max(x(e.e2e), 2);
       const miss = e.e2e > e.dl;
+
+      // Deadline marker line (thin red dashed per row)
+      const dlX = x(e.dl);
+      g.append('line').attr('x1', dlX).attr('x2', dlX)
+        .attr('y1', y(e.fid) - 1).attr('y2', y(e.fid) + y.bandwidth() + 1)
+        .attr('stroke', miss ? '#ef4444' : '#94a3b8').attr('stroke-width', 1.5)
+        .attr('stroke-dasharray', miss ? 'none' : '3,2').attr('opacity', miss ? 0.8 : 0.4);
+
       const barEl = g.append('rect').attr('class', 'e2e-bar')
         .attr('x', 0).attr('y', y(e.fid))
         .attr('width', barW).attr('height', y.bandwidth())
@@ -1814,11 +1852,12 @@
         .attr('stroke', miss ? '#ef4444' : 'none').attr('stroke-width', miss ? 2 : 0)
         .attr('data-fid', e.fid);
 
+      const labelText = round3(e.e2e) + '\u00b5s' + (miss ? ' MISS' : '');
       const labelEl = g.append('text').attr('class', 'e2e-label')
         .attr('x', barW + 4).attr('y', y(e.fid) + y.bandwidth()/2)
         .attr('dominant-baseline', 'central').attr('font-size', '9px')
         .attr('font-weight', '700').attr('fill', miss ? '#ef4444' : '#475569')
-        .text(round3(e.e2e) + '\u00b5s');
+        .text(labelText);
 
       xref.e2eBars.push({ el: barEl, labelEl, fid: e.fid });
 
