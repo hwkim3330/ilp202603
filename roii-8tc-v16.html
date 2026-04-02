@@ -317,12 +317,15 @@
       </select>
     </label>
     <div class="tsep"></div>
-    <button class="btn-case" id="btnCase1">Case 1</button>
-    <button class="btn-case active" id="btnCase2">Case 2</button>
-    <button class="btn-case" id="btnCase3">Case 3</button>
-    <button class="btn-case btn-json" id="btnJson1">JSON 1</button>
-    <button class="btn-case btn-json" id="btnJson2">JSON 2</button>
-    <button class="btn-case" id="btnCompare">Compare</button>
+    <button class="btn-case" id="btnCase1" title="Case 1 flows → solver">Case 1</button>
+    <button class="btn-case" id="btnCase2" title="Case 2 flows → solver">Case 2</button>
+    <button class="btn-case" id="btnCase3" title="Case 1 base + deadline 조정 → solver">Case 3</button>
+    <button class="btn-case btn-json" id="btnJson1" title="Pre-computed ILP 결과 (즉시 로드)">JSON 1</button>
+    <button class="btn-case btn-json active" id="btnJson2" title="Pre-computed ILP 결과 (즉시 로드)">JSON 2</button>
+    <button class="btn-case" id="btnCompare" title="JSON 1 vs JSON 2 비교">Compare</button>
+    <label id="lblDeadline" style="display:none;">DL <span id="deadlineVal">500</span>&micro;s
+      <input type="range" id="pDeadlineSlider" min="100" max="1000" value="500" step="50" style="width:90px;vertical-align:middle;">
+    </label>
     <div class="tsep"></div>
     <button class="btn-solve" id="btnSolve">&#9654; Solve</button>
   </div>
@@ -718,18 +721,18 @@
   /* ═══════ Flow Data ═══════ */
   const NODE_IDS = [...ROII_REAL_8TC.nodes.map(n => n.id), 'BG1', 'BG2', 'BG3'];
   let addCounter = 0;
-  let currentCase = 2;
+  let currentCase = 'json2';
   const CUSTOM_COLORS = ['#e11d48','#f97316','#84cc16','#06b6d4','#8b5cf6','#ec4899','#14b8a6','#f59e0b'];
 
   /* ── Case 1: Standard (v8 Medium) ── */
   const CASE1_FLOWS = [
     { id: 'f_lidar_fc', PCP: 7, payload_bytes: 4500, period_us: 250, deadline_us: 250,
       traffic_type: 'lidar', src: 'LIDAR_FC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_fc') },
-    { id: 'f_lidar_r',  PCP: 6, payload_bytes: 4500, period_us: 500, deadline_us: 500,
+    { id: 'f_lidar_r',  PCP: 4, payload_bytes: 4500, period_us: 500, deadline_us: 500,
       traffic_type: 'lidar', src: 'LIDAR_R',  dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_r') },
-    { id: 'f_lidar_fl', PCP: 5, payload_bytes: 4500, period_us: 250, deadline_us: 250,
+    { id: 'f_lidar_fl', PCP: 6, payload_bytes: 4500, period_us: 250, deadline_us: 250,
       traffic_type: 'lidar', src: 'LIDAR_FL', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_fl') },
-    { id: 'f_lidar_fr', PCP: 4, payload_bytes: 4500, period_us: 500, deadline_us: 500,
+    { id: 'f_lidar_fr', PCP: 5, payload_bytes: 4500, period_us: 500, deadline_us: 500,
       traffic_type: 'lidar', src: 'LIDAR_FR', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_fr') },
     { id: 'f_radar_f',   PCP: 3, payload_bytes: 1500, period_us: 500, deadline_us: 500,
       traffic_type: 'radar', src: 'RADAR_F',   dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_f') },
@@ -1116,11 +1119,15 @@
       const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
       const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
       const missCount = stPkts.filter(p => p.status === 'MISS').length;
-      let s = `\u2713 <strong>ILP</strong> (pre-computed optimal) | ${result.packetRows.length} pkts | Util ${result.worst_util_percent}% | Worst E2E ${round3(worst)}\u00b5s`;
+      const caseLabel = currentCase === 'json1' ? '1' : currentCase === 'json2' ? '2' : currentCase;
+      const st = profile.stats || {};
+      let s = `<span style="color:var(--green);">\u2714</span> <strong>JSON 로드</strong> (ILP precomputed) | Case ${caseLabel}`;
+      s += ` | ${stPkts.length} ST pkts | Util <strong>${result.worst_util_percent}%</strong> | Worst E2E ${round3(worst)}\u00b5s`;
+      if (st.constraints) s += ` | ${st.constraints} cstr, ${st.variables} vars`;
+      if (st.runtime_ms) s += ` | ${(st.runtime_ms/1000).toFixed(1)}s`;
       s += missCount === 0 ? ` | <span style="color:var(--green);font-weight:700;">ALL OK</span>` : ` | <span style="color:var(--red);font-weight:700;">${missCount} MISS</span>`;
       setStatus(s);
-      const caseLabel = currentCase === 'json1' ? '1' : currentCase === 'json2' ? '2' : currentCase;
-      document.getElementById('ganttTitle').textContent = `GCL Schedule \u2014 Case ${caseLabel} (ILP optimal)`;
+      document.getElementById('ganttTitle').textContent = `GCL Schedule \u2014 Case ${caseLabel} (ILP precomputed)`;
       renderTopology(model, failedLink, result);
       renderGantt(model, result);
       renderE2E(model, result);
@@ -2243,6 +2250,9 @@
     const activeMap = { 1:'btnCase1', 2:'btnCase2', 3:'btnCase3', json1:'btnJson1', json2:'btnJson2', compare:'btnCompare' };
     if (activeMap[caseNum]) document.getElementById(activeMap[caseNum]).classList.add('active');
 
+    // Show deadline slider only for Case 3
+    document.getElementById('lblDeadline').style.display = caseNum === 3 ? '' : 'none';
+
     if (caseNum === 'compare') {
       if (compareMode) return;
       compareMode = true;
@@ -2257,33 +2267,48 @@
     }
     compareMode = false;
 
-    // JSON buttons: load pre-computed profile directly (map to case 1 or 2)
-    const jsonCase = caseNum === 'json1' ? 1 : caseNum === 'json2' ? 2 : null;
-    const effectiveCase = jsonCase || caseNum;
+    // Determine which flow set and whether to force-run solver
+    const isJson = caseNum === 'json1' || caseNum === 'json2';
+    const flowCase = isJson ? (caseNum === 'json1' ? 1 : 2) : (caseNum === 3 ? 1 : caseNum);
 
-    if (currentCase === caseNum && !jsonCase) return;
-    currentCase = caseNum;
+    currentCase = isJson ? caseNum : caseNum;  // json1/json2 → profile lookup key
 
     document.getElementById('topoContainer').parentElement.style.display = '';
     document.getElementById('flowSection').style.display = '';
     document.getElementById('boardSection').style.display = '';
     document.getElementById('comparePanel').style.display = 'none';
-    baseFlows = initFlows(effectiveCase);
-    renderFlowTable();
-    if (jsonCase) {
-      // Force load pre-computed JSON — skip solver entirely
-      solve(false);
-    } else {
-      // Case 1/2 also load JSON if available; Case 3 always runs solver
-      solve(caseNum === 3);
+
+    baseFlows = initFlows(flowCase);
+    if (caseNum === 3) {
+      const dl = parseInt(document.getElementById('pDeadlineSlider').value) || 500;
+      for (const f of baseFlows) if (f.deadline_us != null) f.deadline_us = dl;
     }
+    renderFlowTable();
+
+    // Case 1/2/3: forceRun=true → always run solver
+    // JSON 1/2: forceRun=false → load pre-computed profile
+    solve(isJson ? false : true);
   }
+
   document.getElementById('btnCase1').addEventListener('click', () => switchCase(1));
   document.getElementById('btnCase2').addEventListener('click', () => switchCase(2));
   document.getElementById('btnCase3').addEventListener('click', () => switchCase(3));
   document.getElementById('btnJson1').addEventListener('click', () => switchCase('json1'));
   document.getElementById('btnJson2').addEventListener('click', () => switchCase('json2'));
   document.getElementById('btnCompare').addEventListener('click', () => switchCase('compare'));
+
+  // Case 3 deadline slider
+  document.getElementById('pDeadlineSlider').addEventListener('input', (ev) => {
+    document.getElementById('deadlineVal').textContent = ev.target.value;
+    if (currentCase === 3) {
+      const dl = parseInt(ev.target.value);
+      for (const f of baseFlows) if (f.deadline_us != null) f.deadline_us = dl;
+      renderFlowTable();
+    }
+  });
+  document.getElementById('pDeadlineSlider').addEventListener('change', () => {
+    if (currentCase === 3) solve(true);
+  });
 
   document.getElementById('btnAddFlow').addEventListener('click', () => {
     addCounter++;
@@ -2324,8 +2349,10 @@
   });
 
   /* ═══════ Init ═══════ */
+  currentCase = 'json2';  // Start with JSON 2 (pre-computed)
+  baseFlows = initFlows(2);
   renderFlowTable();
-  solve().then(() => ensureGLPK());
+  solve(false).then(() => ensureGLPK());
   </script>
 </body>
 </html>
