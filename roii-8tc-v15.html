@@ -831,17 +831,21 @@
       pktEntries.sort((a, b) => a.start_us - b.start_us);
 
       // Rebuild entries with guard bands BEFORE TSN packets
+      // Guard band = all-gates-closed window inserted BEFORE a TSN packet
+      // to prevent leftover frames from the previous window bleeding in.
+      // At cycle start (t=0) there is no prior traffic → no guard needed.
       const entries = [];
       let cur = 0, idx = 0;
       for (const p of pktEntries) {
         if (p.start_us > cur + 0.001) {
           const gapS = round3(cur), gapE = round3(p.start_us), gap = round3(gapE - gapS);
           const isTSN = !p.note.includes('non-ST');
-          if (isTSN && gap > guard_us) {
+          const atCycleStart = gapS < 0.01;  // no prior traffic → guard unnecessary
+          if (isTSN && !atCycleStart && gap > guard_us) {
             const gs = round3(gapE - guard_us);
             entries.push({ index: idx++, gate_mask: '11111111', start_us: gapS, end_us: gs, duration_us: round3(gs - gapS), note: 'non-ST' });
             entries.push({ index: idx++, gate_mask: '00000000', start_us: gs, end_us: gapE, duration_us: round3(guard_us), note: 'guard' });
-          } else if (isTSN && gap > 0) {
+          } else if (isTSN && !atCycleStart && gap > 0) {
             entries.push({ index: idx++, gate_mask: '00000000', start_us: gapS, end_us: gapE, duration_us: gap, note: 'guard' });
           } else if (gap > 0) {
             entries.push({ index: idx++, gate_mask: '11111111', start_us: gapS, end_us: gapE, duration_us: gap, note: 'non-ST' });
@@ -1129,7 +1133,7 @@
     const H = rect.height || Math.max(340, W * 0.75);
     const pos = getRealPositions(W, H);
     pos.LIDAR_R = { x: W * 0.32, y: H * 0.70 };
-    pos.BG1 = { x: W * 0.96, y: H * 0.06 };
+    pos.BG1 = { x: W * 0.96, y: H * 0.34 };
     pos.BG2 = { x: W * 0.68, y: H * 0.70 };
     pos.BG3 = { x: W * 0.04, y: H * 0.34 };
     const svg = d3.select(container).append('svg')
