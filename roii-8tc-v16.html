@@ -1095,8 +1095,9 @@
 
   /* ═══════ Solve ═══════ */
   let solving = false;
+  let solveGen = 0;   // generation counter — bumped on each call to cancel stale runs
   async function solve(forceRun) {
-    if (solving) return;
+    const myGen = ++solveGen;   // claim a new generation
     solving = true;
     selectedFlowId = null;
     selectedSwitchId = null;
@@ -1143,6 +1144,7 @@
     try {
       if (solver === 'ilp') {
         const glpk = await ensureGLPK();
+        if (myGen !== solveGen) { solving = false; btn.disabled = false; return; }
         if (!glpk) { setStatus('<span style="color:var(--red);">GLPK failed to load</span>'); solving = false; btn.disabled = false; return; }
         const tmlim = parseInt(document.getElementById('pTmlim').value) || 30;
 
@@ -1152,6 +1154,7 @@
         const ilpModel = bgFlows.length > 0 ? { ...model, flows: stFlows } : model;
 
         result = await solveILP(ilpModel, glpk, { tmlim, onProgress: info => {
+          if (myGen !== solveGen) return;  // stale — stop updating status
           if (info.phase === 'building') {
             const bgNote = bgFlows.length > 0 ? ` (${bgFlows.length} BG deferred)` : '';
             setStatus(`<span class="spinner-sm"></span> <strong>ILP</strong> \u2014 ${info.pkts} pkts from ${info.flows} flows${bgNote}...`);
@@ -1165,12 +1168,15 @@
           }
         }});
 
+        if (myGen !== solveGen) { solving = false; btn.disabled = false; return; }
+
         // Place BG packets in gaps after ILP
         if (bgFlows.length > 0 && !result.error) {
           addBgPackets(model, bgFlows, result);
         }
       } else {
         result = solveGreedy(model);
+        if (myGen !== solveGen) { solving = false; btn.disabled = false; return; }
       }
 
       fixGuardBands(model, result);
@@ -1199,6 +1205,8 @@
         else s += ` | <span style="color:var(--red);font-weight:700;">${missCount} MISS</span>`;
         if (failedLink) s += ` | <span style="color:var(--red);">FAILOVER</span>`;
 
+        if (myGen !== solveGen) { solving = false; btn.disabled = false; return; }
+
         // Auto-compare: run the other solver and show contrast
         try {
           let cmpResult;
@@ -1211,6 +1219,7 @@
               const cmpBG = model.flows.filter(f => f.deadline_us == null);
               const cmpModel = cmpBG.length > 0 ? { ...model, flows: cmpST } : model;
               cmpResult = await solveILP(cmpModel, glpk2, { tmlim: 15 });
+              if (myGen !== solveGen) { solving = false; btn.disabled = false; return; }
               if (cmpBG.length > 0 && cmpResult && !cmpResult.error) addBgPackets(model, cmpBG, cmpResult);
             }
           }
@@ -1231,6 +1240,8 @@
         setStatus(s);
       }
 
+      if (myGen !== solveGen) { solving = false; btn.disabled = false; return; }
+
       document.getElementById('ganttTitle').textContent =
         `GCL Schedule \u2014 Case ${currentCase} (${solver === 'ilp' ? 'ILP' : 'Greedy'})${failedLink ? ' [FAILOVER]' : ''}`;
 
@@ -1239,8 +1250,8 @@
       renderE2E(model, result);
       renderBoardGCL(model, result);
 
-
     } catch (e) {
+      if (myGen !== solveGen) { solving = false; btn.disabled = false; return; }
       console.error(e);
       if (solver === 'ilp') {
         try {
