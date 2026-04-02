@@ -70,6 +70,17 @@
     .btn-json { border-color: var(--green); color: var(--green); }
     .btn-json:hover { background: var(--green); color: #fff; }
     .btn-json.active { background: var(--green); color: #fff; border-color: var(--green); }
+    .btn-group {
+      display: inline-flex; align-items: center; gap: 0; position: relative;
+    }
+    .btn-group .btn-group-label {
+      font-size: 0.7rem; font-weight: 700; color: var(--text-3);
+      position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
+      white-space: nowrap; pointer-events: none;
+    }
+    .btn-group .btn-case { border-radius: 0; margin: 0; font-size: 0.72rem; padding: 3px 10px; }
+    .btn-group .btn-case:first-of-type { border-radius: 6px 0 0 6px; }
+    .btn-group .btn-case:last-of-type { border-radius: 0 6px 6px 0; border-left: none; }
 
     /* ── Dashboard Grid ── */
     .dashboard {
@@ -298,14 +309,6 @@
     <label>Cycle (&micro;s)<input type="number" id="pCycle" value="1000" min="100" step="100"></label>
     <label>Guard (&micro;s)<input type="number" id="pGuard" value="12.304" min="0" step="0.5"></label>
     <label>Proc (&micro;s)<input type="number" id="pDelay" value="3" min="0" step="0.5"></label>
-    <div class="tsep"></div>
-    <label>Solver
-      <select id="pSolver" title="Greedy: PCP 우선 → 릴리스 순 → EDF (Earliest Deadline First)&#10;ILP: GLPK/WASM 최적화 (정확해)">
-        <option value="greedy">Greedy</option>
-        <option value="ilp" selected>ILP (GLPK)</option>
-      </select>
-    </label>
-    <span id="solverInfo" style="font-size:13px;color:#64748b;cursor:help;padding:2px 4px;display:none;">ⓘ</span>
     <label>Limit<input type="number" id="pTmlim" value="30" min="5" max="600" step="10" style="width:50px;"></label>
     <div class="tsep"></div>
     <label>Fail
@@ -317,14 +320,10 @@
       </select>
     </label>
     <div class="tsep"></div>
-    <button class="btn-case" id="btnCase1" title="Case 1 flows → solver">Case 1</button>
-    <button class="btn-case" id="btnCase2" title="Case 2 flows → solver">Case 2</button>
-    <button class="btn-case" id="btnCase3" title="Tight deadlines (LiDAR 150µs, Radar 200µs) → MISS 발생">Case 3</button>
-    <button class="btn-case btn-json" id="btnJson1" title="Pre-computed ILP 결과 (즉시 로드)">JSON 1</button>
-    <button class="btn-case btn-json active" id="btnJson2" title="Pre-computed ILP 결과 (즉시 로드)">JSON 2</button>
-    <button class="btn-case" id="btnCompare" title="JSON 1 vs JSON 2 비교">Compare</button>
-    <div class="tsep"></div>
-    <button class="btn-solve" id="btnSolve">&#9654; Solve</button>
+    <div class="btn-group"><span class="btn-group-label">Case 1</span><button class="btn-case" id="btnC1G" title="Case 1 → Greedy 실행">Greedy</button><button class="btn-case btn-json active" id="btnC1I" title="Case 1 → ILP 결과 (즉시 로드)">ILP</button></div>
+    <div class="btn-group"><span class="btn-group-label">Case 2</span><button class="btn-case" id="btnC2G" title="Case 2 → Greedy 실행">Greedy</button><button class="btn-case btn-json" id="btnC2I" title="Case 2 → ILP 결과 (즉시 로드)">ILP</button></div>
+    <div class="btn-group"><span class="btn-group-label">Case 3</span><button class="btn-case" id="btnC3G" title="Case 3 → Greedy 실행">Greedy</button><button class="btn-case" id="btnC3I" title="Case 3 → ILP 실행 (GLPK)">ILP</button></div>
+    <button class="btn-case" id="btnCompare" title="ILP Case 1 vs Case 2 비교">Compare</button>
   </div>
 
   <!-- 2-Column Dashboard -->
@@ -718,7 +717,7 @@
   /* ═══════ Flow Data ═══════ */
   const NODE_IDS = [...ROII_REAL_8TC.nodes.map(n => n.id), 'BG1', 'BG2', 'BG3'];
   let addCounter = 0;
-  let currentCase = 'json2';
+  let currentCase = 1;
   const CUSTOM_COLORS = ['#e11d48','#f97316','#84cc16','#06b6d4','#8b5cf6','#ec4899','#14b8a6','#f59e0b'];
 
   /* ── Case 1: Standard (v8 Medium) ── */
@@ -1122,23 +1121,22 @@
   /* ═══════ Solve ═══════ */
   let solving = false;
   let solveGen = 0;   // generation counter — bumped on each call to cancel stale runs
+  let activeSolver = 'ilp';  // current solver type — set by button clicks
   async function solve(forceRun) {
     const myGen = ++solveGen;   // claim a new generation
     solving = true;
     selectedFlowId = null;
     selectedSwitchId = null;
     selectedLinkId = null;
-    const btn = document.getElementById('btnSolve');
-    btn.disabled = true;
 
-    const solver = document.getElementById('pSolver').value;
+    const solver = activeSolver;
     syncColors();
     buildSensorFlowMap();
     const model = buildModel();
     const failedLink = document.getElementById('pFail').value;
 
     // Pre-computed ILP profiles for Case 1 & 2 (JSON buttons also map here)
-    const PROFILES = { 1: CASE1_PROFILE, 2: CASE2_PROFILE, json1: CASE1_PROFILE, json2: CASE2_PROFILE };
+    const PROFILES = { 1: CASE1_PROFILE, 2: CASE2_PROFILE };
     const profile = PROFILES[currentCase];
     if (profile && !forceRun && !failedLink) {
       const result = loadProfile(profile, model);
@@ -1146,7 +1144,7 @@
       const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
       const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
       const missCount = stPkts.filter(p => p.status === 'MISS').length;
-      const caseLabel = currentCase === 'json1' ? '1' : currentCase === 'json2' ? '2' : currentCase;
+      const caseLabel = currentCase;
       const st = profile.stats || {};
       let s = `<span style="color:var(--green);">\u2714</span> <strong>JSON 로드</strong> (ILP precomputed) | Case ${caseLabel}`;
       s += ` | ${stPkts.length} ST pkts | Util <strong>${result.worst_util_percent}%</strong> | Worst E2E ${round3(worst)}\u00b5s`;
@@ -1159,7 +1157,6 @@
       renderGantt(model, result);
       renderE2E(model, result);
       renderBoardGCL(model, result);
-      btn.disabled = false;
       solving = false;
       return;
     }
@@ -1170,8 +1167,8 @@
     try {
       if (solver === 'ilp') {
         const glpk = await ensureGLPK();
-        if (myGen !== solveGen) { solving = false; btn.disabled = false; return; }
-        if (!glpk) { setStatus('<span style="color:var(--red);">GLPK failed to load</span>'); solving = false; btn.disabled = false; return; }
+        if (myGen !== solveGen) { solving = false; return; }
+        if (!glpk) { setStatus('<span style="color:var(--red);">GLPK failed to load</span>'); solving = false; return; }
         const tmlim = parseInt(document.getElementById('pTmlim').value) || 30;
 
         // Separate ST and BG flows — only ST enters ILP
@@ -1194,7 +1191,7 @@
           }
         }});
 
-        if (myGen !== solveGen) { solving = false; btn.disabled = false; return; }
+        if (myGen !== solveGen) { solving = false; return; }
 
         // Place BG packets in gaps after ILP
         if (bgFlows.length > 0 && !result.error) {
@@ -1202,7 +1199,7 @@
         }
       } else {
         result = solveGreedy(model);
-        if (myGen !== solveGen) { solving = false; btn.disabled = false; return; }
+        if (myGen !== solveGen) { solving = false; return; }
       }
 
       fixGuardBands(model, result);
@@ -1231,7 +1228,7 @@
         else s += ` | <span style="color:var(--red);font-weight:700;">${missCount} MISS</span>`;
         if (failedLink) s += ` | <span style="color:var(--red);">FAILOVER</span>`;
 
-        if (myGen !== solveGen) { solving = false; btn.disabled = false; return; }
+        if (myGen !== solveGen) { solving = false; return; }
 
         // Auto-compare: run the other solver and show contrast
         try {
@@ -1245,7 +1242,7 @@
               const cmpBG = model.flows.filter(f => f.deadline_us == null);
               const cmpModel = cmpBG.length > 0 ? { ...model, flows: cmpST } : model;
               cmpResult = await solveILP(cmpModel, glpk2, { tmlim: 15 });
-              if (myGen !== solveGen) { solving = false; btn.disabled = false; return; }
+              if (myGen !== solveGen) { solving = false; return; }
               if (cmpBG.length > 0 && cmpResult && !cmpResult.error) addBgPackets(model, cmpBG, cmpResult);
             }
           }
@@ -1266,7 +1263,7 @@
         setStatus(s);
       }
 
-      if (myGen !== solveGen) { solving = false; btn.disabled = false; return; }
+      if (myGen !== solveGen) { solving = false; return; }
 
       document.getElementById('ganttTitle').textContent =
         `GCL Schedule \u2014 Case ${currentCase} (${solver === 'ilp' ? 'ILP' : 'Greedy'})${failedLink ? ' [FAILOVER]' : ''}`;
@@ -1277,7 +1274,7 @@
       renderBoardGCL(model, result);
 
     } catch (e) {
-      if (myGen !== solveGen) { solving = false; btn.disabled = false; return; }
+      if (myGen !== solveGen) { solving = false; return; }
       console.error(e);
       if (solver === 'ilp') {
         try {
@@ -1313,8 +1310,7 @@
       }
     }
 
-    btn.disabled = false;
-    solving = false;
+        solving = false;
   }
 
   /* ═══════ Topology (clean — no badges) ═══════ */
@@ -2308,7 +2304,6 @@
 
   /* ═══════ Events ═══════ */
   const autoSolve = () => { if (compareMode) { runCompare(); } else { renderFlowTable(); solve(); } };
-  document.getElementById('btnSolve').addEventListener('click', () => { renderFlowTable(); solve(true); });
   document.getElementById('pSpeed').addEventListener('change', autoSolve);
   document.getElementById('pCycle').addEventListener('change', autoSolve);
   document.getElementById('pGuard').addEventListener('change', autoSolve);
@@ -2319,12 +2314,21 @@
   /* ═══════ Profile Switch ═══════ */
   let compareMode = false;
 
-  function switchCase(caseNum) {
+  // caseNum: 1/2/3, solver: 'greedy'/'ilp'
+  // For Case 1/2 ILP without failover → loads pre-computed JSON
+  // For everything else → runs live solver
+  function switchCase(caseNum, solver) {
     // Update button active state
-    const allBtns = ['btnCase1','btnCase2','btnCase3','btnJson1','btnJson2','btnCompare'];
+    const allBtns = ['btnC1G','btnC1I','btnC2G','btnC2I','btnC3G','btnC3I','btnCompare'];
     allBtns.forEach(id => document.getElementById(id).classList.remove('active'));
-    const activeMap = { 1:'btnCase1', 2:'btnCase2', 3:'btnCase3', json1:'btnJson1', json2:'btnJson2', compare:'btnCompare' };
-    if (activeMap[caseNum]) document.getElementById(activeMap[caseNum]).classList.add('active');
+    const activeMap = {
+      '1-greedy':'btnC1G', '1-ilp':'btnC1I',
+      '2-greedy':'btnC2G', '2-ilp':'btnC2I',
+      '3-greedy':'btnC3G', '3-ilp':'btnC3I',
+      'compare':'btnCompare'
+    };
+    const key = solver ? `${caseNum}-${solver}` : caseNum;
+    if (activeMap[key]) document.getElementById(activeMap[key]).classList.add('active');
 
     if (caseNum === 'compare') {
       if (compareMode) return;
@@ -2339,11 +2343,7 @@
       return;
     }
     compareMode = false;
-
-    // Determine which flow set and whether to force-run solver
-    const isJson = caseNum === 'json1' || caseNum === 'json2';
-    const flowCase = isJson ? (caseNum === 'json1' ? 1 : 2) : caseNum;
-
+    activeSolver = solver;
     currentCase = caseNum;
 
     document.getElementById('topoContainer').parentElement.style.display = '';
@@ -2351,19 +2351,22 @@
     document.getElementById('boardSection').style.display = '';
     document.getElementById('comparePanel').style.display = 'none';
 
-    baseFlows = initFlows(flowCase);
+    baseFlows = initFlows(caseNum);
     renderFlowTable();
 
-    // Case 1/2/3: forceRun=true → always run solver
-    // JSON 1/2: forceRun=false → load pre-computed profile
-    solve(isJson ? false : true);
+    // Case 1/2 ILP (no fail) → load pre-computed JSON profile
+    // Everything else → run live solver
+    const hasProfile = (caseNum === 1 || caseNum === 2) && solver === 'ilp';
+    const failedLink = document.getElementById('pFail').value;
+    solve(hasProfile && !failedLink ? false : true);
   }
 
-  document.getElementById('btnCase1').addEventListener('click', () => switchCase(1));
-  document.getElementById('btnCase2').addEventListener('click', () => switchCase(2));
-  document.getElementById('btnCase3').addEventListener('click', () => switchCase(3));
-  document.getElementById('btnJson1').addEventListener('click', () => switchCase('json1'));
-  document.getElementById('btnJson2').addEventListener('click', () => switchCase('json2'));
+  document.getElementById('btnC1G').addEventListener('click', () => switchCase(1, 'greedy'));
+  document.getElementById('btnC1I').addEventListener('click', () => switchCase(1, 'ilp'));
+  document.getElementById('btnC2G').addEventListener('click', () => switchCase(2, 'greedy'));
+  document.getElementById('btnC2I').addEventListener('click', () => switchCase(2, 'ilp'));
+  document.getElementById('btnC3G').addEventListener('click', () => switchCase(3, 'greedy'));
+  document.getElementById('btnC3I').addEventListener('click', () => switchCase(3, 'ilp'));
   document.getElementById('btnCompare').addEventListener('click', () => switchCase('compare'));
 
   document.getElementById('btnAddFlow').addEventListener('click', () => {
@@ -2377,36 +2380,10 @@
     renderFlowTable();
   });
 
-  /* ═══════ Solver info toggle + tooltip ═══════ */
-  const solverSel = document.getElementById('pSolver');
-  const solverInfo = document.getElementById('solverInfo');
-  solverSel.addEventListener('change', () => {
-    solverInfo.style.display = solverSel.value === 'greedy' ? '' : 'none';
-  });
-  solverInfo.addEventListener('mouseenter', (ev) => {
-    const tip = document.getElementById('tooltip');
-    tip.innerHTML = '<b>Greedy 정렬 기준</b> (다단계 정렬 1회)<br>'
-      + '1차: PCP 높은 패킷 먼저 배치<br>'
-      + '2차: PCP 동일 → 릴리스 빠른 순<br>'
-      + '3차: 그래도 동일 → 데드라인 짧은 순 (EDF)';
-    const r = ev.target.getBoundingClientRect();
-    Object.assign(tip.style, {
-      display: 'block', position: 'fixed',
-      left: r.left + 'px', top: (r.bottom + 6) + 'px',
-      background: '#1e293b', color: '#f1f5f9',
-      padding: '8px 12px', borderRadius: '6px',
-      fontSize: '12px', lineHeight: '1.6',
-      zIndex: '9999', maxWidth: '300px',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.3)', pointerEvents: 'none'
-    });
-  });
-  solverInfo.addEventListener('mouseleave', () => {
-    document.getElementById('tooltip').style.display = 'none';
-  });
-
   /* ═══════ Init ═══════ */
-  currentCase = 'json2';  // Start with JSON 2 (pre-computed)
-  baseFlows = initFlows(2);
+  currentCase = 1;
+  activeSolver = 'ilp';
+  baseFlows = initFlows(1);
   renderFlowTable();
   solve(false).then(() => ensureGLPK());
   </script>
