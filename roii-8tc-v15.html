@@ -266,11 +266,11 @@
     <div class="tsep"></div>
     <label>Solver
       <select id="pSolver" title="Greedy: PCP 우선 → 릴리스 순 → EDF (Earliest Deadline First)&#10;ILP: GLPK/WASM 최적화 (정확해)">
-        <option value="greedy" selected>Greedy</option>
-        <option value="ilp">ILP (GLPK)</option>
+        <option value="greedy">Greedy</option>
+        <option value="ilp" selected>ILP (GLPK)</option>
       </select>
     </label>
-    <span id="solverInfo" style="font-size:10px;color:#94a3b8;cursor:help;" title="① 높은 PCP(우선순위) 먼저&#10;② 같은 PCP면 릴리스 시간 빠른 순&#10;③ 같은 릴리스면 데드라인 짧은 순 (EDF)">ⓘ</span>
+    <span id="solverInfo" style="font-size:10px;color:#94a3b8;cursor:help;display:none;" title="① 높은 PCP(우선순위) 먼저&#10;② 같은 PCP면 릴리스 시간 빠른 순&#10;③ 같은 릴리스면 데드라인 짧은 순 (EDF)">ⓘ</span>
     <label>Limit<input type="number" id="pTmlim" value="30" min="5" max="600" step="10" style="width:50px;"></label>
     <div class="tsep"></div>
     <label>Fail
