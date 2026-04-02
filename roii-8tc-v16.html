@@ -1232,36 +1232,6 @@
 
         if (myGen !== solveGen) { solving = false; return; }
 
-        // Auto-compare: run the other solver and show contrast
-        try {
-          let cmpResult;
-          if (solver === 'ilp') {
-            cmpResult = solveGreedy(model);
-          } else {
-            const glpk2 = await ensureGLPK();
-            if (glpk2) {
-              const cmpST = model.flows.filter(f => f.deadline_us != null);
-              const cmpBG = model.flows.filter(f => f.deadline_us == null);
-              const cmpModel = cmpBG.length > 0 ? { ...model, flows: cmpST } : model;
-              cmpResult = await solveILP(cmpModel, glpk2, { tmlim: 15 });
-              if (myGen !== solveGen) { solving = false; return; }
-              if (cmpBG.length > 0 && cmpResult && !cmpResult.error) addBgPackets(model, cmpBG, cmpResult);
-            }
-          }
-          if (cmpResult && !cmpResult.error) {
-            const cmpST = cmpResult.packetRows.filter(p => p.status !== 'NON-ST');
-            const cmpMiss = cmpST.filter(p => p.status === 'MISS').length;
-            const cmpOverlap = cmpST.filter(p => p.status === 'OVERLAP').length;
-            const cmpFail = cmpMiss + cmpOverlap;
-            const cmpName = solver === 'ilp' ? 'Greedy' : 'ILP';
-            if (cmpFail > 0) {
-              s += ` | <span style="opacity:0.7;">vs ${cmpName}: <span style="color:var(--red);">${cmpFail} FAIL</span></span>`;
-            } else {
-              s += ` | <span style="opacity:0.7;">vs ${cmpName}: ALL OK</span>`;
-            }
-          }
-        } catch(e) { /* comparison is optional */ }
-
         setStatus(s);
       }
 
