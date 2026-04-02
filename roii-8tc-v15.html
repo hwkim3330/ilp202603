@@ -358,9 +358,9 @@
   const { CASE2_PROFILE } = await import('./js/case2-profile.js' + _v);
 
   // Override node colors to match demo2 scheme (per-sensor distinct colors)
-  ROII_REAL_NODE_COLORS.LIDAR_R  = { fill: "#f3f4f6", stroke: "#6B7280", label: "G32 Rear",   shortLabel: "G32"  };
-  ROII_REAL_NODE_COLORS.LIDAR_FL = { fill: "#fff7ed", stroke: "#F97316", label: "Pandar FL",   shortLabel: "P40P" };
-  ROII_REAL_NODE_COLORS.LIDAR_FR = { fill: "#eff6ff", stroke: "#3B82F6", label: "Pandar FR",   shortLabel: "P40P" };
+  ROII_REAL_NODE_COLORS.LIDAR_R  = { fill: "#e5e7eb", stroke: "#6B7280", label: "G32 Rear",   shortLabel: "G32"  };
+  ROII_REAL_NODE_COLORS.LIDAR_FL = { fill: "#ffedd5", stroke: "#F97316", label: "Pandar FL",   shortLabel: "P40P" };
+  ROII_REAL_NODE_COLORS.LIDAR_FR = { fill: "#dbeafe", stroke: "#3B82F6", label: "Pandar FR",   shortLabel: "P40P" };
 
   initTooltip();
   const round3 = v => Math.round(v * 1000) / 1000;

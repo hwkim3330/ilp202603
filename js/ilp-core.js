@@ -16,7 +16,7 @@ const FLOW_COLOR_MAP = {
   "f_lidar_r":   "#6b7280",  // 회색
   "f_radar_r":   "#e11d48",  // 로즈
   "f_bg_small":  "#ec4899",  // 핑크
-  "f_bg_med":    "#737373",  // 중간회색
+  "f_bg_med":    "#f472b6",  // 연분홍(밝은)
   "f_bg_large":  "#f472b6",  // 연핑크
 };
 
