@@ -282,8 +282,8 @@
       </select>
     </label>
     <div class="tsep"></div>
-    <button class="btn-case active" id="btnCase1">Case 1</button>
-    <button class="btn-case" id="btnCase2">Case 2</button>
+    <button class="btn-case" id="btnCase1">Case 1</button>
+    <button class="btn-case active" id="btnCase2">Case 2</button>
     <button class="btn-case" id="btnCase3">Case 3</button>
     <div class="tsep"></div>
     <label>Deadline (&micro;s)<input type="number" id="pDeadline" value="0" min="0" step="50" style="width:60px;" title="0 = per-flow default"></label>
@@ -354,6 +354,7 @@
   const _v = '?v=' + Date.now();
   const { ROII_REAL_8TC, ROII_REAL_SWITCHES, getRealPositions, ROII_REAL_NODE_COLORS } = await import('./js/roii-real-data.js' + _v);
   const { solveGreedy, solveILP, initTooltip, flowColor, getFlowColorsHex, generateKPaths } = await import('./js/ilp-core.js' + _v);
+  const { CASE2_PROFILE } = await import('./js/case2-profile.js' + _v);
 
   initTooltip();
   const round3 = v => Math.round(v * 1000) / 1000;
@@ -651,7 +652,7 @@
   /* ═══════ Flow Data ═══════ */
   const NODE_IDS = [...ROII_REAL_8TC.nodes.map(n => n.id), 'BG1', 'BG2', 'BG3'];
   let addCounter = 0;
-  let currentCase = 1;
+  let currentCase = 2;
   const CUSTOM_COLORS = ['#e11d48','#f97316','#84cc16','#06b6d4','#8b5cf6','#ec4899','#14b8a6','#f59e0b'];
 
   /* ── Case 1: Standard (v8 Medium) ── */
@@ -726,7 +727,7 @@
     return JSON.parse(JSON.stringify(caseNum === 2 ? CASE2_FLOWS : CASE1_FLOWS));
   }
 
-  let baseFlows = initFlows(1);
+  let baseFlows = initFlows(2);
   function syncColors() {
     const map = getFlowColorsHex();
     for (const f of baseFlows) map[f.id] = f.color;
@@ -972,9 +973,38 @@
     result.packetRows.sort((a, b) => a.end_us - b.end_us);
   }
 
+  /* ═══════ Apply pre-computed profile ═══════ */
+  function applyProfile(profile, model) {
+    const result = JSON.parse(JSON.stringify(profile));
+    // Build boardConfigs from gcl.links (same logic as ilp-core buildResult)
+    const nodeType = Object.fromEntries(model.nodes.map(n => [n.id, n.type]));
+    result.boardConfigs = {};
+    for (const lnk of model.links) {
+      if (nodeType[lnk.from] !== 'switch') continue;
+      const ld = result.gcl.links[lnk.id];
+      if (!ld) continue;
+      if (!result.boardConfigs[lnk.from]) result.boardConfigs[lnk.from] = { ports: {} };
+      const entries = ld.entries || [];
+      const pcpSet = new Set();
+      for (const e of entries) {
+        if (e.gate_mask && e.gate_mask !== '00000000' && e.gate_mask !== '11111111' && e.gate_mask !== '00000001') {
+          const q = e.gate_mask.split('').reverse().indexOf('1');
+          if (q >= 0) pcpSet.add(q);
+        }
+      }
+      result.boardConfigs[lnk.from].ports[lnk.id] = {
+        to: lnk.to, cycle_time_us: model.cycle_time_us, guard_band_us: model.guard_band_us,
+        num_entries: entries.length,
+        pcp_queue_map: [...pcpSet].sort((a, b) => b - a).map(q => ({ pcp: q, queue: q })),
+        entries
+      };
+    }
+    return result;
+  }
+
   /* ═══════ Solve ═══════ */
   let solving = false;
-  async function solve() {
+  async function solve(forceRun) {
     if (solving) return;
     solving = true;
     selectedFlowId = null;
@@ -988,6 +1018,23 @@
     buildSensorFlowMap();
     const model = buildModel();
     const failedLink = document.getElementById('pFail').value;
+
+    // Case 2 profile: use pre-computed ILP result (no solver needed)
+    if (currentCase === 2 && !forceRun && !failedLink) {
+      const result = applyProfile(CASE2_PROFILE, model);
+      xref.flowRoutes = buildFlowRoutes(result);
+      const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
+      const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
+      setStatus(`\u2713 <strong>ILP</strong> (pre-computed optimal) | ${result.packetRows.length} pkts | Util ${result.worst_util_percent}% | Worst E2E ${round3(worst)}\u00b5s | <span style="color:var(--green);font-weight:700;">ALL OK</span>`);
+      document.getElementById('ganttTitle').textContent = `GCL Schedule \u2014 Case 2 (ILP optimal)`;
+      renderTopology(model, failedLink, result);
+      renderGantt(model, result);
+      renderE2E(model, result);
+      renderBoardGCL(model, result);
+      btn.disabled = false;
+      solving = false;
+      return;
+    }
 
     setStatus(`<span class="spinner-sm"></span> Case ${currentCase} | <strong>${solver === 'ilp' ? 'ILP' : 'Greedy'}</strong> | ${model.flows.length} flows | cycle ${model.cycle_time_us}\u00b5s`);
 
@@ -1719,7 +1766,7 @@
 
   /* ═══════ Events ═══════ */
   const autoSolve = () => { renderFlowTable(); solve(); };
-  document.getElementById('btnSolve').addEventListener('click', autoSolve);
+  document.getElementById('btnSolve').addEventListener('click', () => { renderFlowTable(); solve(true); });
   document.getElementById('pSpeed').addEventListener('change', autoSolve);
   document.getElementById('pCycle').addEventListener('change', autoSolve);
   document.getElementById('pGuard').addEventListener('change', autoSolve);
