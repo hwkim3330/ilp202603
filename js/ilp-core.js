@@ -5,19 +5,19 @@
 
 /* ── Color Mapping ─────────────────────────────── */
 const FLOW_COLOR_MAP = {
-  "f_radar_flc": "#dc2626",  // 빨강
-  "f_lidar_fl":  "#d97706",  // 주황
-  "f_lidar_fc":  "#eab308",  // 노랑
-  "f_radar_f":   "#16a34a",  // 초록
-  "f_lidar_fr":  "#3b82f6",  // 파랑
-  "f_radar_frc": "#0d9488",  // 남색
-  "f_radar_rlc": "#7c3aed",  // 보라
-  "f_radar_rrc": "#171717",  // 검정
-  "f_lidar_r":   "#6b7280",  // 회색
-  "f_radar_r":   "#e11d48",  // 로즈
-  "f_bg_small":  "#ec4899",  // 핑크
-  "f_bg_med":    "#f472b6",  // 연분홍(밝은)
-  "f_bg_large":  "#f472b6",  // 연핑크
+  "f_lidar_fc":  "#10B981",  // AutoL G32 — 에메랄드
+  "f_lidar_r":   "#10B981",  // AutoL G32 — 에메랄드
+  "f_lidar_fl":  "#0D9488",  // Hesai Pandar — 틸
+  "f_lidar_fr":  "#0D9488",  // Hesai Pandar — 틸
+  "f_radar_f":   "#952aff",  // MRR-35 — 보라
+  "f_radar_flc": "#952aff",  // MRR-35 — 보라
+  "f_radar_frc": "#952aff",  // MRR-35 — 보라
+  "f_radar_rlc": "#952aff",  // MRR-35 — 보라
+  "f_radar_rrc": "#952aff",  // MRR-35 — 보라
+  "f_radar_r":   "#10B981",  // AutoL G32 — 에메랄드
+  "f_bg_small":  "#ec4899",  // BG — 핑크
+  "f_bg_med":    "#f472b6",  // BG — 연핑크
+  "f_bg_large":  "#f472b6",  // BG — 연핑크
 };
 
 export function flowColor(flowId) {

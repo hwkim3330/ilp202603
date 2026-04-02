@@ -314,17 +314,9 @@
       </select>
     </label>
     <div class="tsep"></div>
-    <label>Profile
-      <select id="pProfile">
-        <option value="1">Case 1 — Standard (11 flows)</option>
-        <option value="2" selected>Case 2 — Heavy (12 flows)</option>
-        <option value="3">Case 3 — Custom Deadline</option>
-        <option value="compare">&#9664;&#9654; Compare</option>
-      </select>
-    </label>
-    <label id="lblDeadline" style="display:none;">DL&nbsp;(<span id="deadlineVal">500</span>&micro;s)
-      <input type="range" id="pDeadline" min="50" max="1000" value="500" step="50" style="width:100px;vertical-align:middle;">
-    </label>
+    <button class="btn-case" id="btnCase1">Case 1</button>
+    <button class="btn-case active" id="btnCase2">Case 2</button>
+    <button class="btn-case" id="btnCompare">Compare</button>
     <div class="tsep"></div>
     <button class="btn-solve" id="btnSolve">&#9654; Solve</button>
   </div>
@@ -727,12 +719,12 @@
   const CASE1_FLOWS = [
     { id: 'f_lidar_fc', PCP: 7, payload_bytes: 4500, period_us: 250, deadline_us: 250,
       traffic_type: 'lidar', src: 'LIDAR_FC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_fc') },
+    { id: 'f_lidar_r',  PCP: 4, payload_bytes: 4500, period_us: 500, deadline_us: 500,
+      traffic_type: 'lidar', src: 'LIDAR_R',  dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_r') },
     { id: 'f_lidar_fl', PCP: 6, payload_bytes: 4500, period_us: 250, deadline_us: 250,
       traffic_type: 'lidar', src: 'LIDAR_FL', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_fl') },
     { id: 'f_lidar_fr', PCP: 5, payload_bytes: 4500, period_us: 500, deadline_us: 500,
       traffic_type: 'lidar', src: 'LIDAR_FR', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_fr') },
-    { id: 'f_lidar_r',  PCP: 4, payload_bytes: 4500, period_us: 500, deadline_us: 500,
-      traffic_type: 'lidar', src: 'LIDAR_R',  dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_r') },
     { id: 'f_radar_f',   PCP: 3, payload_bytes: 1500, period_us: 500, deadline_us: 500,
       traffic_type: 'radar', src: 'RADAR_F',   dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_f') },
     { id: 'f_radar_flc', PCP: 2, payload_bytes: 1500, period_us: 500, deadline_us: 500,
@@ -778,13 +770,7 @@
   ];
 
   function initFlows(caseNum) {
-    const base = caseNum === 2 ? CASE2_FLOWS : CASE1_FLOWS;
-    const flows = JSON.parse(JSON.stringify(base));
-    if (caseNum === 3) {
-      const dl = parseInt(document.getElementById('pDeadline').value) || 500;
-      for (const f of flows) if (f.deadline_us != null) f.deadline_us = dl;
-    }
-    return flows;
+    return JSON.parse(JSON.stringify(caseNum === 2 ? CASE2_FLOWS : CASE1_FLOWS));
   }
 
   let baseFlows = initFlows(2);
@@ -2265,54 +2251,37 @@
   let compareMode = false;
 
   function switchCase(caseNum) {
-    // Show/hide deadline slider
-    document.getElementById('lblDeadline').style.display = (caseNum === 3) ? '' : 'none';
+    // Update button active state
+    document.getElementById('btnCase1').classList.toggle('active', caseNum === 1);
+    document.getElementById('btnCase2').classList.toggle('active', caseNum === 2);
+    document.getElementById('btnCompare').classList.toggle('active', caseNum === 'compare');
 
     if (caseNum === 'compare') {
       if (compareMode) return;
       compareMode = true;
       currentCase = 'compare';
-      // Hide single-case views
       document.getElementById('topoContainer').parentElement.style.display = 'none';
       document.getElementById('flowSection').style.display = 'none';
       document.getElementById('boardSection').style.display = 'none';
-      // Show compare panel + E2E
       document.getElementById('comparePanel').style.display = '';
       document.getElementById('e2eSection').style.display = '';
       runCompare();
       return;
     }
-    // Single case mode
     compareMode = false;
-    if (currentCase === caseNum && caseNum !== 3) return;
+    if (currentCase === caseNum) return;
     currentCase = caseNum;
-    // Show single-case views
     document.getElementById('topoContainer').parentElement.style.display = '';
     document.getElementById('flowSection').style.display = '';
     document.getElementById('boardSection').style.display = '';
-    // Hide compare panel
     document.getElementById('comparePanel').style.display = 'none';
     baseFlows = initFlows(caseNum);
     renderFlowTable();
     solve();
   }
-  document.getElementById('pProfile').addEventListener('change', (ev) => {
-    const val = ev.target.value;
-    switchCase(val === 'compare' ? 'compare' : parseInt(val));
-  });
-
-  // Deadline slider for Case 3
-  document.getElementById('pDeadline').addEventListener('input', (ev) => {
-    document.getElementById('deadlineVal').textContent = ev.target.value;
-    if (currentCase === 3) {
-      const dl = parseInt(ev.target.value);
-      for (const f of baseFlows) if (f.deadline_us != null) f.deadline_us = dl;
-      renderFlowTable();
-    }
-  });
-  document.getElementById('pDeadline').addEventListener('change', () => {
-    if (currentCase === 3) solve();
-  });
+  document.getElementById('btnCase1').addEventListener('click', () => switchCase(1));
+  document.getElementById('btnCase2').addEventListener('click', () => switchCase(2));
+  document.getElementById('btnCompare').addEventListener('click', () => switchCase('compare'));
 
   document.getElementById('btnAddFlow').addEventListener('click', () => {
     addCounter++;
