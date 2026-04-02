@@ -99,11 +99,10 @@ export function expandPackets(model) {
       if (!Array.isArray(p) || p.length === 0) throw new Error(`flow ${f.id}: empty path`);
       for (const lid of p) if (!lm.has(lid)) throw new Error(`flow ${f.id}: unknown link ${lid}`);
     }
-    const repsRaw = model.cycle_time_us / f.period_us;
-    const reps = Math.round(repsRaw);
-    if (Math.abs(repsRaw - reps) > 1e-9) throw new Error(`flow ${f.id}: cycle_time_us must be divisible by period_us`);
-    for (let k = 0; k < reps; k++) {
-      const rel = k * f.period_us;
+    const baseRel = f.rel || 0;
+    for (let k = 0; ; k++) {
+      const rel = baseRel + k * f.period_us;
+      if (rel >= model.cycle_time_us) break;
       pkts.push({
         pid: `${f.id}#${k}`, fid: f.id, pri: f.PCP ?? f.priority, tt: f.traffic_type,
         rel, dl: f.deadline_us == null ? null : rel + f.deadline_us,

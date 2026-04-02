@@ -1011,13 +1011,15 @@
 
     const bgPkts = [];
     for (const f of bgFlows) {
-      const reps = Math.max(1, Math.round(cycleTime / f.period_us));
       const paths = generateKPaths(adj, f.src, f.dst, 1, fullModel.nodes.length + 2);
       if (!paths.length) continue;
-      for (let k = 0; k < reps; k++) {
+      const baseRel = f.rel || 0;
+      for (let k = 0; ; k++) {
+        const rel = baseRel + k * f.period_us;
+        if (rel >= cycleTime) break;
         bgPkts.push({
           pid: `${f.id}#${k}`, fid: f.id, pri: f.PCP ?? 0,
-          rel: (f.rel != null ? f.rel : 0) + k * f.period_us,
+          rel,
           hopsTemplate: paths[0].map(lid => ({
             lid, tx: round3((f.payload_bytes + 38) * 8 / lm.get(lid).rate_mbps),
             pd: lm.get(lid).prop_delay_us
