@@ -1626,19 +1626,7 @@
             .attr('width', Math.max(actualW, 1)).attr('height', bw)
             .attr('fill', 'url(#guardH)').attr('opacity', 0.7).attr('rx', 2);
           xref.guards.push({ el: guardEl });
-        } else if (e.note === 'BE (TC0)') {
-          const beEl = g.append('rect').attr('x', xPos).attr('y', yPos)
-            .attr('width', Math.max(actualW, 1)).attr('height', bw)
-            .attr('fill', '#93c5fd').attr('opacity', 0.18).attr('rx', 2);
-          xref.beBars.push({ el: beEl });
-          if (actualW > 30) {
-            g.append('text').attr('class', 'gcl-label')
-              .attr('x', xPos + actualW/2).attr('y', yPos + bw/2)
-              .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-              .attr('font-size', '8px').attr('fill', 'rgba(59,130,246,0.35)')
-              .text('BE');
-          }
-        } else if (e.note.includes('all-gates-closed') || e.note.includes('non-ST')) {
+        } else if (e.note === 'BE (TC0)' || e.note.includes('all-gates-closed') || e.note.includes('non-ST')) {
           // skip
         } else {
           const fid = e.note.split('#')[0];
@@ -2129,11 +2117,7 @@
           g.append('rect').attr('x', xPos).attr('y', yPos)
             .attr('width', Math.max(actualW, 1)).attr('height', bw)
             .attr('fill', 'url(#guardHC)').attr('opacity', 0.7).attr('rx', 2);
-        } else if (e.note === 'BE (TC0)') {
-          g.append('rect').attr('x', xPos).attr('y', yPos)
-            .attr('width', Math.max(actualW, 1)).attr('height', bw)
-            .attr('fill', '#93c5fd').attr('opacity', 0.14).attr('rx', 2);
-        } else if (e.note.includes('all-gates-closed') || e.note.includes('non-ST')) {
+        } else if (e.note === 'BE (TC0)' || e.note.includes('all-gates-closed') || e.note.includes('non-ST')) {
           // skip
         } else {
           const fid = e.note.split('#')[0];
