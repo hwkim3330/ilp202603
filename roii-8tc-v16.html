@@ -67,6 +67,9 @@
     .btn-case.active {
       background: var(--blue); color: #fff; border-color: var(--blue);
     }
+    .btn-json { border-color: var(--green); color: var(--green); }
+    .btn-json:hover { background: var(--green); color: #fff; }
+    .btn-json.active { background: var(--green); color: #fff; border-color: var(--green); }
 
     /* ── Dashboard Grid ── */
     .dashboard {
@@ -298,11 +301,11 @@
     <div class="tsep"></div>
     <label>Solver
       <select id="pSolver" title="Greedy: PCP 우선 → 릴리스 순 → EDF (Earliest Deadline First)&#10;ILP: GLPK/WASM 최적화 (정확해)">
-        <option value="greedy" selected>Greedy</option>
-        <option value="ilp">ILP (GLPK)</option>
+        <option value="greedy">Greedy</option>
+        <option value="ilp" selected>ILP (GLPK)</option>
       </select>
     </label>
-    <span id="solverInfo" style="font-size:13px;color:#64748b;cursor:help;padding:2px 4px;">ⓘ</span>
+    <span id="solverInfo" style="font-size:13px;color:#64748b;cursor:help;padding:2px 4px;display:none;">ⓘ</span>
     <label>Limit<input type="number" id="pTmlim" value="30" min="5" max="600" step="10" style="width:50px;"></label>
     <div class="tsep"></div>
     <label>Fail
@@ -316,6 +319,9 @@
     <div class="tsep"></div>
     <button class="btn-case" id="btnCase1">Case 1</button>
     <button class="btn-case active" id="btnCase2">Case 2</button>
+    <button class="btn-case" id="btnCase3">Case 3</button>
+    <button class="btn-case btn-json" id="btnJson1">JSON 1</button>
+    <button class="btn-case btn-json" id="btnJson2">JSON 2</button>
     <button class="btn-case" id="btnCompare">Compare</button>
     <div class="tsep"></div>
     <button class="btn-solve" id="btnSolve">&#9654; Solve</button>
@@ -1101,8 +1107,8 @@
     const model = buildModel();
     const failedLink = document.getElementById('pFail').value;
 
-    // Pre-computed ILP profiles for Case 1 & 2
-    const PROFILES = { 1: CASE1_PROFILE, 2: CASE2_PROFILE };
+    // Pre-computed ILP profiles for Case 1 & 2 (JSON buttons also map here)
+    const PROFILES = { 1: CASE1_PROFILE, 2: CASE2_PROFILE, json1: CASE1_PROFILE, json2: CASE2_PROFILE };
     const profile = PROFILES[currentCase];
     if (profile && !forceRun && !failedLink) {
       const result = loadProfile(profile, model);
@@ -1113,7 +1119,8 @@
       let s = `\u2713 <strong>ILP</strong> (pre-computed optimal) | ${result.packetRows.length} pkts | Util ${result.worst_util_percent}% | Worst E2E ${round3(worst)}\u00b5s`;
       s += missCount === 0 ? ` | <span style="color:var(--green);font-weight:700;">ALL OK</span>` : ` | <span style="color:var(--red);font-weight:700;">${missCount} MISS</span>`;
       setStatus(s);
-      document.getElementById('ganttTitle').textContent = `GCL Schedule \u2014 Case ${currentCase} (ILP optimal)`;
+      const caseLabel = currentCase === 'json1' ? '1' : currentCase === 'json2' ? '2' : currentCase;
+      document.getElementById('ganttTitle').textContent = `GCL Schedule \u2014 Case ${caseLabel} (ILP optimal)`;
       renderTopology(model, failedLink, result);
       renderGantt(model, result);
       renderE2E(model, result);
@@ -1609,7 +1616,7 @@
 
           // Find matching packetRow for deadline info
           const pkt = pktMap[e.note];
-          const isMiss = pkt && pkt.deadline_abs_us != null && pkt.end_us > pkt.deadline_abs_us;
+          const isMiss = pkt && pkt.status === 'MISS';
 
           const barEl = g.append('rect').attr('x', xPos).attr('y', yPos)
             .attr('width', displayW).attr('height', bw)
@@ -1617,7 +1624,6 @@
             .attr('stroke', isMiss ? '#ef4444' : 'rgba(255,255,255,0.4)')
             .attr('stroke-width', isMiss ? 2 : 0.8)
             .attr('rx', 3).attr('opacity', 0.9);
-          if (isMiss) barEl.attr('stroke-dasharray', '4,2');
 
           let labelEl = null;
           if (actualW > 20) {
@@ -1672,22 +1678,7 @@
         .text((used / model.cycle_time_us * 100).toFixed(1) + '%');
     }
 
-    // ── Deadline markers on last hop ──
-    if (result.packetRows) {
-      for (const pkt of result.packetRows) {
-        if (pkt.status === 'NON-ST' || pkt.deadline_abs_us == null) continue;
-        if (pkt.deadline_abs_us > model.cycle_time_us) continue;
-        const lastHop = pkt.hops[pkt.hops.length - 1];
-        if (!lastHop || y(lastHop.link_id) === undefined) continue;
-        const dx = x(pkt.deadline_abs_us);
-        const ly = y(lastHop.link_id);
-        const bw = y.bandwidth();
-        g.append('line').attr('x1', dx).attr('x2', dx)
-          .attr('y1', ly).attr('y2', ly + bw)
-          .attr('stroke', 'rgba(239,68,68,0.4)').attr('stroke-width', 1.5)
-          .attr('stroke-dasharray', '3,2');
-      }
-    }
+    // (Deadline markers removed — pre-computed profiles are authoritative)
 
     // ── BG flow rows ──
     for (const bgFid of bgFlowIds) {
@@ -1792,12 +1783,7 @@
     const x = d3.scaleLinear().domain([0, maxVal * 1.1]).range([0, innerW]);
     const y = d3.scaleBand().domain(entries.map(e => e.fid)).range([0, innerH]).padding(0.2);
 
-    // Deadline markers
-    for (const e of entries) {
-      g.append('line').attr('x1', x(e.dl)).attr('x2', x(e.dl))
-        .attr('y1', y(e.fid)).attr('y2', y(e.fid) + y.bandwidth())
-        .attr('stroke', 'rgba(239,68,68,0.35)').attr('stroke-width', 1.5).attr('stroke-dasharray', '3,2');
-    }
+    // (Deadline markers removed)
 
     // E2E bars — hoverable
     for (const e of entries) {
@@ -2252,9 +2238,10 @@
 
   function switchCase(caseNum) {
     // Update button active state
-    document.getElementById('btnCase1').classList.toggle('active', caseNum === 1);
-    document.getElementById('btnCase2').classList.toggle('active', caseNum === 2);
-    document.getElementById('btnCompare').classList.toggle('active', caseNum === 'compare');
+    const allBtns = ['btnCase1','btnCase2','btnCase3','btnJson1','btnJson2','btnCompare'];
+    allBtns.forEach(id => document.getElementById(id).classList.remove('active'));
+    const activeMap = { 1:'btnCase1', 2:'btnCase2', 3:'btnCase3', json1:'btnJson1', json2:'btnJson2', compare:'btnCompare' };
+    if (activeMap[caseNum]) document.getElementById(activeMap[caseNum]).classList.add('active');
 
     if (caseNum === 'compare') {
       if (compareMode) return;
@@ -2269,18 +2256,33 @@
       return;
     }
     compareMode = false;
-    if (currentCase === caseNum) return;
+
+    // JSON buttons: load pre-computed profile directly (map to case 1 or 2)
+    const jsonCase = caseNum === 'json1' ? 1 : caseNum === 'json2' ? 2 : null;
+    const effectiveCase = jsonCase || caseNum;
+
+    if (currentCase === caseNum && !jsonCase) return;
     currentCase = caseNum;
+
     document.getElementById('topoContainer').parentElement.style.display = '';
     document.getElementById('flowSection').style.display = '';
     document.getElementById('boardSection').style.display = '';
     document.getElementById('comparePanel').style.display = 'none';
-    baseFlows = initFlows(caseNum);
+    baseFlows = initFlows(effectiveCase);
     renderFlowTable();
-    solve();
+    if (jsonCase) {
+      // Force load pre-computed JSON — skip solver entirely
+      solve(false);
+    } else {
+      // Case 1/2 also load JSON if available; Case 3 always runs solver
+      solve(caseNum === 3);
+    }
   }
   document.getElementById('btnCase1').addEventListener('click', () => switchCase(1));
   document.getElementById('btnCase2').addEventListener('click', () => switchCase(2));
+  document.getElementById('btnCase3').addEventListener('click', () => switchCase(3));
+  document.getElementById('btnJson1').addEventListener('click', () => switchCase('json1'));
+  document.getElementById('btnJson2').addEventListener('click', () => switchCase('json2'));
   document.getElementById('btnCompare').addEventListener('click', () => switchCase('compare'));
 
   document.getElementById('btnAddFlow').addEventListener('click', () => {
