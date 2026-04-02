@@ -3,21 +3,21 @@
    Shared ES module for solver.html & automotive.html
    ═══════════════════════════════════════════════ */
 
-/* ── Color Mapping ─────────────────────────────── */
+/* ── Color Mapping (toned-down) ────────────────── */
 const FLOW_COLOR_MAP = {
-  "f_radar_flc": "#dc2626",  // 빨강
-  "f_lidar_fl":  "#d97706",  // 주황
-  "f_lidar_fc":  "#eab308",  // 노랑
-  "f_radar_f":   "#16a34a",  // 초록
-  "f_lidar_fr":  "#3b82f6",  // 파랑
-  "f_radar_frc": "#0d9488",  // 틸
-  "f_radar_rlc": "#7c3aed",  // 보라
-  "f_radar_rrc": "#171717",  // 검정
-  "f_lidar_r":   "#6b7280",  // 회색
-  "f_radar_r":   "#e11d48",  // 로즈
-  "f_bg_small":  "#ec4899",  // 핑크
-  "f_bg_med":    "#f472b6",  // 연분홍
-  "f_bg_large":  "#f472b6",  // 연핑크
+  "f_lidar_fc":  "#D4A017",  // 골드 (노랑 톤다운)
+  "f_lidar_fl":  "#C2642A",  // 테라코타 (주황 톤다운)
+  "f_lidar_fr":  "#3B6DAE",  // 스틸블루 (파랑 톤다운)
+  "f_lidar_r":   "#64748B",  // 진회색
+  "f_radar_f":   "#2D8E6F",  // 세이지 (초록 톤다운)
+  "f_radar_flc": "#C04848",  // 벽돌 (빨강 톤다운)
+  "f_radar_frc": "#6B21A8",  // 보라
+  "f_radar_rlc": "#8B5FBF",  // 연보라 톤다운
+  "f_radar_rrc": "#334155",  // 짙은회색
+  "f_radar_r":   "#9E4858",  // 로즈 톤다운
+  "f_bg_small":  "#D4899B",  // 핑크 톤다운
+  "f_bg_med":    "#E0B0C0",  // 연핑크 톤다운
+  "f_bg_large":  "#E0B0C0",  // 연핑크 톤다운
 };
 
 export function flowColor(flowId) {

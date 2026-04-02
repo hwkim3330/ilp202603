@@ -741,9 +741,9 @@
     { id: 'f_radar_rrc', PCP: 1, payload_bytes: 1500, period_us: 500, deadline_us: 500,
       traffic_type: 'radar', src: 'RADAR_RRC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_rrc') },
     { id: 'f_bg_small', PCP: 0, payload_bytes: 200, period_us: 500,
-      deadline_us: null, traffic_type: 'bg', src: 'BG1', dst: 'ACU_IT', k_paths: 1, color: '#ec4899' },
+      deadline_us: null, traffic_type: 'bg', src: 'BG1', dst: 'ACU_IT', k_paths: 1, color: '#D4899B' },
     { id: 'f_bg_large', PCP: 0, payload_bytes: 1400, period_us: 1000, rel: 200,
-      deadline_us: null, traffic_type: 'bg', src: 'BG2', dst: 'ACU_IT', k_paths: 1, color: '#f472b6' },
+      deadline_us: null, traffic_type: 'bg', src: 'BG2', dst: 'ACU_IT', k_paths: 1, color: '#E0B0C0' },
   ];
 
   /* ── Case 2: Heavy 12-flow (BG on FL switch, tight 600µs deadline) ── */
@@ -767,11 +767,11 @@
     { id: 'f_radar_rrc', PCP: 2, payload_bytes: 320, period_us: 500, deadline_us: 600,
       traffic_type: 'radar', src: 'RADAR_RRC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_rrc') },
     { id: 'f_bg_small', PCP: 0, payload_bytes: 200, period_us: 200, deadline_us: null,
-      traffic_type: 'bg', src: 'BG1', dst: 'ACU_IT', k_paths: 2, color: '#ec4899' },
+      traffic_type: 'bg', src: 'BG1', dst: 'ACU_IT', k_paths: 2, color: '#D4899B' },
     { id: 'f_bg_med',   PCP: 0, payload_bytes: 800, period_us: 300, rel: 100, deadline_us: null,
-      traffic_type: 'bg', src: 'BG3', dst: 'ACU_IT', k_paths: 2, color: '#a855f7' },
+      traffic_type: 'bg', src: 'BG3', dst: 'ACU_IT', k_paths: 2, color: '#8B5FBF' },
     { id: 'f_bg_large', PCP: 0, payload_bytes: 1400, period_us: 500, rel: 200, deadline_us: null,
-      traffic_type: 'bg', src: 'BG2', dst: 'ACU_IT', k_paths: 2, color: '#f472b6' },
+      traffic_type: 'bg', src: 'BG2', dst: 'ACU_IT', k_paths: 2, color: '#E0B0C0' },
   ];
 
   /* ── Case 3: Tight deadlines — intentionally infeasible for some flows ── */
@@ -795,11 +795,11 @@
     { id: 'f_radar_rrc', PCP: 1, payload_bytes: 1500, period_us: 500, deadline_us: 200,
       traffic_type: 'radar', src: 'RADAR_RRC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_rrc') },
     { id: 'f_bg_small', PCP: 0, payload_bytes: 400, period_us: 200, deadline_us: null,
-      traffic_type: 'bg', src: 'BG1', dst: 'ACU_IT', k_paths: 1, color: '#ec4899' },
+      traffic_type: 'bg', src: 'BG1', dst: 'ACU_IT', k_paths: 1, color: '#D4899B' },
     { id: 'f_bg_med',   PCP: 0, payload_bytes: 800, period_us: 250, deadline_us: null,
-      traffic_type: 'bg', src: 'BG3', dst: 'ACU_IT', k_paths: 1, color: '#a855f7' },
+      traffic_type: 'bg', src: 'BG3', dst: 'ACU_IT', k_paths: 1, color: '#8B5FBF' },
     { id: 'f_bg_large', PCP: 0, payload_bytes: 1400, period_us: 500, deadline_us: null,
-      traffic_type: 'bg', src: 'BG2', dst: 'ACU_IT', k_paths: 1, color: '#f472b6' },
+      traffic_type: 'bg', src: 'BG2', dst: 'ACU_IT', k_paths: 1, color: '#E0B0C0' },
   ];
 
   function initFlows(caseNum) {
@@ -1424,9 +1424,9 @@
       const p = pos[node.id];
       if (!p) continue;
       const BG_COLORS = {
-        BG1: { fill: '#fce7f3', stroke: '#ec4899', shortLabel: 'BG1', label: 'BG Small' },
-        BG2: { fill: '#fdf2f8', stroke: '#f472b6', shortLabel: 'BG2', label: 'BG Large' },
-        BG3: { fill: '#f3e8ff', stroke: '#a855f7', shortLabel: 'BG3', label: 'BG Med' },
+        BG1: { fill: '#f5e1e7', stroke: '#D4899B', shortLabel: 'BG1', label: 'BG Small' },
+        BG2: { fill: '#f5e8ed', stroke: '#E0B0C0', shortLabel: 'BG2', label: 'BG Large' },
+        BG3: { fill: '#ede4f5', stroke: '#8B5FBF', shortLabel: 'BG3', label: 'BG Med' },
       };
       const nc = BG_COLORS[node.id] || ROII_REAL_NODE_COLORS[node.id]
         || { fill: '#e2e8f0', stroke: '#94a3b8', shortLabel: node.id, label: node.id };
@@ -1594,7 +1594,7 @@
         if (lnk) return `${lnk.from} \u2192 ${lnk.to}`;
         return d.replace(/^f_/, '');
       }).attr('font-size', '9.5px')
-      .attr('fill', d => bgFlowIds.includes(d) ? '#ec4899' : null)
+      .attr('fill', d => bgFlowIds.includes(d) ? '#D4899B' : null)
       .attr('font-weight', d => bgFlowIds.includes(d) ? '800' : null);
 
     g.selectAll('.rbg').data(allRowIds).enter().append('rect')
@@ -1768,7 +1768,7 @@
       const bgE2E = bgPkts.length ? Math.max(...bgPkts.map(p => p.e2e_delay_us)) : 0;
       g.append('text').attr('x', innerW + 4).attr('y', yPos + bw / 2)
         .attr('text-anchor', 'start').attr('dominant-baseline', 'middle')
-        .attr('font-size', '9px').attr('fill', '#ec4899').attr('font-weight', '700')
+        .attr('font-size', '9px').attr('fill', '#D4899B').attr('font-weight', '700')
         .text(round3(bgE2E) + '\u00b5s');
     }
 
