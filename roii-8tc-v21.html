@@ -512,6 +512,7 @@
     "f_radar_rrc": "#264653",
     "f_bg_1":      "#ADB5BD",
     "f_bg_2":      "#CED4DA",
+    "f_bg_3":      "#868E96",
   };
   function flowColor(fid) { const k = fid.split('#')[0]; return V21_COLORS[k] || _flowColor(fid); }
 
@@ -817,7 +818,7 @@
     'l_radarf_swfr', 'l_lidarfr_swfr', 'l_radarfrc_swfr',
     null, // separator
     // Group 2: Backbone + BG
-    'l_bg1_swfr', 'l_bg2_swrear',
+    'l_bg3_swfl', 'l_bg1_swfr', 'l_bg2_swrear',
     'l_swfl_swrear', 'l_swfr_swrear', 'l_swfr_swfl', 'l_swfl_swfr',
     null, // separator
     // Group 3: SW_REAR zone (3 sensors)
@@ -837,8 +838,14 @@
     arr.sort((a, b) => (GANTT_POS[a.id] ?? 999) - (GANTT_POS[b.id] ?? 999));
   }
 
-  /* ═══════ Flow Data (v21 — single set) ═══════ */
-  const NODE_IDS = [...INLINE_NODES.map(n => n.id), 'BG1', 'BG2'];
+  /* ═══════ Flow Data (v21 — real sensor specs) ═══════
+   * LiDAR:  AutoL G32   — 32ch, 120° FoV, 250m, 1248B/pkt, ~6000 pps @10Hz
+   *         Hesai Pandar40P — 40ch, 360° FoV, 200m, 1262B/pkt, 18000 pps @10Hz
+   * Radar:  Continental ARS548 — 4D, 300m, 1500B/pkt, 20Hz (Ethernet 100Mbps)
+   *         Mando MRR-35 — 77GHz, 200m, 128B/pkt, 50Hz (corner radars)
+   * Periods below are per-GCL-cycle packet counts (not real-time pps).
+   */
+  const NODE_IDS = [...INLINE_NODES.map(n => n.id), 'BG1', 'BG2', 'BG3'];
   let addCounter = 0;
   const CUSTOM_COLORS = ['#e11d48','#f97316','#84cc16','#06b6d4','#8b5cf6','#ec4899','#14b8a6','#f59e0b'];
 
@@ -865,6 +872,8 @@
       deadline_us: null, traffic_type: 'bg', src: 'BG1', dst: 'ACU_IT', k_paths: 1, color: flowColor('f_bg_1') },
     { id: 'f_bg_2', PCP: 0, payload_bytes: 500, period_us: 1000, rel: 200,
       deadline_us: null, traffic_type: 'bg', src: 'BG2', dst: 'ACU_IT', k_paths: 1, color: flowColor('f_bg_2') },
+    { id: 'f_bg_3', PCP: 0, payload_bytes: 500, period_us: 500,
+      deadline_us: null, traffic_type: 'bg', src: 'BG3', dst: 'ACU_IT', k_paths: 1, color: flowColor('f_bg_3') },
   ];
 
   let baseFlows = JSON.parse(JSON.stringify(DEFAULT_FLOWS));
@@ -939,7 +948,7 @@
 
     // Add BG nodes dynamically based on flow sources
     const bgSrcs = new Set(baseFlows.filter(f => /^BG\d*$/.test(f.src)).map(f => f.src));
-    const bgLinkMap = { BG1: 'SW_FR', BG2: 'SW_REAR' };
+    const bgLinkMap = { BG1: 'SW_FR', BG2: 'SW_REAR', BG3: 'SW_FL' };
     for (const bgId of bgSrcs) {
       m.nodes.push({ id: bgId, type: 'endstation' });
       const target = bgLinkMap[bgId] || 'SW_FR';
@@ -1321,28 +1330,29 @@
     const rect = container.getBoundingClientRect();
     const W = rect.width || 420;
     const H = rect.height || Math.max(340, W * 0.75);
-    // ── Diamond topology layout (v21) ──
+    // ── Symmetric vehicle topology layout (v21) ──
     const pos = {};
-    // Top pair
-    pos.LIDAR_FC  = { x: W * 0.35, y: H * 0.05 };
-    pos.RADAR_F   = { x: W * 0.65, y: H * 0.05 };
-    // Second row
-    pos.RADAR_FLC = { x: W * 0.08, y: H * 0.18 };
-    pos.LIDAR_FL  = { x: W * 0.28, y: H * 0.18 };
-    pos.LIDAR_FR  = { x: W * 0.72, y: H * 0.18 };
-    pos.RADAR_FRC = { x: W * 0.92, y: H * 0.18 };
-    // Switches
-    pos.SW_FL     = { x: W * 0.28, y: H * 0.38 };
-    pos.SW_FR     = { x: W * 0.72, y: H * 0.38 };
-    pos.SW_REAR   = { x: W * 0.50, y: H * 0.56 };
-    // Rear sensors
-    pos.RADAR_RLC = { x: W * 0.20, y: H * 0.68 };
-    pos.LIDAR_R   = { x: W * 0.50, y: H * 0.72 };
-    pos.RADAR_RRC = { x: W * 0.80, y: H * 0.68 };
-    // ACU + BG
-    pos.BG1       = { x: W * 0.88, y: H * 0.52 };
-    pos.BG2       = { x: W * 0.72, y: H * 0.72 };
-    pos.ACU_IT    = { x: W * 0.50, y: H * 0.92 };
+    // Front sensors — centered, symmetric arc
+    pos.RADAR_FLC = { x: W * 0.07, y: H * 0.12 };
+    pos.LIDAR_FL  = { x: W * 0.22, y: H * 0.06 };
+    pos.LIDAR_FC  = { x: W * 0.40, y: H * 0.02 };
+    pos.RADAR_F   = { x: W * 0.60, y: H * 0.02 };
+    pos.LIDAR_FR  = { x: W * 0.78, y: H * 0.06 };
+    pos.RADAR_FRC = { x: W * 0.93, y: H * 0.12 };
+    // Switches — wide triangle
+    pos.SW_FL     = { x: W * 0.22, y: H * 0.34 };
+    pos.SW_FR     = { x: W * 0.78, y: H * 0.34 };
+    pos.SW_REAR   = { x: W * 0.50, y: H * 0.58 };
+    // Rear sensors — symmetric arc
+    pos.RADAR_RLC = { x: W * 0.22, y: H * 0.72 };
+    pos.LIDAR_R   = { x: W * 0.50, y: H * 0.74 };
+    pos.RADAR_RRC = { x: W * 0.78, y: H * 0.72 };
+    // BG nodes — one per switch, flanking
+    pos.BG3       = { x: W * 0.05, y: H * 0.42 };
+    pos.BG1       = { x: W * 0.95, y: H * 0.42 };
+    pos.BG2       = { x: W * 0.36, y: H * 0.58 };
+    // ACU — bottom center
+    pos.ACU_IT    = { x: W * 0.50, y: H * 0.93 };
     const svg = d3.select(container).append('svg')
       .attr('viewBox', `0 0 ${W} ${H}`)
       .attr('preserveAspectRatio', 'xMidYMid meet')
@@ -1351,7 +1361,7 @@
 
     const topoBase = JSON.parse(JSON.stringify(INLINE_MODEL));
     const bgSrcsViz = new Set(baseFlows.filter(f => /^BG\d*$/.test(f.src)).map(f => f.src));
-    const bgLinkMapViz = { BG1: 'SW_FR', BG2: 'SW_REAR' };
+    const bgLinkMapViz = { BG1: 'SW_FR', BG2: 'SW_REAR', BG3: 'SW_FL' };
     for (const bgId of bgSrcsViz) {
       topoBase.nodes.push({ id: bgId, type: 'endstation' });
       const target = bgLinkMapViz[bgId] || 'SW_FR';
@@ -1454,6 +1464,7 @@
       const BG_COLORS = {
         BG1: { fill: '#f0f2f5', stroke: '#ADB5BD', shortLabel: 'BG1', label: 'Infotainment' },
         BG2: { fill: '#f4f5f7', stroke: '#CED4DA', shortLabel: 'BG2', label: 'Diagnostics' },
+        BG3: { fill: '#eceef1', stroke: '#868E96', shortLabel: 'BG3', label: 'V2X / OTA' },
       };
       const nc = BG_COLORS[node.id] || NODE_COLORS[node.id]
         || { fill: '#e2e8f0', stroke: '#94a3b8', shortLabel: node.id, label: node.id };
@@ -2446,7 +2457,7 @@
 
   /* Device Templates — v21 warm LiDAR / cool Radar */
   const TMPL_3D = {
-    lidar_vlp:    { w: 1, h: 1, d: 1, color: 0xF28E2B, geo: 'box' },
+    lidar_g32:    { w: 1, h: 1, d: 1, color: 0xF28E2B, geo: 'box' },
     lidar_pandar: { w: 1, h: 1, d: 1, color: 0xE9C46A, geo: 'cylinder' },
     radar_ars:    { w: 1.4, h: 0.6, d: 0.8, color: 0x457B9D, geo: 'box' },
     radar_mrr:    { w: 0.8, h: 0.5, d: 0.6, color: 0x2A9D8F, geo: 'box' },
@@ -2490,7 +2501,7 @@
   };
 
   function getDeviceType3D(nodeId) {
-    if (nodeId === 'LIDAR_FC' || nodeId === 'LIDAR_R') return 'lidar_vlp';
+    if (nodeId === 'LIDAR_FC' || nodeId === 'LIDAR_R') return 'lidar_g32';
     if (nodeId === 'LIDAR_FL' || nodeId === 'LIDAR_FR') return 'lidar_pandar';
     if (nodeId === 'RADAR_F') return 'radar_ars';
     if (nodeId.startsWith('RADAR')) return 'radar_mrr';
