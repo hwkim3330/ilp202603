@@ -1357,8 +1357,18 @@
       }
       const isFailed = failedSet.has(lnk.id);
       const isGateway = lnk.id === 'l_swrear_acu';
+      // Utilization heat-map: green→yellow→orange→red
+      function utilColor(pct) {
+        if (pct <= 0) return null;
+        if (pct <= 30) return 'rgba(34,197,94,0.55)';   // green
+        if (pct <= 50) return 'rgba(234,179,8,0.6)';    // yellow
+        if (pct <= 70) return 'rgba(249,115,22,0.65)';  // orange
+        return 'rgba(239,68,68,0.7)';                    // red
+      }
+      const maxUtil = Math.max(linkUtil[lnk.id] || 0, isBackbone ? (linkUtil[BACKBONE_REVERSE[lnk.id]] || 0) : 0);
       let color, width, dash;
       if (isFailed) { color = 'rgba(239,68,68,0.6)'; width = 3; dash = '8,5'; }
+      else if (utilColor(maxUtil)) { color = utilColor(maxUtil); width = isGateway ? 3.5 : isBackbone ? 3 : 2; dash = 'none'; }
       else if (isBackbone) { color = 'rgba(59,130,246,0.3)'; width = 2.5; dash = 'none'; }
       else if (isGateway) { color = 'rgba(6,182,212,0.45)'; width = 3; dash = 'none'; }
       else { color = 'rgba(148,163,184,0.35)'; width = 1.5; dash = 'none'; }
@@ -1472,7 +1482,13 @@
           html += `<div class="tt-row"><span class="tt-k">Type</span><span class="tt-v">${isSwitch ? 'Switch' : isACU ? 'ACU' : isLidar ? 'LiDAR' : isBG ? 'Background' : 'Radar'}</span></div>`;
           if (sensorFid) {
             const f = baseFlows.find(bf => bf.id === sensorFid);
-            if (f) html += `<div class="tt-row"><span class="tt-k">PCP</span><span class="tt-v">${f.PCP} (TC${f.PCP})</span></div>`;
+            if (f) {
+              html += `<div class="tt-row"><span class="tt-k">PCP</span><span class="tt-v">${f.PCP} (TC${f.PCP})</span></div>`;
+              html += `<div class="tt-row"><span class="tt-k">Payload</span><span class="tt-v">${f.payload_bytes} B</span></div>`;
+              html += `<div class="tt-row"><span class="tt-k">Period</span><span class="tt-v">${f.period_us} µs</span></div>`;
+              const txUs = round3(f.payload_bytes * 8 / 1000);
+              html += `<div class="tt-row"><span class="tt-k">TX time</span><span class="tt-v">${txUs} µs</span></div>`;
+            }
           }
           tooltip.innerHTML = html;
           tooltip.classList.add('show');
@@ -2484,8 +2500,8 @@
       });
       return;
     }
-    const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
-    const allPkts = result.packetRows;
+    const allPkts = result.packetRows || [];
+    const stPkts = allPkts.filter(p => p.status !== 'NON-ST');
     const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
     const avg = stPkts.length ? round3(stPkts.reduce((s, p) => s + p.e2e_delay_us, 0) / stPkts.length) : 0;
     const missCount = stPkts.filter(p => p.status === 'MISS' || p.status === 'OVERLAP').length;
