@@ -377,11 +377,12 @@
 
   <!-- Scenario Presets -->
   <div class="preset-bar">
-    <span style="font-size:0.72rem;color:var(--text-3);align-self:center;margin-right:4px;">Scenario:</span>
-    <button class="btn-preset active" data-preset="urban">Urban 30km/h</button>
-    <button class="btn-preset" data-preset="highway">Highway 100km/h</button>
-    <button class="btn-preset" data-preset="parking">Parking / Valet</button>
-    <button class="btn-preset" data-preset="emergency">Emergency Stop</button>
+    <span style="font-size:0.72rem;color:var(--text-3);align-self:center;margin-right:4px;">Preset:</span>
+    <button class="btn-preset active" data-preset="baseline" title="Default 500µs cycle, mixed periods">Baseline</button>
+    <button class="btn-preset" data-preset="dense" title="All sensors every cycle — stress test">Dense</button>
+    <button class="btn-preset" data-preset="wide" title="1ms cycle — BG headroom">Wide Cycle</button>
+    <button class="btn-preset" data-preset="lowlat" title="125µs tight cycle — min latency">Low Latency</button>
+    <button class="btn-preset" data-preset="redundant" title="k=2 dual-path ILP routing">Redundant k=2</button>
   </div>
 
   <!-- Summary Dashboard -->
@@ -2395,48 +2396,64 @@
 
   /* ═══════ Scenario Presets ═══════ */
   const PRESETS = {
-    urban: {
-      label: 'Urban 30km/h',
-      cycle: 500, guard: 1,
+    baseline: {
+      desc: 'Default 500µs cycle, 12 flows, mixed periods',
+      cycle: 500, guard: 1, kpaths: 1,
       flows: {
         f_lidar_fc: { period_us: 500 }, f_lidar_fl: { period_us: 500 },
         f_lidar_fr: { period_us: 500 }, f_lidar_r:  { period_us: 1000 },
         f_radar_f:  { period_us: 500 }, f_radar_flc: { period_us: 1000 },
         f_radar_frc: { period_us: 1000 }, f_radar_rlc: { period_us: 1000 },
         f_radar_rrc: { period_us: 1000 },
+        f_bg_1: { period_us: 500 }, f_bg_2: { period_us: 1000 }, f_bg_3: { period_us: 500 },
       }
     },
-    highway: {
-      label: 'Highway 100km/h',
-      cycle: 250, guard: 0.5,
+    dense: {
+      desc: 'All sensors every cycle — max utilization stress test',
+      cycle: 500, guard: 1, kpaths: 1,
       flows: {
-        f_lidar_fc: { period_us: 250 }, f_lidar_fl: { period_us: 250 },
-        f_lidar_fr: { period_us: 250 }, f_lidar_r:  { period_us: 500 },
-        f_radar_f:  { period_us: 250 }, f_radar_flc: { period_us: 500 },
+        f_lidar_fc: { period_us: 500 }, f_lidar_fl: { period_us: 500 },
+        f_lidar_fr: { period_us: 500 }, f_lidar_r:  { period_us: 500 },
+        f_radar_f:  { period_us: 500 }, f_radar_flc: { period_us: 500 },
         f_radar_frc: { period_us: 500 }, f_radar_rlc: { period_us: 500 },
         f_radar_rrc: { period_us: 500 },
+        f_bg_1: { period_us: 500 }, f_bg_2: { period_us: 500 }, f_bg_3: { period_us: 500 },
       }
     },
-    parking: {
-      label: 'Parking / Valet',
-      cycle: 1000, guard: 2,
+    wide: {
+      desc: '1ms cycle — more headroom, BG coexistence',
+      cycle: 1000, guard: 2, kpaths: 1,
       flows: {
-        f_lidar_fc: { period_us: 1000 }, f_lidar_fl: { period_us: 1000 },
+        f_lidar_fc: { period_us: 500 }, f_lidar_fl: { period_us: 1000 },
         f_lidar_fr: { period_us: 1000 }, f_lidar_r:  { period_us: 1000 },
-        f_radar_f:  { period_us: 1000 }, f_radar_flc: { period_us: 1000 },
+        f_radar_f:  { period_us: 500 }, f_radar_flc: { period_us: 1000 },
         f_radar_frc: { period_us: 1000 }, f_radar_rlc: { period_us: 1000 },
         f_radar_rrc: { period_us: 1000 },
+        f_bg_1: { period_us: 500 }, f_bg_2: { period_us: 1000 }, f_bg_3: { period_us: 500 },
       }
     },
-    emergency: {
-      label: 'Emergency Stop',
-      cycle: 125, guard: 0.5,
+    lowlat: {
+      desc: '125µs tight cycle — minimum latency bound',
+      cycle: 125, guard: 0.5, kpaths: 1,
       flows: {
         f_lidar_fc: { period_us: 125 }, f_lidar_fl: { period_us: 125 },
         f_lidar_fr: { period_us: 125 }, f_lidar_r:  { period_us: 250 },
         f_radar_f:  { period_us: 125 }, f_radar_flc: { period_us: 250 },
         f_radar_frc: { period_us: 250 }, f_radar_rlc: { period_us: 250 },
         f_radar_rrc: { period_us: 250 },
+        f_bg_1: { period_us: 250 }, f_bg_2: { period_us: 250 }, f_bg_3: { period_us: 250 },
+      }
+    },
+    redundant: {
+      desc: 'k=2 dual-path routing — failover ready',
+      cycle: 500, guard: 1, kpaths: 2,
+      flows: {
+        f_lidar_fc: { period_us: 500 }, f_lidar_fl: { period_us: 500 },
+        f_lidar_fr: { period_us: 500 }, f_lidar_r:  { period_us: 1000 },
+        f_radar_f:  { period_us: 500 }, f_radar_flc: { period_us: 1000 },
+        f_radar_frc: { period_us: 1000 }, f_radar_rlc: { period_us: 1000 },
+        f_radar_rrc: { period_us: 1000 },
+        f_bg_1: { period_us: 500 }, f_bg_2: { period_us: 1000 }, f_bg_3: { period_us: 500 },
       }
     }
   };
@@ -2446,6 +2463,7 @@
     if (!p) return;
     document.getElementById('pCycle').value = p.cycle;
     document.getElementById('pGuard').value = p.guard;
+    if (p.kpaths) document.getElementById('pKpaths').value = p.kpaths;
     for (const f of baseFlows) {
       const override = p.flows[f.id];
       if (override) Object.assign(f, override);
