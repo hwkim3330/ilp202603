@@ -299,6 +299,34 @@
       color: var(--text-2);
     }
 
+    /* ── Scenario Presets ── */
+    .preset-bar {
+      display: flex; gap: 6px; padding: 4px 16px 6px;
+      background: var(--bg-2); border-bottom: 1px solid var(--border);
+    }
+    .btn-preset {
+      font-size: 0.72rem; padding: 4px 12px; border-radius: 6px;
+      border: 1px solid var(--border); background: #fff; color: var(--text-2);
+      cursor: pointer; transition: all 0.15s; font-weight: 600;
+    }
+    .btn-preset:hover { border-color: var(--blue); color: var(--blue); }
+    .btn-preset.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+    /* ── Summary Cards ── */
+    .summary-strip {
+      display: flex; gap: 8px; padding: 6px 16px;
+      background: var(--bg-2); border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .sum-card {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 4px 14px; border-radius: 8px; background: #fff;
+      border: 1px solid var(--border); min-width: 80px;
+    }
+    .sum-card .sum-label { font-size: 0.62rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; }
+    .sum-card .sum-value { font-size: 0.92rem; font-weight: 800; font-family: 'Courier New', monospace; }
+    .sum-ok { color: var(--green); }
+    .sum-warn { color: var(--orange); }
+    .sum-bad { color: var(--red); }
     /* ── 3D Shuttle ── */
     #canvas3d {
       width: 100%; height: 360px; display: block;
@@ -345,6 +373,25 @@
     <button class="btn-case" id="btnILP" title="ILP solver">ILP</button>
     <button class="btn-case" id="btnCompare" title="Greedy vs ILP 비교">Compare</button>
     <button class="btn-case" id="btnSolve" title="현재 설정으로 다시 풀기" style="background:var(--blue);color:#fff;border-color:var(--blue);font-weight:700;">Solve</button>
+  </div>
+
+  <!-- Scenario Presets -->
+  <div class="preset-bar">
+    <span style="font-size:0.72rem;color:var(--text-3);align-self:center;margin-right:4px;">Scenario:</span>
+    <button class="btn-preset active" data-preset="urban">Urban 30km/h</button>
+    <button class="btn-preset" data-preset="highway">Highway 100km/h</button>
+    <button class="btn-preset" data-preset="parking">Parking / Valet</button>
+    <button class="btn-preset" data-preset="emergency">Emergency Stop</button>
+  </div>
+
+  <!-- Summary Dashboard -->
+  <div class="summary-strip" id="summaryStrip">
+    <div class="sum-card"><span class="sum-label">Packets</span><span class="sum-value" id="sumPkts">—</span></div>
+    <div class="sum-card"><span class="sum-label">Max Util</span><span class="sum-value" id="sumUtil">—</span></div>
+    <div class="sum-card"><span class="sum-label">Worst E2E</span><span class="sum-value" id="sumWorst">—</span></div>
+    <div class="sum-card"><span class="sum-label">Avg E2E</span><span class="sum-value" id="sumAvg">—</span></div>
+    <div class="sum-card"><span class="sum-label">Status</span><span class="sum-value" id="sumStatus">—</span></div>
+    <div class="sum-card"><span class="sum-label">Flows</span><span class="sum-value" id="sumFlows">—</span></div>
   </div>
 
   <!-- 2-Column Dashboard -->
@@ -1205,6 +1252,7 @@
       renderGantt(model, result);
       renderE2E(model, result);
       renderBoardGCL(model, result);
+      updateSummary(result);
       try { update3DFailedLinks(failedLink); } catch(e3d) {}
     } catch (e) {
       if (myGen !== solveGen) { solving = false; return; }
@@ -1219,6 +1267,7 @@
           renderGantt(model, result);
           renderE2E(model, result);
           renderBoardGCL(model, result);
+          updateSummary(result);
           try { update3DFailedLinks(failedLink); } catch(e3d) {}
           const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
           const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
@@ -2344,6 +2393,100 @@
   document.getElementById('btnCompare').addEventListener('click', () => switchSolver('compare'));
   document.getElementById('btnSolve').addEventListener('click', () => { if (compareMode) runCompare(); else solve(); });
 
+  /* ═══════ Scenario Presets ═══════ */
+  const PRESETS = {
+    urban: {
+      label: 'Urban 30km/h',
+      cycle: 500, guard: 1,
+      flows: {
+        f_lidar_fc: { period_us: 500 }, f_lidar_fl: { period_us: 500 },
+        f_lidar_fr: { period_us: 500 }, f_lidar_r:  { period_us: 1000 },
+        f_radar_f:  { period_us: 500 }, f_radar_flc: { period_us: 1000 },
+        f_radar_frc: { period_us: 1000 }, f_radar_rlc: { period_us: 1000 },
+        f_radar_rrc: { period_us: 1000 },
+      }
+    },
+    highway: {
+      label: 'Highway 100km/h',
+      cycle: 250, guard: 0.5,
+      flows: {
+        f_lidar_fc: { period_us: 250 }, f_lidar_fl: { period_us: 250 },
+        f_lidar_fr: { period_us: 250 }, f_lidar_r:  { period_us: 500 },
+        f_radar_f:  { period_us: 250 }, f_radar_flc: { period_us: 500 },
+        f_radar_frc: { period_us: 500 }, f_radar_rlc: { period_us: 500 },
+        f_radar_rrc: { period_us: 500 },
+      }
+    },
+    parking: {
+      label: 'Parking / Valet',
+      cycle: 1000, guard: 2,
+      flows: {
+        f_lidar_fc: { period_us: 1000 }, f_lidar_fl: { period_us: 1000 },
+        f_lidar_fr: { period_us: 1000 }, f_lidar_r:  { period_us: 1000 },
+        f_radar_f:  { period_us: 1000 }, f_radar_flc: { period_us: 1000 },
+        f_radar_frc: { period_us: 1000 }, f_radar_rlc: { period_us: 1000 },
+        f_radar_rrc: { period_us: 1000 },
+      }
+    },
+    emergency: {
+      label: 'Emergency Stop',
+      cycle: 125, guard: 0.5,
+      flows: {
+        f_lidar_fc: { period_us: 125 }, f_lidar_fl: { period_us: 125 },
+        f_lidar_fr: { period_us: 125 }, f_lidar_r:  { period_us: 250 },
+        f_radar_f:  { period_us: 125 }, f_radar_flc: { period_us: 250 },
+        f_radar_frc: { period_us: 250 }, f_radar_rlc: { period_us: 250 },
+        f_radar_rrc: { period_us: 250 },
+      }
+    }
+  };
+
+  function applyPreset(name) {
+    const p = PRESETS[name];
+    if (!p) return;
+    document.getElementById('pCycle').value = p.cycle;
+    document.getElementById('pGuard').value = p.guard;
+    for (const f of baseFlows) {
+      const override = p.flows[f.id];
+      if (override) Object.assign(f, override);
+    }
+    document.querySelectorAll('.btn-preset').forEach(b => b.classList.toggle('active', b.dataset.preset === name));
+    renderFlowTable();
+    if (compareMode) runCompare(); else solve();
+  }
+
+  document.querySelectorAll('.btn-preset').forEach(btn => {
+    btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+  });
+
+  /* ═══════ Summary Dashboard ═══════ */
+  function updateSummary(result) {
+    if (!result || result.error) {
+      ['sumPkts','sumUtil','sumWorst','sumAvg','sumStatus','sumFlows'].forEach(id => {
+        document.getElementById(id).textContent = '—';
+        document.getElementById(id).className = 'sum-value';
+      });
+      return;
+    }
+    const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
+    const allPkts = result.packetRows;
+    const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
+    const avg = stPkts.length ? round3(stPkts.reduce((s, p) => s + p.e2e_delay_us, 0) / stPkts.length) : 0;
+    const missCount = stPkts.filter(p => p.status === 'MISS' || p.status === 'OVERLAP').length;
+    const util = parseFloat(result.worst_util_percent) || 0;
+
+    document.getElementById('sumPkts').textContent = allPkts.length;
+    const elUtil = document.getElementById('sumUtil');
+    elUtil.textContent = util + '%';
+    elUtil.className = 'sum-value ' + (util > 80 ? 'sum-bad' : util > 50 ? 'sum-warn' : 'sum-ok');
+    document.getElementById('sumWorst').textContent = round3(worst) + 'µs';
+    document.getElementById('sumAvg').textContent = avg + 'µs';
+    const elStatus = document.getElementById('sumStatus');
+    elStatus.textContent = missCount === 0 ? 'ALL OK' : missCount + ' FAIL';
+    elStatus.className = 'sum-value ' + (missCount === 0 ? 'sum-ok' : 'sum-bad');
+    document.getElementById('sumFlows').textContent = baseFlows.filter(f => f.deadline_us != null).length + ' ST';
+  }
+
   document.getElementById('btnAddFlow').addEventListener('click', () => {
     addCounter++;
     baseFlows.push({
@@ -2758,25 +2901,49 @@
     }
   }
 
+  function getLinkKeyFromTube(mesh) {
+    for (const [key, m] of Object.entries(linkMeshes3d)) {
+      if (m.tube === mesh || m.glow === mesh) return key;
+    }
+    return null;
+  }
+
   function onCanvas3DClick(ev) {
     if (!renderer3d || !camera3d) return;
     const rect = renderer3d.domElement.getBoundingClientRect();
     mouse3d.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
     mouse3d.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
     raycaster3d.setFromCamera(mouse3d, camera3d);
+
+    // Check node hits first
     const meshes = Object.values(nodeMeshes3d).filter(Boolean);
-    const hits = raycaster3d.intersectObjects(meshes);
-    if (hits.length === 0) return;
+    const nodeHits = raycaster3d.intersectObjects(meshes);
+    if (nodeHits.length > 0) {
+      const nodeId = getNodeIdFromMesh(nodeHits[0].object);
+      if (nodeId) {
+        const flow = findSensorFlow(nodeId);
+        if (flow) { toggleFlowHighlight(flow.id); return; }
+        if (nodeId.startsWith('SW_')) { toggleSwitchHighlight(nodeId); return; }
+      }
+    }
 
-    const nodeId = getNodeIdFromMesh(hits[0].object);
-    if (!nodeId) return;
-
-    // Find this node's flow and highlight in 2D
-    const flow = findSensorFlow(nodeId);
-    if (flow) {
-      toggleFlowHighlight(flow.id);
-    } else if (nodeId.startsWith('SW_')) {
-      toggleSwitchHighlight(nodeId);
+    // Check link tube hits → trigger failover
+    const tubeObjs = Object.values(linkMeshes3d).flatMap(m => [m.tube, m.glow]);
+    const linkHits = raycaster3d.intersectObjects(tubeObjs);
+    if (linkHits.length > 0) {
+      const key = getLinkKeyFromTube(linkHits[0].object);
+      if (key) {
+        const entry = linkMeshes3d[key];
+        // Find backbone link ID for fail dropdown
+        const backboneId = entry.linkIds.find(lid => BACKBONE_REVERSE[lid]);
+        if (backboneId) {
+          const failSel = document.getElementById('pFail');
+          // Toggle: if already failed, clear it
+          if (failSel.value === backboneId) { failSel.value = ''; }
+          else { failSel.value = backboneId; }
+          autoSolve();
+        }
+      }
     }
   }
 
