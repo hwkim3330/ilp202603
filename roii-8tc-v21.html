@@ -1293,13 +1293,13 @@
     const H = rect.height || Math.max(340, W * 0.75);
     // ── Symmetric vehicle topology layout (v21) ──
     const pos = {};
-    // Front sensors — symmetric arc
-    pos.RADAR_FLC = { x: W * 0.07, y: H * 0.13 };
-    pos.LIDAR_FL  = { x: W * 0.22, y: H * 0.06 };
-    pos.LIDAR_FC  = { x: W * 0.40, y: H * 0.02 };
-    pos.RADAR_F   = { x: W * 0.60, y: H * 0.02 };
-    pos.LIDAR_FR  = { x: W * 0.78, y: H * 0.06 };
-    pos.RADAR_FRC = { x: W * 0.93, y: H * 0.13 };
+    // Front sensors — aligned row
+    pos.RADAR_FLC = { x: W * 0.07, y: H * 0.12 };
+    pos.LIDAR_FL  = { x: W * 0.22, y: H * 0.12 };
+    pos.LIDAR_FC  = { x: W * 0.40, y: H * 0.12 };
+    pos.RADAR_F   = { x: W * 0.60, y: H * 0.12 };
+    pos.LIDAR_FR  = { x: W * 0.78, y: H * 0.12 };
+    pos.RADAR_FRC = { x: W * 0.93, y: H * 0.12 };
     // Switches — wide triangle, BG adjacent to each
     pos.BG3       = { x: W * 0.05, y: H * 0.34 };
     pos.SW_FL     = { x: W * 0.22, y: H * 0.34 };
