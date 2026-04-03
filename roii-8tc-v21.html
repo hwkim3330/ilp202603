@@ -858,19 +858,18 @@
 
   /* ═══════ Gantt Row Order (5 groups with separators) ═══════ */
   const GANTT_SEQ = [
-    // Group 0: SW_FL zone (3 sensors)
-    'l_lidarfc_swfl', 'l_lidarfl_swfl', 'l_radarflc_swfl',
-    null, // separator
-    // Group 1: SW_FR zone (3 sensors)
-    'l_radarf_swfr', 'l_lidarfr_swfr', 'l_radarfrc_swfr',
-    null, // separator
-    // Group 2: Backbone + BG
-    'l_bg3_swfl', 'l_bg1_swfr', 'l_bg2_swrear',
-    'l_swfl_swrear', 'l_swfr_swrear', 'l_swfr_swfl', 'l_swfl_swfr',
-    null, // separator
-    // Group 3: SW_REAR zone (3 sensors)
-    'l_lidarr_swrear', 'l_radarrlc_swrear', 'l_radarrrc_swrear',
-    null, // separator
+    // Group 0: SW_FL zone (sensors + BG3)
+    'l_lidarfc_swfl', 'l_lidarfl_swfl', 'l_radarflc_swfl', 'l_bg3_swfl',
+    null,
+    // Group 1: SW_FR zone (sensors + BG1)
+    'l_radarf_swfr', 'l_lidarfr_swfr', 'l_radarfrc_swfr', 'l_bg1_swfr',
+    null,
+    // Group 2: Backbone (switch-to-switch)
+    'l_swfl_swfr', 'l_swfr_swfl', 'l_swfl_swrear', 'l_swfr_swrear',
+    null,
+    // Group 3: SW_REAR zone (sensors + BG2)
+    'l_lidarr_swrear', 'l_radarrlc_swrear', 'l_radarrrc_swrear', 'l_bg2_swrear',
+    null,
     // Group 4: Gateway → ACU
     'l_swrear_acu',
   ];
@@ -917,7 +916,7 @@
       traffic_type: 'radar', src: 'RADAR_RRC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_rrc') },
     { id: 'f_bg_1', PCP: 0, payload_bytes: 500, period_us: 500,
       deadline_us: null, traffic_type: 'bg', src: 'BG1', dst: 'ACU_IT', k_paths: 1, color: flowColor('f_bg_1') },
-    { id: 'f_bg_2', PCP: 0, payload_bytes: 500, period_us: 1000, rel: 200,
+    { id: 'f_bg_2', PCP: 0, payload_bytes: 500, period_us: 500,
       deadline_us: null, traffic_type: 'bg', src: 'BG2', dst: 'ACU_IT', k_paths: 1, color: flowColor('f_bg_2') },
     { id: 'f_bg_3', PCP: 0, payload_bytes: 500, period_us: 500,
       deadline_us: null, traffic_type: 'bg', src: 'BG3', dst: 'ACU_IT', k_paths: 1, color: flowColor('f_bg_3') },
@@ -1294,27 +1293,26 @@
     const H = rect.height || Math.max(340, W * 0.75);
     // ── Symmetric vehicle topology layout (v21) ──
     const pos = {};
-    // Front sensors — centered, symmetric arc
-    pos.RADAR_FLC = { x: W * 0.07, y: H * 0.12 };
+    // Front sensors — symmetric arc
+    pos.RADAR_FLC = { x: W * 0.07, y: H * 0.13 };
     pos.LIDAR_FL  = { x: W * 0.22, y: H * 0.06 };
     pos.LIDAR_FC  = { x: W * 0.40, y: H * 0.02 };
     pos.RADAR_F   = { x: W * 0.60, y: H * 0.02 };
     pos.LIDAR_FR  = { x: W * 0.78, y: H * 0.06 };
-    pos.RADAR_FRC = { x: W * 0.93, y: H * 0.12 };
-    // Switches — wide triangle
+    pos.RADAR_FRC = { x: W * 0.93, y: H * 0.13 };
+    // Switches — wide triangle, BG adjacent to each
+    pos.BG3       = { x: W * 0.05, y: H * 0.34 };
     pos.SW_FL     = { x: W * 0.22, y: H * 0.34 };
     pos.SW_FR     = { x: W * 0.78, y: H * 0.34 };
-    pos.SW_REAR   = { x: W * 0.50, y: H * 0.58 };
-    // Rear sensors + BG2/LIDAR_R flanking SW_REAR symmetrically
-    pos.BG2       = { x: W * 0.35, y: H * 0.65 };
-    pos.LIDAR_R   = { x: W * 0.65, y: H * 0.65 };
-    pos.RADAR_RLC = { x: W * 0.22, y: H * 0.78 };
-    pos.RADAR_RRC = { x: W * 0.78, y: H * 0.78 };
-    // BG nodes — flanking each switch
-    pos.BG3       = { x: W * 0.05, y: H * 0.42 };
-    pos.BG1       = { x: W * 0.95, y: H * 0.42 };
+    pos.BG1       = { x: W * 0.95, y: H * 0.34 };
+    pos.SW_REAR   = { x: W * 0.50, y: H * 0.56 };
+    pos.BG2       = { x: W * 0.68, y: H * 0.56 };
+    // Rear sensors — symmetric arc, LIDAR_R centered
+    pos.RADAR_RLC = { x: W * 0.26, y: H * 0.74 };
+    pos.LIDAR_R   = { x: W * 0.50, y: H * 0.72 };
+    pos.RADAR_RRC = { x: W * 0.74, y: H * 0.74 };
     // ACU — bottom center
-    pos.ACU_IT    = { x: W * 0.50, y: H * 0.93 };
+    pos.ACU_IT    = { x: W * 0.50, y: H * 0.92 };
     const svg = d3.select(container).append('svg')
       .attr('viewBox', `0 0 ${W} ${H}`)
       .attr('preserveAspectRatio', 'xMidYMid meet')
@@ -2405,7 +2403,7 @@
         f_radar_f:  { period_us: 500 }, f_radar_flc: { period_us: 1000 },
         f_radar_frc: { period_us: 1000 }, f_radar_rlc: { period_us: 1000 },
         f_radar_rrc: { period_us: 1000 },
-        f_bg_1: { period_us: 500 }, f_bg_2: { period_us: 1000 }, f_bg_3: { period_us: 500 },
+        f_bg_1: { period_us: 500 }, f_bg_2: { period_us: 500 }, f_bg_3: { period_us: 500 },
       }
     },
     dense: {
@@ -2429,7 +2427,7 @@
         f_radar_f:  { period_us: 500 }, f_radar_flc: { period_us: 1000 },
         f_radar_frc: { period_us: 1000 }, f_radar_rlc: { period_us: 1000 },
         f_radar_rrc: { period_us: 1000 },
-        f_bg_1: { period_us: 500 }, f_bg_2: { period_us: 1000 }, f_bg_3: { period_us: 500 },
+        f_bg_1: { period_us: 500 }, f_bg_2: { period_us: 500 }, f_bg_3: { period_us: 500 },
       }
     },
     lowlat: {
@@ -2453,7 +2451,7 @@
         f_radar_f:  { period_us: 500 }, f_radar_flc: { period_us: 1000 },
         f_radar_frc: { period_us: 1000 }, f_radar_rlc: { period_us: 1000 },
         f_radar_rrc: { period_us: 1000 },
-        f_bg_1: { period_us: 500 }, f_bg_2: { period_us: 1000 }, f_bg_3: { period_us: 500 },
+        f_bg_1: { period_us: 500 }, f_bg_2: { period_us: 500 }, f_bg_3: { period_us: 500 },
       }
     }
   };
