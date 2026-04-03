@@ -841,8 +841,9 @@
   /* ═══════ Flow Data (v21 — real sensor specs) ═══════
    * LiDAR:  AutoL G32      — 32ch, 120°FoV, 250m, 1248B/pkt, ~1200 pps @10Hz (~12 Mbps)
    *         Hesai Pandar40P — 40ch, 360°FoV, 200m, 1262B/pkt, 1800 pps @10Hz (~18.8 Mbps)
-   * Radar:  Continental ARS548 — 4D, 300m, 1500B/pkt, 20Hz scan (100Mbps BroadR-Reach)
-   *         Mando MRR-35   — 77GHz, 200m, 128B/pkt, 50Hz (corner radars ×4)
+   * Radar:  Continental ARS548 — 4D, 300m, 100BASE-T1, 20Hz, ~7.2 Mbps total
+   *           DetectionList 35336B + ObjectList 9401B per 50ms → IP-fragmented (~1500B/frag)
+   *         Mando MRR-35   — 77GHz, 200m, CAN-FD (not Ethernet), 128B gateway-bridged ×4
    * Periods below are per-GCL-cycle slot intervals (not real-time pps).
    */
   const NODE_IDS = [...INLINE_NODES.map(n => n.id), 'BG1', 'BG2', 'BG3'];
