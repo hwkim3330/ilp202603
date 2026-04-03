@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>8-TC v18 &mdash; KETI</title>
+  <title>8-TC GCL Dashboard &mdash; KETI</title>
   <style>
     :root {
       --bg-page: #f1f5f9;   --bg-card: #ffffff;    --bg-hover: #f8fafc;
@@ -302,7 +302,7 @@
   <div class="top-bar">
     <div class="logo">
       <img src="keti.png" alt="KETI" onerror="this.style.display='none'">
-      <h1>8-TC v16</h1>
+      <h1>8-TC GCL Dashboard</h1>
     </div>
     <div class="tsep"></div>
     <label>Speed (Mbps)<input type="number" id="pSpeed" value="1000" min="100" step="100"></label>
@@ -784,9 +784,9 @@
       traffic_type: 'radar', src: 'RADAR_RLC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_rlc') },
     { id: 'f_radar_rrc', PCP: 1, payload_bytes: 1500, period_us: 500, deadline_us: 500,
       traffic_type: 'radar', src: 'RADAR_RRC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_rrc') },
-    { id: 'f_bg_small', PCP: 0, payload_bytes: 200, period_us: 500,
+    { id: 'f_bg_small', PCP: 0, payload_bytes: 357, period_us: 500,
       deadline_us: null, traffic_type: 'bg', src: 'BG1', dst: 'ACU_IT', k_paths: 1, color: flowColor('f_bg_small') },
-    { id: 'f_bg_large', PCP: 0, payload_bytes: 1400, period_us: 1000, rel: 200,
+    { id: 'f_bg_large', PCP: 0, payload_bytes: 1557, period_us: 1000, rel: 200,
       deadline_us: null, traffic_type: 'bg', src: 'BG2', dst: 'ACU_IT', k_paths: 1, color: flowColor('f_bg_large') },
   ];
 
@@ -935,7 +935,7 @@
       for (const p of pktEntries) {
         if (p.start_us > cur + 0.001) {
           const gapS = round3(cur), gapE = round3(p.start_us), gap = round3(gapE - gapS);
-          const isTSN = !p.note.includes('non-ST');
+          const isTSN = !p.note.includes('non-ST') && !p.note.includes('f_bg');
           const atCycleStart = gapS < 0.01;  // no prior traffic → guard unnecessary
           if (isTSN && !atCycleStart && gap > guard_us) {
             const gs = round3(gapE - guard_us);
