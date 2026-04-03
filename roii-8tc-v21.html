@@ -331,7 +331,6 @@
     <label>Proc (&micro;s)<input type="number" id="pDelay" value="3" min="0" step="0.5"></label>
     <label>Limit<input type="number" id="pTmlim" value="30" min="5" max="600" step="10" style="width:50px;"></label>
     <label>k<input type="number" id="pKpaths" value="1" min="1" max="4" step="1" style="width:36px;" title="ILP 후보 경로 수"></label>
-    <label title="센서→스위치 첫 홉 제외 (경쟁 없는 1:1 링크). ILP 변수 축소."><input type="checkbox" id="pSwitchOnly"> SW-only</label>
     <div class="tsep"></div>
     <label>Fail
       <select id="pFail" class="fail-select">
@@ -1125,83 +1124,6 @@
     result.packetRows.sort((a, b) => a.end_us - b.end_us);
   }
 
-  /* ═══════ Switch-Only ILP ═══════ */
-  function prepareSwitchOnly(model) {
-    const lm = new Map(model.links.map(l => [l.id, l]));
-    const nodeType = Object.fromEntries(model.nodes.map(n => [n.id, n.type]));
-    const adj = new Map();
-    for (const l of model.links) { if (!adj.has(l.from)) adj.set(l.from, []); adj.get(l.from).push({ to: l.to, lid: l.id }); }
-    const prefixMap = {};
-    const swFlows = [];
-    for (const f of model.flows) {
-      if (f.deadline_us == null) continue;
-      if (nodeType[f.src] === 'switch' || f.src === 'ACU_IT') { swFlows.push({ ...f }); continue; }
-      const nbrs = adj.get(f.src);
-      if (!nbrs || !nbrs.length) { swFlows.push({ ...f }); continue; }
-      const hop0 = nbrs[0];
-      const link = lm.get(hop0.lid);
-      const tx = round3((f.payload_bytes + 38) * 8 / link.rate_mbps);
-      const pd = link.prop_delay_us;
-      const proc = model.processing_delay_us || 0;
-      const offset = round3(tx + pd + proc);
-      const fullPaths = generateKPaths(adj, f.src, f.dst, Math.max(1, f.k_paths || 1), model.nodes.length + 2);
-      const stripped = fullPaths.map(p => p.slice(1)).filter(p => p.length > 0);
-      if (!stripped.length) { swFlows.push({ ...f }); continue; }
-      prefixMap[f.id] = { link_id: hop0.lid, tx, pd, offset, orig_src: f.src, orig_rel: f.rel || 0, orig_deadline: f.deadline_us };
-      swFlows.push({ ...f, src: hop0.to, rel: round3((f.rel || 0) + offset), deadline_us: round3(f.deadline_us - offset), candidate_paths: stripped });
-    }
-    const sensorNodes = new Set(Object.values(prefixMap).map(p => p.orig_src));
-    const sensorLinks = new Set(Object.values(prefixMap).map(p => p.link_id));
-    return {
-      swModel: { ...model, nodes: model.nodes.filter(n => !sensorNodes.has(n.id)), links: model.links.filter(l => !sensorLinks.has(l.id)), flows: swFlows },
-      prefixMap
-    };
-  }
-
-  function reconstructFullResult(result, prefixMap, fullModel) {
-    if (!result || result.error || !result.packetRows) return;
-    const lm = new Map(fullModel.links.map(l => [l.id, l]));
-    const C = fullModel.cycle_time_us;
-    // Group sensor hops per link for GCL building
-    const sensorHops = {};  // link_id → [{start, end, dur, mask, note}]
-    for (const pk of result.packetRows) {
-      const pf = prefixMap[pk.flow_id];
-      if (!pf) continue;
-      const swStart = pk.hops[0]?.start_us ?? pk.release_us;
-      const sStart = round3(swStart - pf.offset);
-      const sEnd = round3(sStart + pf.tx);
-      const pcp = pk.priority;
-      const mask = '0'.repeat(7 - pcp) + '1' + '0'.repeat(pcp);
-      pk.hops.unshift({ link_id: pf.link_id, start_us: sStart, end_us: sEnd, duration_us: pf.tx, queue: pcp });
-      pk.release_us = sStart;
-      const lastH = pk.hops.at(-1);
-      const lastL = lm.get(lastH.link_id);
-      pk.end_us = round3(lastH.end_us + (lastL ? lastL.prop_delay_us : 0));
-      pk.e2e_delay_us = round3(pk.end_us - pk.release_us);
-      if (pf.orig_deadline != null) {
-        pk.deadline_abs_us = round3(pk.release_us + pf.orig_deadline);
-        pk.slack_us = round3(pk.deadline_abs_us - pk.end_us);
-        pk.status = pk.slack_us >= -0.001 ? 'OK' : 'MISS';
-      }
-      if (!sensorHops[pf.link_id]) sensorHops[pf.link_id] = [];
-      sensorHops[pf.link_id].push({ start_us: sStart, end_us: sEnd, duration_us: pf.tx, gate_mask: mask, note: pk.packet_id });
-    }
-    // Build proper GCL for sensor links (with gap entries)
-    for (const [lid, hops] of Object.entries(sensorHops)) {
-      const link = lm.get(lid);
-      hops.sort((a, b) => a.start_us - b.start_us);
-      const entries = [];
-      let cur = 0, idx = 0;
-      for (const h of hops) {
-        if (h.start_us > cur + 0.001) entries.push({ index: idx++, gate_mask: '00000000', start_us: round3(cur), end_us: round3(h.start_us), duration_us: round3(h.start_us - cur), note: 'gap' });
-        entries.push({ index: idx++, ...h });
-        cur = Math.max(cur, h.end_us);
-      }
-      if (cur < C - 0.001) entries.push({ index: idx++, gate_mask: '00000000', start_us: round3(cur), end_us: C, duration_us: round3(C - cur), note: 'gap' });
-      result.gcl.links[lid] = { from: link.from, to: link.to, entries };
-    }
-  }
-
   /* ═══════ Solve (always live) ═══════ */
   let solving = false;
   let solveGen = 0;
@@ -1212,13 +1134,12 @@
     selectedFlowId = null; selectedSwitchId = null; selectedLinkId = null;
 
     const solver = activeSolver;
-    const swOnly = document.getElementById('pSwitchOnly').checked;
     const kp = parseInt(document.getElementById('pKpaths').value) || 1;
     syncColors(); buildSensorFlowMap();
     const model = buildModel();
     const failedLink = document.getElementById('pFail').value;
 
-    const tag = solver === 'ilp' ? `ILP (k=${kp}${swOnly ? ', SW' : ''})` : 'Greedy';
+    const tag = solver === 'ilp' ? `ILP (k=${kp})` : 'Greedy';
     setStatus(`<span class="spinner-sm"></span> <strong>${tag}</strong> | ${model.flows.length} flows`);
 
     let result;
@@ -1244,17 +1165,8 @@
           }
         };
 
-        let prefixMap = null;
-        if (swOnly) {
-          const sw = prepareSwitchOnly(stModel);
-          prefixMap = sw.prefixMap;
-          result = await solveILP(sw.swModel, glpk, { tmlim, onProgress: progressCb });
-          if (myGen !== solveGen) { solving = false; return; }
-          if (!result.error) reconstructFullResult(result, prefixMap, model);
-        } else {
-          result = await solveILP(stModel, glpk, { tmlim, onProgress: progressCb });
-          if (myGen !== solveGen) { solving = false; return; }
-        }
+        result = await solveILP(stModel, glpk, { tmlim, onProgress: progressCb });
+        if (myGen !== solveGen) { solving = false; return; }
         if (bgFlows.length > 0 && !result.error) addBgPackets(model, bgFlows, result);
       } else {
         result = solveGreedy(model);
@@ -1974,7 +1886,6 @@
   async function solveWithMethod(method) {
     syncColors(); buildSensorFlowMap();
     const model = buildModel();
-    const swOnly = document.getElementById('pSwitchOnly').checked;
     const tmlim = parseInt(document.getElementById('pTmlim').value) || 30;
     const stFlows = model.flows.filter(f => f.deadline_us != null);
     const bgFlows = model.flows.filter(f => f.deadline_us == null);
@@ -1987,13 +1898,7 @@
         if (info.phase === 'building') setStatus(`<span class="spinner-sm"></span> Compare ILP: building ${info.pkts} pkts...`);
         else if (info.phase === 'solving') setStatus(`<span class="spinner-sm"></span> Compare ILP: ${info.bins} bins, ${info.constraints} cstr...`);
       };
-      if (swOnly) {
-        const sw = prepareSwitchOnly(stModel);
-        result = await solveILP(sw.swModel, glpk, { tmlim, onProgress: progressCb });
-        if (!result.error) reconstructFullResult(result, sw.prefixMap, model);
-      } else {
-        result = await solveILP(stModel, glpk, { tmlim, onProgress: progressCb });
-      }
+      result = await solveILP(stModel, glpk, { tmlim, onProgress: progressCb });
     } else {
       result = solveGreedy(model);
     }
