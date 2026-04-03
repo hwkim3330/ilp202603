@@ -488,7 +488,7 @@
     LIDAR_FL:  { fill: '#fdf6e3', stroke: '#E9C46A', label: 'Pandar40P (FL)',   shortLabel: 'P40P' },
     LIDAR_FR:  { fill: '#fce8e2', stroke: '#E76F51', label: 'Pandar40P (FR)',   shortLabel: 'P40P' },
     LIDAR_R:   { fill: '#f0e8dc', stroke: '#D4A574', label: 'AutoL G32 (Rear)', shortLabel: 'G32' },
-    RADAR_F:   { fill: '#e1eef5', stroke: '#457B9D', label: 'ARS548 (Front)',   shortLabel: 'ARS' },
+    RADAR_F:   { fill: '#e1eef5', stroke: '#457B9D', label: 'MRR-25 (Front)',   shortLabel: 'MRR25' },
     RADAR_FLC: { fill: '#e6f2f0', stroke: '#76B7B2', label: 'MRR-35 (FLC)',     shortLabel: 'MRR' },
     RADAR_FRC: { fill: '#e0f0ec', stroke: '#2A9D8F', label: 'MRR-35 (FRC)',     shortLabel: 'MRR' },
     RADAR_RLC: { fill: '#e8e4f0', stroke: '#7B68AE', label: 'MRR-35 (RLC)',     shortLabel: 'MRR' },
@@ -841,9 +841,8 @@
   /* ═══════ Flow Data (v21 — real sensor specs) ═══════
    * LiDAR:  AutoL G32      — 32ch, 120°FoV, 250m, 1248B/pkt, ~1200 pps @10Hz (~12 Mbps)
    *         Hesai Pandar40P — 40ch, 360°FoV, 200m, 1262B/pkt, 1800 pps @10Hz (~18.8 Mbps)
-   * Radar:  Continental ARS548 — 4D, 300m, 100BASE-T1, 20Hz, ~7.2 Mbps total
-   *           DetectionList 35336B + ObjectList 9401B per 50ms → IP-fragmented (~1500B/frag)
-   *         Mando MRR-35   — 77GHz, 200m, CAN-FD (not Ethernet), 128B gateway-bridged ×4
+   * Radar:  Mando MRR-25   — 77GHz, 250m, front mid-range, CAN-FD→gateway, 256B ×1
+   *         Mando MRR-35   — 77GHz, 200m, corner short-range, CAN-FD→gateway, 128B ×4
    * Periods below are per-GCL-cycle slot intervals (not real-time pps).
    */
   const NODE_IDS = [...INLINE_NODES.map(n => n.id), 'BG1', 'BG2', 'BG3'];
@@ -859,7 +858,7 @@
       traffic_type: 'lidar', src: 'LIDAR_FR', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_fr') },
     { id: 'f_lidar_r',  PCP: 4, payload_bytes: 1248, period_us: 1000, deadline_us: 1000,
       traffic_type: 'lidar', src: 'LIDAR_R',  dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_r') },
-    { id: 'f_radar_f',   PCP: 3, payload_bytes: 1500, period_us: 500, deadline_us: 1000,
+    { id: 'f_radar_f',   PCP: 3, payload_bytes: 256, period_us: 500, deadline_us: 1000,
       traffic_type: 'radar', src: 'RADAR_F',   dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_f') },
     { id: 'f_radar_flc', PCP: 2, payload_bytes: 128, period_us: 1000, deadline_us: 1000,
       traffic_type: 'radar', src: 'RADAR_FLC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_flc') },
@@ -1344,14 +1343,14 @@
     pos.SW_FL     = { x: W * 0.22, y: H * 0.34 };
     pos.SW_FR     = { x: W * 0.78, y: H * 0.34 };
     pos.SW_REAR   = { x: W * 0.50, y: H * 0.58 };
-    // Rear sensors — symmetric arc
-    pos.RADAR_RLC = { x: W * 0.22, y: H * 0.72 };
-    pos.LIDAR_R   = { x: W * 0.50, y: H * 0.74 };
-    pos.RADAR_RRC = { x: W * 0.78, y: H * 0.72 };
-    // BG nodes — one per switch, flanking
+    // Rear sensors + BG2/LIDAR_R flanking SW_REAR symmetrically
+    pos.BG2       = { x: W * 0.35, y: H * 0.65 };
+    pos.LIDAR_R   = { x: W * 0.65, y: H * 0.65 };
+    pos.RADAR_RLC = { x: W * 0.22, y: H * 0.78 };
+    pos.RADAR_RRC = { x: W * 0.78, y: H * 0.78 };
+    // BG nodes — flanking each switch
     pos.BG3       = { x: W * 0.05, y: H * 0.42 };
     pos.BG1       = { x: W * 0.95, y: H * 0.42 };
-    pos.BG2       = { x: W * 0.36, y: H * 0.58 };
     // ACU — bottom center
     pos.ACU_IT    = { x: W * 0.50, y: H * 0.93 };
     const svg = d3.select(container).append('svg')
@@ -2460,7 +2459,7 @@
   const TMPL_3D = {
     lidar_g32:    { w: 1, h: 1, d: 1, color: 0xF28E2B, geo: 'box' },
     lidar_pandar: { w: 1, h: 1, d: 1, color: 0xE9C46A, geo: 'cylinder' },
-    radar_ars:    { w: 1.4, h: 0.6, d: 0.8, color: 0x457B9D, geo: 'box' },
+    radar_mrr25:  { w: 1.0, h: 0.6, d: 0.7, color: 0x457B9D, geo: 'box' },
     radar_mrr:    { w: 0.8, h: 0.5, d: 0.6, color: 0x2A9D8F, geo: 'box' },
     switch_f:     { w: 4, h: 2, d: 4, color: 0x6366F1, geo: 'box' },
     switch_r:     { w: 4, h: 2, d: 4, color: 0x818CF8, geo: 'box' },
@@ -2487,7 +2486,7 @@
   const LABELS_3D = {
     LIDAR_FC:  'G32-FC',      LIDAR_FL:  'Pandar40P',
     LIDAR_FR:  'Pandar40P',  LIDAR_R:   'G32-Rear',
-    RADAR_F:   'ARS548',     RADAR_FLC: 'MRR35-FLC',
+    RADAR_F:   'MRR-25',     RADAR_FLC: 'MRR35-FLC',
     RADAR_FRC: 'MRR35-FRC',  RADAR_RLC: 'MRR35-RLC',
     RADAR_RRC: 'MRR35-RRC',
     SW_FL:     'Front-L ZC', SW_FR:     'Front-R ZC',
@@ -2504,7 +2503,7 @@
   function getDeviceType3D(nodeId) {
     if (nodeId === 'LIDAR_FC' || nodeId === 'LIDAR_R') return 'lidar_g32';
     if (nodeId === 'LIDAR_FL' || nodeId === 'LIDAR_FR') return 'lidar_pandar';
-    if (nodeId === 'RADAR_F') return 'radar_ars';
+    if (nodeId === 'RADAR_F') return 'radar_mrr25';
     if (nodeId.startsWith('RADAR')) return 'radar_mrr';
     if (nodeId === 'SW_REAR') return 'switch_r';
     if (nodeId.startsWith('SW')) return 'switch_f';
@@ -2579,7 +2578,7 @@
     scene3d.fog = new THREE.Fog(0xf0f0f0, 80, 250);
 
     camera3d = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-    camera3d.position.set(50, 35, 70);
+    camera3d.position.set(30, 30, -55);
 
     renderer3d = new THREE.WebGLRenderer({ antialias: true });
     renderer3d.shadowMap.enabled = true;
