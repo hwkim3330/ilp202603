@@ -1531,17 +1531,30 @@
     });
     const SWITCH_ORDER = { SW_FL: 0, SW_FR: 1, SW_REAR: 2 };
     const switches = new Set(['SW_FL','SW_FR','SW_REAR']);
-    activeLinks.sort((a, b) => {
-      const ga = SWITCH_ORDER[switches.has(a.from) ? a.from : a.to] ?? 99;
-      const gb = SWITCH_ORDER[switches.has(b.from) ? b.from : b.to] ?? 99;
-      if (ga !== gb) return ga - gb;
-      const aIn = !switches.has(a.from), bIn = !switches.has(b.from);
-      if (aIn !== bIn) return aIn ? -1 : 1;
-      return 0;
-    });
-    const bgFlows = baseFlows.filter(f => f.traffic_type === 'bg' || f.traffic_type === 'background');
-    const bgFlowIds = bgFlows.map(f => f.id);
-    const allRowIds = [...activeLinks.map(l => l.id), ...bgFlowIds];
+    function sortBySwitch(arr) {
+      arr.sort((a, b) => {
+        const ga = SWITCH_ORDER[switches.has(a.from) ? a.from : a.to] ?? 99;
+        const gb = SWITCH_ORDER[switches.has(b.from) ? b.from : b.to] ?? 99;
+        if (ga !== gb) return ga - gb;
+        const aIn = !switches.has(a.from), bIn = !switches.has(b.from);
+        if (aIn !== bIn) return aIn ? -1 : 1;
+        return 0;
+      });
+    }
+    sortBySwitch(activeLinks);
+    // Add links traversed by BG packets (even if they only have BE in GCL)
+    const bgPktRows = (result.packetRows || []).filter(p => p.status === 'NON-ST');
+    const activeLinkIds = new Set(activeLinks.map(l => l.id));
+    for (const pkt of bgPktRows) {
+      for (const hop of pkt.hops) {
+        if (!activeLinkIds.has(hop.link_id)) {
+          const lnk = model.links.find(l => l.id === hop.link_id);
+          if (lnk) { activeLinks.push(lnk); activeLinkIds.add(hop.link_id); }
+        }
+      }
+    }
+    sortBySwitch(activeLinks);
+    const allRowIds = activeLinks.map(l => l.id);
     if (!allRowIds.length) return;
 
     const W = container.clientWidth || 700;
@@ -1590,21 +1603,12 @@
       .selectAll('text').text(d => {
         const lnk = model.links.find(l => l.id === d);
         if (lnk) return `${lnk.from} \u2192 ${lnk.to}`;
-        return d.replace(/^f_/, '');
-      }).attr('font-size', '9.5px')
-      .attr('fill', d => bgFlowIds.includes(d) ? '#F9A8D4' : null)
-      .attr('font-weight', d => bgFlowIds.includes(d) ? '800' : null);
+        return d;
+      }).attr('font-size', '9.5px');
 
     g.selectAll('.rbg').data(allRowIds).enter().append('rect')
       .attr('x', 0).attr('y', d => y(d)).attr('width', innerW).attr('height', y.bandwidth())
-      .attr('fill', (d, i) => bgFlowIds.includes(d) ? 'rgba(236,72,153,0.04)' : (i % 2 === 0 ? 'rgba(59,130,246,0.02)' : 'transparent')).attr('rx', 2);
-
-    // Separator line between link rows and BG rows
-    if (activeLinks.length > 0 && bgFlowIds.length > 0) {
-      const sepY = y(bgFlowIds[0]) - y.step() * y.padding() / 2;
-      g.append('line').attr('x1', -8).attr('x2', innerW).attr('y1', sepY).attr('y2', sepY)
-        .attr('stroke', 'rgba(236,72,153,0.3)').attr('stroke-width', 1).attr('stroke-dasharray', '4,3');
-    }
+      .attr('fill', (d, i) => i % 2 === 0 ? 'rgba(59,130,246,0.02)' : 'transparent').attr('rx', 2);
 
     const tooltip = document.getElementById('tooltip');
     // Build packet lookup: packet_id → packetRow (for deadline info)
@@ -1708,20 +1712,14 @@
         .text((used / model.cycle_time_us * 100).toFixed(1) + '%');
     }
 
-    // (Deadline markers removed — pre-computed profiles are authoritative)
-
-    // ── BG flow rows ──
-    for (const bgFid of bgFlowIds) {
-      const bgPkts = (result.packetRows || []).filter(p => p.flow_id === bgFid);
-      const color = flowColor(bgFid);
-      const yPos = y(bgFid);
-      if (yPos === undefined) continue;
-      const bw = y.bandwidth();
-
-      for (const pkt of bgPkts) {
-        // Only show first hop (originating link from source switch)
-        const hop = pkt.hops[0];
-        if (!hop) continue;
+    // ── BG packets on link rows ──
+    for (const pkt of bgPktRows) {
+      const fid = pkt.flow_id;
+      const color = flowColor(fid);
+      for (const hop of pkt.hops) {
+        const yPos = y(hop.link_id);
+        if (yPos === undefined) continue;
+        const bw = y.bandwidth();
         const xPos = x(hop.start_us);
         const actualW = x(hop.end_us) - xPos;
         const displayW = Math.max(actualW, 2);
@@ -1729,45 +1727,44 @@
         const barEl = g.append('rect').attr('x', xPos).attr('y', yPos)
           .attr('width', displayW).attr('height', bw)
           .attr('fill', color).attr('stroke', 'rgba(255,255,255,0.5)')
-          .attr('stroke-width', 0.8).attr('rx', 3).attr('opacity', 0.9);
+          .attr('stroke-width', 0.8).attr('rx', 3).attr('opacity', 0.55);
 
         let labelEl = null;
-        if (actualW > 18) {
+        if (actualW > 16) {
           labelEl = g.append('text').attr('class', 'gcl-label')
             .attr('x', xPos + actualW / 2).attr('y', yPos + bw / 2)
             .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-            .attr('font-size', '8px')
-            .text(pkt.packet_id.replace('#', '.'));
+            .attr('font-size', '8px').text(pkt.packet_id.replace('#', '.'));
         }
 
-        xref.bars.push({ el: barEl, labelEl, fid: bgFid, lid: hop.link_id });
+        xref.bars.push({ el: barEl, labelEl, fid, lid: hop.link_id });
 
         const hitW = Math.max(displayW, 10);
         const hitOff = (hitW - displayW) / 2;
         const lnk = model.links.find(l => l.id === hop.link_id);
         const linkLabel = lnk ? `${lnk.from} \u2192 ${lnk.to}` : hop.link_id;
+        const ld = Object.fromEntries(model.links.map(l => [l.id, l]));
+        const nodes = [];
+        for (const h of pkt.hops) { const ll = ld[h.link_id]; if (ll) { if (!nodes.length) nodes.push(ll.from); nodes.push(ll.to); } }
+        const hopPath = nodes.join(' \u2192 ');
+
         g.append('rect').attr('x', xPos - hitOff).attr('y', yPos)
           .attr('width', hitW).attr('height', bw)
           .attr('fill', 'transparent').style('cursor', 'pointer')
-          .on('click', ev => { ev.stopPropagation(); toggleFlowHighlight(bgFid); })
+          .on('click', ev => { ev.stopPropagation(); toggleFlowHighlight(fid); })
           .on('mouseover', () => {
-            tooltip.innerHTML = `<div class="tt-title" style="color:${color}">${pkt.packet_id}</div>`
+            tooltip.innerHTML = `<div class="tt-title" style="color:${color}">${pkt.packet_id} (BG)</div>`
               + `<div class="tt-row"><span class="tt-k">Link</span><span class="tt-v">${linkLabel}</span></div>`
               + `<div class="tt-row"><span class="tt-k">Start</span><span class="tt-v">${hop.start_us}\u00b5s</span></div>`
               + `<div class="tt-row"><span class="tt-k">End</span><span class="tt-v">${round3(hop.end_us)}\u00b5s</span></div>`
-              + `<div class="tt-row"><span class="tt-k">Duration</span><span class="tt-v">${hop.duration_us}\u00b5s</span></div>`;
+              + `<div class="tt-row"><span class="tt-k">Duration</span><span class="tt-v">${hop.duration_us}\u00b5s</span></div>`
+              + `<div class="tt-row" style="margin-top:3px;border-top:1px solid var(--border);padding-top:3px;"><span class="tt-k">Path</span><span class="tt-v" style="font-size:0.74rem;">${hopPath}</span></div>`
+              + `<div class="tt-row"><span class="tt-k">E2E</span><span class="tt-v">${round3(pkt.e2e_delay_us)}\u00b5s</span></div>`;
             tooltip.classList.add('show');
           })
           .on('mousemove', ev => { tooltip.style.left = (ev.clientX + 12) + 'px'; tooltip.style.top = (ev.clientY - 20) + 'px'; })
           .on('mouseout', () => { tooltip.classList.remove('show'); });
       }
-
-      // E2E label on right
-      const bgE2E = bgPkts.length ? Math.max(...bgPkts.map(p => p.e2e_delay_us)) : 0;
-      g.append('text').attr('x', innerW + 4).attr('y', yPos + bw / 2)
-        .attr('text-anchor', 'start').attr('dominant-baseline', 'middle')
-        .attr('font-size', '9px').attr('fill', '#F9A8D4').attr('font-weight', '700')
-        .text(round3(bgE2E) + '\u00b5s');
     }
 
     svg.append('text').attr('x', margin.left).attr('y', margin.top - 6)
@@ -2016,10 +2013,21 @@
       return arr;
     }
     function getActiveLinks(model, result) {
-      return sortLinks(model.links.filter(l => {
+      const links = model.links.filter(l => {
         const entries = result.gcl?.links?.[l.id]?.entries;
         return entries?.some(e => !e.note.includes('non-ST') && !e.note.includes('all-gates-closed') && e.note !== 'BE (TC0)');
-      }));
+      });
+      const bgPkts = (result.packetRows || []).filter(p => p.status === 'NON-ST');
+      const ids = new Set(links.map(l => l.id));
+      for (const pkt of bgPkts) {
+        for (const hop of pkt.hops) {
+          if (!ids.has(hop.link_id)) {
+            const lnk = model.links.find(l => l.id === hop.link_id);
+            if (lnk) { links.push(lnk); ids.add(hop.link_id); }
+          }
+        }
+      }
+      return sortLinks(links);
     }
 
     const links1 = getActiveLinks(model1, result1);
@@ -2174,6 +2182,50 @@
         .attr('text-anchor', 'start').attr('dominant-baseline', 'middle')
         .attr('font-size', '9px').attr('fill', '#94a3b8').attr('font-weight', '700')
         .text((used / model.cycle_time_us * 100).toFixed(1) + '%');
+    }
+
+    // ── BG packets on link rows ──
+    const bgPkts = (result.packetRows || []).filter(p => p.status === 'NON-ST');
+    for (const pkt of bgPkts) {
+      const fid = pkt.flow_id;
+      const color = flowColor(fid);
+      for (const hop of pkt.hops) {
+        const yPos = y(hop.link_id);
+        if (yPos === undefined) continue;
+        const bw = y.bandwidth();
+        const xPos = x(hop.start_us);
+        const actualW = x(hop.end_us) - xPos;
+        const displayW = Math.max(actualW, 2);
+
+        g.append('rect').attr('x', xPos).attr('y', yPos)
+          .attr('width', displayW).attr('height', bw)
+          .attr('fill', color).attr('stroke', 'rgba(255,255,255,0.5)')
+          .attr('stroke-width', 0.8).attr('rx', 3).attr('opacity', 0.55);
+
+        if (actualW > 14) {
+          g.append('text').attr('class', 'gcl-label')
+            .attr('x', xPos + actualW / 2).attr('y', yPos + bw / 2)
+            .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+            .attr('font-size', '7.5px').text(pkt.packet_id.replace('#', '.'));
+        }
+
+        const hitW = Math.max(displayW, 6);
+        g.append('rect').attr('x', xPos).attr('y', yPos)
+          .attr('width', hitW).attr('height', bw)
+          .attr('fill', 'transparent').style('cursor', 'pointer')
+          .on('mouseover', () => {
+            const lnk = model.links.find(l => l.id === hop.link_id);
+            const linkLabel = lnk ? `${lnk.from} \u2192 ${lnk.to}` : hop.link_id;
+            tooltip.innerHTML = `<div class="tt-title" style="color:${color}">${pkt.packet_id} (BG)</div>`
+              + `<div class="tt-row"><span class="tt-k">Link</span><span class="tt-v">${linkLabel}</span></div>`
+              + `<div class="tt-row"><span class="tt-k">Start</span><span class="tt-v">${hop.start_us}\u00b5s</span></div>`
+              + `<div class="tt-row"><span class="tt-k">End</span><span class="tt-v">${round3(hop.end_us)}\u00b5s</span></div>`
+              + `<div class="tt-row"><span class="tt-k">E2E</span><span class="tt-v">${round3(pkt.e2e_delay_us)}\u00b5s</span></div>`;
+            tooltip.classList.add('show');
+          })
+          .on('mousemove', ev => { tooltip.style.left = (ev.clientX + 12) + 'px'; tooltip.style.top = (ev.clientY - 20) + 'px'; })
+          .on('mouseout', () => { tooltip.classList.remove('show'); });
+      }
     }
   }
 
