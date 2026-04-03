@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>8-TC v21 Balanced &mdash; KETI</title>
+  <!-- Three.js r128 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
   <style>
     :root {
       --bg-page: #f1f5f9;   --bg-card: #ffffff;    --bg-hover: #f8fafc;
@@ -294,6 +298,22 @@
       font-size: 0.82rem; font-weight: 800; padding: 6px 16px 2px 16px;
       color: var(--text-2);
     }
+
+    /* ── 3D Shuttle ── */
+    #canvas3d {
+      width: 100%; height: 360px; display: block;
+      cursor: grab;
+      background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+      border-bottom: 1px solid var(--border);
+    }
+    #canvas3d:active { cursor: grabbing; }
+    .shuttle-3d-hint {
+      position: absolute; bottom: 8px; left: 12px;
+      font-size: 0.7rem; color: var(--text-3);
+      background: rgba(255,255,255,0.85);
+      padding: 3px 8px; border-radius: 6px;
+      pointer-events: none;
+    }
   </style>
 </head>
 <body>
@@ -332,6 +352,12 @@
   <div class="dashboard">
     <!-- Left: Topology -->
     <div class="topo-pane">
+      <!-- 3D Shuttle View -->
+      <div style="position:relative; flex-shrink:0;">
+        <div id="canvas3d"></div>
+        <span class="shuttle-3d-hint">Drag to rotate &middot; Scroll to zoom</span>
+      </div>
+
       <div class="topo-card">
         <div class="topo-header">
           <div class="section-title">Network Topology</div>
@@ -458,19 +484,19 @@
     { id: 'SW_REAR', label: 'SW_REAR (Rear/Gateway)', chip: 'LAN9692' },
   ];
   const NODE_COLORS = {
-    LIDAR_FC:  { fill: '#fef3e2', stroke: '#F28E2B', label: 'AutoL G32 FC', shortLabel: 'G32' },
-    LIDAR_FL:  { fill: '#fdf6e3', stroke: '#E9C46A', label: 'Pandar FL',    shortLabel: 'P40P' },
-    LIDAR_FR:  { fill: '#fce8e2', stroke: '#E76F51', label: 'Pandar FR',    shortLabel: 'P40P' },
-    LIDAR_R:   { fill: '#f0e8dc', stroke: '#D4A574', label: 'G32 Rear',     shortLabel: 'G32' },
-    RADAR_F:   { fill: '#e1eef5', stroke: '#457B9D', label: 'MRR-35 F',     shortLabel: 'MRR' },
-    RADAR_FLC: { fill: '#e6f2f0', stroke: '#76B7B2', label: 'MRR-35 FLC',   shortLabel: 'MRR' },
-    RADAR_FRC: { fill: '#e0f0ec', stroke: '#2A9D8F', label: 'MRR-35 FRC',   shortLabel: 'MRR' },
-    RADAR_RLC: { fill: '#e8e4f0', stroke: '#7B68AE', label: 'MRR-35 RLC',   shortLabel: 'MRR' },
-    RADAR_RRC: { fill: '#dde5e8', stroke: '#264653', label: 'MRR-35 RRC',   shortLabel: 'MRR' },
-    SW_FL:     { fill: '#e8ecf4', stroke: '#6366F1', label: 'SW Front-Left',  shortLabel: 'SW_FL' },
-    SW_FR:     { fill: '#e8ecf4', stroke: '#6366F1', label: 'SW Front-Right', shortLabel: 'SW_FR' },
-    SW_REAR:   { fill: '#e8ecf4', stroke: '#6366F1', label: 'SW Rear',        shortLabel: 'SW_R' },
-    ACU_IT:    { fill: '#f1f5f9', stroke: '#334155', label: 'ACU-IT',         shortLabel: 'ACU' },
+    LIDAR_FC:  { fill: '#fef3e2', stroke: '#F28E2B', label: 'VLP-32C (FC)',    shortLabel: 'VLP32' },
+    LIDAR_FL:  { fill: '#fdf6e3', stroke: '#E9C46A', label: 'Pandar40P (FL)',  shortLabel: 'P40P' },
+    LIDAR_FR:  { fill: '#fce8e2', stroke: '#E76F51', label: 'Pandar40P (FR)',  shortLabel: 'P40P' },
+    LIDAR_R:   { fill: '#f0e8dc', stroke: '#D4A574', label: 'VLP-16 (Rear)',   shortLabel: 'VLP16' },
+    RADAR_F:   { fill: '#e1eef5', stroke: '#457B9D', label: 'ARS548 (Front)',  shortLabel: 'ARS' },
+    RADAR_FLC: { fill: '#e6f2f0', stroke: '#76B7B2', label: 'MRR (FLC)',       shortLabel: 'MRR' },
+    RADAR_FRC: { fill: '#e0f0ec', stroke: '#2A9D8F', label: 'MRR (FRC)',       shortLabel: 'MRR' },
+    RADAR_RLC: { fill: '#e8e4f0', stroke: '#7B68AE', label: 'MRR (RLC)',       shortLabel: 'MRR' },
+    RADAR_RRC: { fill: '#dde5e8', stroke: '#264653', label: 'MRR (RRC)',       shortLabel: 'MRR' },
+    SW_FL:     { fill: '#e8ecf4', stroke: '#6366F1', label: 'SW Front-Left',   shortLabel: 'SW_FL' },
+    SW_FR:     { fill: '#e8ecf4', stroke: '#6366F1', label: 'SW Front-Right',  shortLabel: 'SW_FR' },
+    SW_REAR:   { fill: '#e8ecf4', stroke: '#6366F1', label: 'SW Rear',         shortLabel: 'SW_R' },
+    ACU_IT:    { fill: '#f1f5f9', stroke: '#334155', label: 'ACU-IT',          shortLabel: 'ACU' },
   };
 
   // ── v21 Color Palette (warm LiDAR / cool Radar) ──
@@ -819,13 +845,13 @@
   const DEFAULT_FLOWS = [
     { id: 'f_lidar_fc', PCP: 7, payload_bytes: 1248, period_us: 500, deadline_us: 1000,
       traffic_type: 'lidar', src: 'LIDAR_FC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_fc') },
-    { id: 'f_lidar_fl', PCP: 6, payload_bytes: 812, period_us: 500, deadline_us: 1000,
+    { id: 'f_lidar_fl', PCP: 6, payload_bytes: 1262, period_us: 500, deadline_us: 1000,
       traffic_type: 'lidar', src: 'LIDAR_FL', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_fl') },
-    { id: 'f_lidar_fr', PCP: 5, payload_bytes: 812, period_us: 500, deadline_us: 1000,
+    { id: 'f_lidar_fr', PCP: 5, payload_bytes: 1262, period_us: 500, deadline_us: 1000,
       traffic_type: 'lidar', src: 'LIDAR_FR', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_fr') },
     { id: 'f_lidar_r',  PCP: 4, payload_bytes: 1248, period_us: 1000, deadline_us: 1000,
       traffic_type: 'lidar', src: 'LIDAR_R',  dst: 'ACU_IT', k_paths: 2, color: flowColor('f_lidar_r') },
-    { id: 'f_radar_f',   PCP: 3, payload_bytes: 128, period_us: 500, deadline_us: 1000,
+    { id: 'f_radar_f',   PCP: 3, payload_bytes: 1500, period_us: 500, deadline_us: 1000,
       traffic_type: 'radar', src: 'RADAR_F',   dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_f') },
     { id: 'f_radar_flc', PCP: 2, payload_bytes: 128, period_us: 1000, deadline_us: 1000,
       traffic_type: 'radar', src: 'RADAR_FLC', dst: 'ACU_IT', k_paths: 2, color: flowColor('f_radar_flc') },
@@ -1258,6 +1284,7 @@
       renderGantt(model, result);
       renderE2E(model, result);
       renderBoardGCL(model, result);
+      try { update3DFailedLinks(failedLink); } catch(e3d) {}
     } catch (e) {
       if (myGen !== solveGen) { solving = false; return; }
       console.error(e);
@@ -1271,6 +1298,7 @@
           renderGantt(model, result);
           renderE2E(model, result);
           renderBoardGCL(model, result);
+          try { update3DFailedLinks(failedLink); } catch(e3d) {}
           const stPkts = result.packetRows.filter(p => p.status !== 'NON-ST');
           const worst = stPkts.length ? Math.max(...stPkts.map(p => p.e2e_delay_us)) : 0;
           setStatus(`<span style="color:var(--orange);">ILP error \u2192 Greedy fallback</span> | ${result.packetRows.length} pkts | Worst ${round3(worst)}\u00b5s`);
@@ -1973,6 +2001,7 @@
       updateCompareMetrics(r1, r2);
       renderGanttCompare(m1, r1, m2, r2);
       renderE2ECompare(m1, r1, m2, r2);
+      try { update3DFailedLinks(document.getElementById('pFail').value); } catch(e3d) {}
       const kp = parseInt(document.getElementById('pKpaths').value) || 1;
       setStatus(`\u2713 <strong>Compare</strong> | Greedy vs ILP (k=${kp})`);
     } catch (e) { console.error(e); setStatus(`<span style="color:var(--red);">Compare: ${e.message}</span>`); }
@@ -2410,6 +2439,351 @@
     });
     renderFlowTable();
   });
+
+  /* ═══════════════════════════════════════════════
+     3D Shuttle Visualization (ported from roii-real)
+     ═══════════════════════════════════════════════ */
+
+  /* Device Templates — v21 warm LiDAR / cool Radar */
+  const TMPL_3D = {
+    lidar_vlp:    { w: 1, h: 1, d: 1, color: 0xF28E2B, geo: 'box' },
+    lidar_pandar: { w: 1, h: 1, d: 1, color: 0xE9C46A, geo: 'cylinder' },
+    radar_ars:    { w: 1.4, h: 0.6, d: 0.8, color: 0x457B9D, geo: 'box' },
+    radar_mrr:    { w: 0.8, h: 0.5, d: 0.6, color: 0x2A9D8F, geo: 'box' },
+    switch_f:     { w: 4, h: 2, d: 4, color: 0x6366F1, geo: 'box' },
+    switch_r:     { w: 4, h: 2, d: 4, color: 0x818CF8, geo: 'box' },
+    ecu:          { w: 4, h: 2, d: 4, color: 0x334155, geo: 'box' }
+  };
+
+  /* 3D positions (vehicle-centric) */
+  const POS_3D = {
+    LIDAR_FC:  { x:  0,    y: 5.5,  z: 18.5 },
+    LIDAR_FL:  { x: -8.5,  y: 10,   z: 16.2 },
+    LIDAR_FR:  { x:  8.5,  y: 10,   z: 16.2 },
+    LIDAR_R:   { x:  0,    y: 5.5,  z:-18.5 },
+    RADAR_F:   { x:  0,    y: 7,    z: 18.5 },
+    RADAR_FLC: { x: -7,    y: 6.5,  z: 17.5 },
+    RADAR_FRC: { x:  7,    y: 6.5,  z: 17.5 },
+    RADAR_RLC: { x: -7,    y: 6.5,  z:-18   },
+    RADAR_RRC: { x:  7,    y: 6.5,  z:-18   },
+    SW_FL:     { x: -4,    y: 2,    z: 10   },
+    SW_FR:     { x:  4,    y: 2,    z: 10   },
+    SW_REAR:   { x:  0,    y: 2,    z: -8   },
+    ACU_IT:    { x:  0,    y: 2,    z:-15   }
+  };
+
+  const LABELS_3D = {
+    LIDAR_FC:  'VLP-32C',    LIDAR_FL:  'Pandar40P',
+    LIDAR_FR:  'Pandar40P',  LIDAR_R:   'VLP-16',
+    RADAR_F:   'ARS548',     RADAR_FLC: 'MRR-FLC',
+    RADAR_FRC: 'MRR-FRC',    RADAR_RLC: 'MRR-RLC',
+    RADAR_RRC: 'MRR-RRC',
+    SW_FL:     'Front-L ZC', SW_FR:     'Front-R ZC',
+    SW_REAR:   'Rear-GW',    ACU_IT:    'ACU-IT'
+  };
+
+  const TILTS_3D = {
+    RADAR_FLC: { y: -Math.PI / 6 },
+    RADAR_FRC: { y:  Math.PI / 6 },
+    RADAR_RLC: { y:  Math.PI / 6 },
+    RADAR_RRC: { y: -Math.PI / 6 }
+  };
+
+  function getDeviceType3D(nodeId) {
+    if (nodeId === 'LIDAR_FC' || nodeId === 'LIDAR_R') return 'lidar_vlp';
+    if (nodeId === 'LIDAR_FL' || nodeId === 'LIDAR_FR') return 'lidar_pandar';
+    if (nodeId === 'RADAR_F') return 'radar_ars';
+    if (nodeId.startsWith('RADAR')) return 'radar_mrr';
+    if (nodeId === 'SW_REAR') return 'switch_r';
+    if (nodeId.startsWith('SW')) return 'switch_f';
+    return 'ecu';
+  }
+
+  let scene3d = null, camera3d = null, renderer3d = null, controls3d = null;
+  let dynamicGroup = null, nodeMeshes3d = {}, linkMeshes3d = {};
+  let clock3d = null, glbModel = null;
+
+  function createDevice3D(nodeId, position, label, tilt) {
+    const type = getDeviceType3D(nodeId);
+    const t = TMPL_3D[type];
+    const group = new THREE.Group();
+    const { w, h, d } = t;
+
+    let geometry;
+    if (t.geo === 'cylinder') {
+      geometry = new THREE.CylinderGeometry(w * 0.6, w * 0.6, h * 0.8, 16);
+    } else {
+      geometry = new THREE.BoxGeometry(w, h, d);
+    }
+
+    const mat = new THREE.MeshPhongMaterial({
+      color: t.color, emissive: t.color, emissiveIntensity: 0.5,
+      specular: 0x888888, shininess: 30
+    });
+    const mesh = new THREE.Mesh(geometry, mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+
+    // Edge wireframe
+    group.add(new THREE.LineSegments(
+      new THREE.EdgesGeometry(geometry),
+      new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 5 })
+    ));
+
+    // Label sprite
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 512; canvas.height = 128;
+    ctx.fillStyle = 'rgba(26, 26, 46, 0.9)';
+    ctx.fillRect(0, 0, 512, 128);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 48px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, 256, 75);
+    const sprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) })
+    );
+    const ls = Math.max(w, d) * 1.2;
+    sprite.scale.set(ls, ls * 0.25, 1);
+    sprite.position.y = h + 1;
+    group.add(sprite);
+
+    group.position.copy(position);
+    if (tilt) {
+      if (tilt.x !== undefined) group.rotation.x = tilt.x;
+      if (tilt.y !== undefined) group.rotation.y = tilt.y;
+      if (tilt.z !== undefined) group.rotation.z = tilt.z;
+    }
+    return { mesh, group };
+  }
+
+  function init3D() {
+    const container = document.getElementById('canvas3d');
+    if (!container || typeof THREE === 'undefined') return;
+
+    scene3d = new THREE.Scene();
+    scene3d.background = new THREE.Color(0xf0f0f0);
+    scene3d.fog = new THREE.Fog(0xf0f0f0, 80, 250);
+
+    camera3d = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+    camera3d.position.set(50, 35, 70);
+
+    renderer3d = new THREE.WebGLRenderer({ antialias: true });
+    renderer3d.shadowMap.enabled = true;
+    renderer3d.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    function updateSize() {
+      const w = container.clientWidth, h = container.clientHeight;
+      camera3d.aspect = w / h;
+      camera3d.updateProjectionMatrix();
+      renderer3d.setSize(w, h);
+    }
+    updateSize();
+    container.appendChild(renderer3d.domElement);
+    window.addEventListener('resize', updateSize);
+
+    controls3d = new THREE.OrbitControls(camera3d, renderer3d.domElement);
+    controls3d.enableDamping = true;
+    controls3d.dampingFactor = 0.05;
+    controls3d.autoRotate = true;
+    controls3d.autoRotateSpeed = 1.2;
+    controls3d.minDistance = 20;
+    controls3d.maxDistance = 120;
+    controls3d.target.set(0, 0, 0);
+
+    // Lighting
+    scene3d.add(new THREE.AmbientLight(0xffffff, 1.2));
+    const mainLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    mainLight.position.set(30, 50, 30);
+    mainLight.castShadow = true;
+    mainLight.shadow.mapSize.set(2048, 2048);
+    mainLight.shadow.camera.near = 0.5;
+    mainLight.shadow.camera.far = 200;
+    mainLight.shadow.camera.left = -60;
+    mainLight.shadow.camera.right = 60;
+    mainLight.shadow.camera.top = 60;
+    mainLight.shadow.camera.bottom = -60;
+    scene3d.add(mainLight);
+    const fillLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    fillLight.position.set(0, 50, 0);
+    scene3d.add(fillLight);
+    const pl1 = new THREE.PointLight(0x6366F1, 2, 100);
+    pl1.position.set(20, 15, 20);
+    scene3d.add(pl1);
+    const pl2 = new THREE.PointLight(0x457B9D, 1.5, 80);
+    pl2.position.set(-20, 15, -20);
+    scene3d.add(pl2);
+
+    // Grid + Ground
+    const grid = new THREE.GridHelper(100, 50, 0x6366F1, 0xCCCCCC);
+    grid.material.opacity = 0.4;
+    grid.material.transparent = true;
+    grid.position.y = -0.5;
+    scene3d.add(grid);
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(100, 100),
+      new THREE.ShadowMaterial({ opacity: 0.3 })
+    );
+    plane.rotation.x = -Math.PI / 2;
+    plane.position.y = -0.5;
+    plane.receiveShadow = true;
+    scene3d.add(plane);
+
+    // Load GLB (persists across rebuilds)
+    const loader = new THREE.GLTFLoader();
+    loader.load('./roii.glb',
+      (gltf) => {
+        glbModel = gltf.scene;
+        const box = new THREE.Box3().setFromObject(glbModel);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const targetSize = 40;
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale = targetSize / maxDim;
+        glbModel.scale.set(scale, scale, scale);
+        const scaledHeight = size.y * scale;
+        glbModel.position.x = -center.x;
+        glbModel.position.y = -center.y + (scaledHeight * 0.5) + 0.5;
+        glbModel.position.z = -center.z;
+        glbModel.traverse((child) => {
+          if (!child.isMesh) return;
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          mats.forEach(mat => {
+            mat.transparent = true;
+            mat.opacity = 0.3;
+            mat.side = THREE.DoubleSide;
+            mat.depthWrite = true;
+            if (mat.color) mat.color.multiplyScalar(1.5);
+            mat.emissive = mat.color ? mat.color.clone().multiplyScalar(0.3) : new THREE.Color(0xffffff);
+            mat.emissiveIntensity = 0.4;
+          });
+          child.castShadow = true;
+          child.receiveShadow = true;
+        });
+        scene3d.add(glbModel);
+      },
+      undefined,
+      (err) => { console.warn('GLB load failed:', err); }
+    );
+
+    // Create dynamic group
+    dynamicGroup = new THREE.Group();
+    scene3d.add(dynamicGroup);
+
+    // Build initial 3D scene
+    rebuild3D();
+
+    // Animation loop
+    clock3d = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      controls3d.update();
+      // Pulse device emissive
+      const pulse = Math.sin(clock3d.elapsedTime * 2.5) * 0.06;
+      for (const m of Object.values(nodeMeshes3d)) {
+        if (m && m.material) m.material.emissiveIntensity = 0.2 + pulse;
+      }
+      renderer3d.render(scene3d, camera3d);
+    }
+    animate();
+  }
+
+  function rebuild3D() {
+    if (!dynamicGroup) return;
+
+    // Dispose old children
+    while (dynamicGroup.children.length > 0) {
+      const child = dynamicGroup.children[0];
+      dynamicGroup.remove(child);
+      child.traverse((c) => {
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) {
+          if (Array.isArray(c.material)) c.material.forEach(m => m.dispose());
+          else c.material.dispose();
+        }
+        if (c.material && c.material.map) c.material.map.dispose();
+      });
+    }
+    nodeMeshes3d = {};
+
+    // Create devices
+    const nodePos3D = {};
+    for (const [id, pos] of Object.entries(POS_3D)) {
+      const v = new THREE.Vector3(pos.x, pos.y, pos.z);
+      const tilt = TILTS_3D[id] || null;
+      const dev = createDevice3D(id, v, LABELS_3D[id] || id, tilt);
+      dynamicGroup.add(dev.group);
+      nodePos3D[id] = v;
+      nodeMeshes3d[id] = dev.mesh;
+    }
+
+    // Draw deduplicated connection tubes
+    linkMeshes3d = {};
+    const drawnLinks = new Set();
+    for (const link of INLINE_LINKS) {
+      const key = [link.from, link.to].sort().join('|');
+      if (drawnLinks.has(key)) continue;
+      drawnLinks.add(key);
+      const p1 = nodePos3D[link.from], p2 = nodePos3D[link.to];
+      if (!p1 || !p2) continue;
+
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([p1, p2]);
+      const lineMat = new THREE.LineBasicMaterial({
+        color: 0x6366F1, transparent: true, opacity: 0.3
+      });
+      dynamicGroup.add(new THREE.Line(lineGeo, lineMat));
+
+      const curve = new THREE.CatmullRomCurve3([p1.clone(), p2.clone()]);
+      const tubeGeo = new THREE.TubeGeometry(curve, 20, 0.08, 8, false);
+      const tubeMat = new THREE.MeshStandardMaterial({
+        color: 0x6366F1, emissive: 0x6366F1, emissiveIntensity: 0.9,
+        transparent: true, opacity: 0.95
+      });
+      const tubeMesh = new THREE.Mesh(tubeGeo, tubeMat);
+      dynamicGroup.add(tubeMesh);
+
+      const glowGeo = new THREE.TubeGeometry(curve, 20, 0.2, 8, false);
+      const glowMat = new THREE.MeshBasicMaterial({
+        color: 0x6366F1, transparent: true, opacity: 0.35
+      });
+      const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+      dynamicGroup.add(glowMesh);
+
+      // Collect link IDs that share this visual edge
+      const linkIds = INLINE_LINKS.filter(l =>
+        [l.from, l.to].sort().join('|') === key
+      ).map(l => l.id);
+      linkMeshes3d[key] = { tube: tubeMesh, glow: glowMesh, line: lineMat, linkIds };
+    }
+  }
+
+  /* Update 3D link colors on failover */
+  function update3DFailedLinks(failedLink) {
+    if (!linkMeshes3d) return;
+    const failedSet = new Set();
+    if (failedLink) {
+      failedSet.add(failedLink);
+      const rv = BACKBONE_REVERSE[failedLink];
+      if (rv) failedSet.add(rv);
+    }
+    for (const [key, m] of Object.entries(linkMeshes3d)) {
+      const hasFailed = m.linkIds.some(lid => failedSet.has(lid));
+      if (hasFailed) {
+        m.tube.material.color.set(0xef4444);
+        m.tube.material.emissive.set(0xef4444);
+        m.glow.material.color.set(0xef4444);
+        m.line.color.set(0xef4444);
+      } else {
+        m.tube.material.color.set(0x6366F1);
+        m.tube.material.emissive.set(0x6366F1);
+        m.glow.material.color.set(0x6366F1);
+        m.line.color.set(0x6366F1);
+      }
+    }
+  }
+
+  try { init3D(); } catch(e) { console.warn('3D init:', e); }
 
   /* ═══════ Init ═══════ */
   activeSolver = 'greedy';
