@@ -731,6 +731,33 @@
     });
   }
 
+  /* ═══════ Gantt Row Order (4 groups with separators) ═══════ */
+  const GANTT_SEQ = [
+    // Group 0: Front sensors → switches
+    'l_lidarfc_swfl', 'l_lidarfl_swfl', 'l_lidarfr_swfr',
+    'l_radarf_swfl', 'l_radarflc_swfl', 'l_radarfrc_swfr',
+    null, // separator
+    // Group 1: BG + backbone switch links
+    'l_bg1_swfr', 'l_bg2_swrear', 'l_bg3_swfl',
+    'l_swfl_swrear', 'l_swfr_swrear', 'l_swfr_swfl', 'l_swfl_swfr',
+    null, // separator
+    // Group 2: Rear sensors → SW_REAR
+    'l_radarrlc_swrear', 'l_radarrrc_swrear', 'l_lidarr_swrear',
+    null, // separator
+    // Group 3: Bottleneck → ACU
+    'l_swrear_acu',
+  ];
+  const GANTT_POS = {};
+  const GANTT_GRP = {};
+  let _gpos = 0, _ggrp = 0;
+  for (const id of GANTT_SEQ) {
+    if (id === null) { _ggrp++; }
+    else { GANTT_POS[id] = _gpos++; GANTT_GRP[id] = _ggrp; }
+  }
+  function ganttSort(arr) {
+    arr.sort((a, b) => (GANTT_POS[a.id] ?? 999) - (GANTT_POS[b.id] ?? 999));
+  }
+
   /* ═══════ Flow Data ═══════ */
   const NODE_IDS = [...ROII_REAL_8TC.nodes.map(n => n.id), 'BG1', 'BG2', 'BG3'];
   let addCounter = 0;
@@ -1529,19 +1556,6 @@
       const entries = result.gcl?.links?.[l.id]?.entries;
       return entries?.some(e => !e.note.includes('non-ST') && !e.note.includes('all-gates-closed') && e.note !== 'BE (TC0)');
     });
-    const SWITCH_ORDER = { SW_FL: 0, SW_FR: 1, SW_REAR: 2 };
-    const switches = new Set(['SW_FL','SW_FR','SW_REAR']);
-    function sortBySwitch(arr) {
-      arr.sort((a, b) => {
-        const ga = SWITCH_ORDER[switches.has(a.from) ? a.from : a.to] ?? 99;
-        const gb = SWITCH_ORDER[switches.has(b.from) ? b.from : b.to] ?? 99;
-        if (ga !== gb) return ga - gb;
-        const aIn = !switches.has(a.from), bIn = !switches.has(b.from);
-        if (aIn !== bIn) return aIn ? -1 : 1;
-        return 0;
-      });
-    }
-    sortBySwitch(activeLinks);
     // Add links traversed by BG packets (even if they only have BE in GCL)
     const bgPktRows = (result.packetRows || []).filter(p => p.status === 'NON-ST');
     const activeLinkIds = new Set(activeLinks.map(l => l.id));
@@ -1553,7 +1567,7 @@
         }
       }
     }
-    sortBySwitch(activeLinks);
+    ganttSort(activeLinks);
     const allRowIds = activeLinks.map(l => l.id);
     if (!allRowIds.length) return;
 
@@ -1609,6 +1623,17 @@
     g.selectAll('.rbg').data(allRowIds).enter().append('rect')
       .attr('x', 0).attr('y', d => y(d)).attr('width', innerW).attr('height', y.bandwidth())
       .attr('fill', (d, i) => i % 2 === 0 ? 'rgba(59,130,246,0.02)' : 'transparent').attr('rx', 2);
+
+    // Group separator lines
+    for (let i = 1; i < allRowIds.length; i++) {
+      const g0 = GANTT_GRP[allRowIds[i - 1]], g1 = GANTT_GRP[allRowIds[i]];
+      if (g0 !== undefined && g1 !== undefined && g0 !== g1) {
+        const sepY = y(allRowIds[i]) - y.step() * y.padding() / 2;
+        g.append('line').attr('x1', -8).attr('x2', innerW)
+          .attr('y1', sepY).attr('y2', sepY)
+          .attr('stroke', 'rgba(148,163,184,0.35)').attr('stroke-width', 1).attr('stroke-dasharray', '4,3');
+      }
+    }
 
     const tooltip = document.getElementById('tooltip');
     // Build packet lookup: packet_id → packetRow (for deadline info)
@@ -1999,19 +2024,6 @@
 
     if (!result1 || !result2) return;
 
-    const SWITCH_ORDER = { SW_FL: 0, SW_FR: 1, SW_REAR: 2 };
-    const switches = new Set(['SW_FL','SW_FR','SW_REAR']);
-    function sortLinks(arr) {
-      arr.sort((a, b) => {
-        const ga = SWITCH_ORDER[switches.has(a.from) ? a.from : a.to] ?? 99;
-        const gb = SWITCH_ORDER[switches.has(b.from) ? b.from : b.to] ?? 99;
-        if (ga !== gb) return ga - gb;
-        const aIn = !switches.has(a.from), bIn = !switches.has(b.from);
-        if (aIn !== bIn) return aIn ? -1 : 1;
-        return 0;
-      });
-      return arr;
-    }
     function getActiveLinks(model, result) {
       const links = model.links.filter(l => {
         const entries = result.gcl?.links?.[l.id]?.entries;
@@ -2027,7 +2039,8 @@
           }
         }
       }
-      return sortLinks(links);
+      ganttSort(links);
+      return links;
     }
 
     const links1 = getActiveLinks(model1, result1);
@@ -2119,6 +2132,18 @@
         .attr('width', innerW).attr('height', y.bandwidth())
         .attr('fill', i % 2 === 0 ? 'rgba(59,130,246,0.02)' : 'transparent').attr('rx', 2);
     });
+
+    // Group separator lines
+    const allIds2 = activeLinks.map(l => l.id);
+    for (let i = 1; i < allIds2.length; i++) {
+      const g0 = GANTT_GRP[allIds2[i - 1]], g1 = GANTT_GRP[allIds2[i]];
+      if (g0 !== undefined && g1 !== undefined && g0 !== g1) {
+        const sepY = y(allIds2[i]) - y.step() * y.padding() / 2;
+        g.append('line').attr('x1', -8).attr('x2', innerW)
+          .attr('y1', sepY).attr('y2', sepY)
+          .attr('stroke', 'rgba(148,163,184,0.35)').attr('stroke-width', 1).attr('stroke-dasharray', '4,3');
+      }
+    }
 
     const tooltip = document.getElementById('tooltip');
     const pktMap = {};
