@@ -2466,19 +2466,19 @@
     ecu:          { w: 4, h: 2, d: 4, color: 0x334155, geo: 'box' }
   };
 
-  /* 3D positions (vehicle-centric) */
+  /* 3D positions (viewer-left = vehicle-left, mirrored x for front-view) */
   const POS_3D = {
     LIDAR_FC:  { x:  0,    y: 5.5,  z: 18.5 },
-    LIDAR_FL:  { x: -8.5,  y: 10,   z: 16.2 },
-    LIDAR_FR:  { x:  8.5,  y: 10,   z: 16.2 },
+    LIDAR_FL:  { x:  8.5,  y: 10,   z: 16.2 },
+    LIDAR_FR:  { x: -8.5,  y: 10,   z: 16.2 },
     LIDAR_R:   { x:  0,    y: 5.5,  z:-18.5 },
     RADAR_F:   { x:  0,    y: 7,    z: 18.5 },
-    RADAR_FLC: { x: -7,    y: 6.5,  z: 17.5 },
-    RADAR_FRC: { x:  7,    y: 6.5,  z: 17.5 },
-    RADAR_RLC: { x: -7,    y: 6.5,  z:-18   },
-    RADAR_RRC: { x:  7,    y: 6.5,  z:-18   },
-    SW_FL:     { x: -4,    y: 2,    z: 10   },
-    SW_FR:     { x:  4,    y: 2,    z: 10   },
+    RADAR_FLC: { x:  7,    y: 6.5,  z: 17.5 },
+    RADAR_FRC: { x: -7,    y: 6.5,  z: 17.5 },
+    RADAR_RLC: { x:  7,    y: 6.5,  z:-18   },
+    RADAR_RRC: { x: -7,    y: 6.5,  z:-18   },
+    SW_FL:     { x:  4,    y: 2,    z: 10   },
+    SW_FR:     { x: -4,    y: 2,    z: 10   },
     SW_REAR:   { x:  0,    y: 2,    z: -8   },
     ACU_IT:    { x:  0,    y: 2,    z:-15   }
   };
@@ -2494,10 +2494,10 @@
   };
 
   const TILTS_3D = {
-    RADAR_FLC: { y: -Math.PI / 6 },
-    RADAR_FRC: { y:  Math.PI / 6 },
-    RADAR_RLC: { y:  Math.PI / 6 },
-    RADAR_RRC: { y: -Math.PI / 6 }
+    RADAR_FLC: { y:  Math.PI / 6 },
+    RADAR_FRC: { y: -Math.PI / 6 },
+    RADAR_RLC: { y: -Math.PI / 6 },
+    RADAR_RRC: { y:  Math.PI / 6 }
   };
 
   function getDeviceType3D(nodeId) {
@@ -2578,7 +2578,7 @@
     scene3d.fog = new THREE.Fog(0xf0f0f0, 80, 250);
 
     camera3d = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-    camera3d.position.set(30, 30, -55);
+    camera3d.position.set(50, 35, 70);
 
     renderer3d = new THREE.WebGLRenderer({ antialias: true });
     renderer3d.shadowMap.enabled = true;
@@ -2794,7 +2794,95 @@
     }
   }
 
-  try { init3D(); } catch(e) { console.warn('3D init:', e); }
+  /* ═══════ 3D Interactivity — click/hover → 2D sync ═══════ */
+  const raycaster3d = new THREE.Raycaster();
+  const mouse3d = new THREE.Vector2();
+  let hovered3dId = null;
+
+  function getNodeIdFromMesh(mesh) {
+    for (const [id, m] of Object.entries(nodeMeshes3d)) {
+      if (m === mesh) return id;
+    }
+    return null;
+  }
+
+  function findSensorFlow(nodeId) {
+    return baseFlows.find(f => f.src === nodeId);
+  }
+
+  function onCanvas3DMove(ev) {
+    if (!renderer3d || !camera3d) return;
+    const rect = renderer3d.domElement.getBoundingClientRect();
+    mouse3d.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse3d.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster3d.setFromCamera(mouse3d, camera3d);
+    const meshes = Object.values(nodeMeshes3d).filter(Boolean);
+    const hits = raycaster3d.intersectObjects(meshes);
+    const nodeId = hits.length > 0 ? getNodeIdFromMesh(hits[0].object) : null;
+
+    if (nodeId !== hovered3dId) {
+      // Reset previous
+      if (hovered3dId && nodeMeshes3d[hovered3dId]) {
+        nodeMeshes3d[hovered3dId].material.emissiveIntensity = 0.2;
+      }
+      hovered3dId = nodeId;
+      if (nodeId && nodeMeshes3d[nodeId]) {
+        nodeMeshes3d[nodeId].material.emissiveIntensity = 0.8;
+        renderer3d.domElement.style.cursor = 'pointer';
+      } else {
+        renderer3d.domElement.style.cursor = 'grab';
+      }
+    }
+
+    // 3D tooltip
+    const tooltip = document.getElementById('tooltip');
+    if (nodeId) {
+      const nc = NODE_COLORS[nodeId];
+      const flow = findSensorFlow(nodeId);
+      let html = `<strong>${nc ? nc.label : nodeId}</strong>`;
+      if (flow) {
+        const speed = getP('pSpeed') || 1000;
+        const tx = round3((flow.payload_bytes + 38) * 8 / speed);
+        html += `<br><span style="color:#888">${flow.payload_bytes}B &middot; ${flow.period_us}µs &middot; TX ${tx}µs</span>`;
+      }
+      tooltip.innerHTML = html;
+      tooltip.style.left = (ev.clientX + 14) + 'px';
+      tooltip.style.top = (ev.clientY - 20) + 'px';
+      tooltip.classList.add('show');
+    } else {
+      tooltip.classList.remove('show');
+    }
+  }
+
+  function onCanvas3DClick(ev) {
+    if (!renderer3d || !camera3d) return;
+    const rect = renderer3d.domElement.getBoundingClientRect();
+    mouse3d.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse3d.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster3d.setFromCamera(mouse3d, camera3d);
+    const meshes = Object.values(nodeMeshes3d).filter(Boolean);
+    const hits = raycaster3d.intersectObjects(meshes);
+    if (hits.length === 0) return;
+
+    const nodeId = getNodeIdFromMesh(hits[0].object);
+    if (!nodeId) return;
+
+    // Find this node's flow and highlight in 2D
+    const flow = findSensorFlow(nodeId);
+    if (flow) {
+      toggleFlowHighlight(flow.id);
+    } else if (nodeId.startsWith('SW_')) {
+      toggleSwitchHighlight(nodeId);
+    }
+  }
+
+  function attach3DEvents() {
+    if (!renderer3d) return;
+    renderer3d.domElement.addEventListener('mousemove', onCanvas3DMove);
+    renderer3d.domElement.addEventListener('click', onCanvas3DClick);
+  }
+
+  try { init3D(); attach3DEvents(); } catch(e) { console.warn('3D init:', e); }
 
   /* ═══════ Init ═══════ */
   activeSolver = 'greedy';
