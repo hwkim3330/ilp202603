@@ -484,15 +484,15 @@
     { id: 'SW_REAR', label: 'SW_REAR (Rear/Gateway)', chip: 'LAN9692' },
   ];
   const NODE_COLORS = {
-    LIDAR_FC:  { fill: '#fef3e2', stroke: '#F28E2B', label: 'VLP-32C (FC)',    shortLabel: 'VLP32' },
-    LIDAR_FL:  { fill: '#fdf6e3', stroke: '#E9C46A', label: 'Pandar40P (FL)',  shortLabel: 'P40P' },
-    LIDAR_FR:  { fill: '#fce8e2', stroke: '#E76F51', label: 'Pandar40P (FR)',  shortLabel: 'P40P' },
-    LIDAR_R:   { fill: '#f0e8dc', stroke: '#D4A574', label: 'VLP-16 (Rear)',   shortLabel: 'VLP16' },
-    RADAR_F:   { fill: '#e1eef5', stroke: '#457B9D', label: 'ARS548 (Front)',  shortLabel: 'ARS' },
-    RADAR_FLC: { fill: '#e6f2f0', stroke: '#76B7B2', label: 'MRR (FLC)',       shortLabel: 'MRR' },
-    RADAR_FRC: { fill: '#e0f0ec', stroke: '#2A9D8F', label: 'MRR (FRC)',       shortLabel: 'MRR' },
-    RADAR_RLC: { fill: '#e8e4f0', stroke: '#7B68AE', label: 'MRR (RLC)',       shortLabel: 'MRR' },
-    RADAR_RRC: { fill: '#dde5e8', stroke: '#264653', label: 'MRR (RRC)',       shortLabel: 'MRR' },
+    LIDAR_FC:  { fill: '#fef3e2', stroke: '#F28E2B', label: 'AutoL G32 (FC)',    shortLabel: 'G32' },
+    LIDAR_FL:  { fill: '#fdf6e3', stroke: '#E9C46A', label: 'Pandar40P (FL)',   shortLabel: 'P40P' },
+    LIDAR_FR:  { fill: '#fce8e2', stroke: '#E76F51', label: 'Pandar40P (FR)',   shortLabel: 'P40P' },
+    LIDAR_R:   { fill: '#f0e8dc', stroke: '#D4A574', label: 'AutoL G32 (Rear)', shortLabel: 'G32' },
+    RADAR_F:   { fill: '#e1eef5', stroke: '#457B9D', label: 'ARS548 (Front)',   shortLabel: 'ARS' },
+    RADAR_FLC: { fill: '#e6f2f0', stroke: '#76B7B2', label: 'MRR-35 (FLC)',     shortLabel: 'MRR' },
+    RADAR_FRC: { fill: '#e0f0ec', stroke: '#2A9D8F', label: 'MRR-35 (FRC)',     shortLabel: 'MRR' },
+    RADAR_RLC: { fill: '#e8e4f0', stroke: '#7B68AE', label: 'MRR-35 (RLC)',     shortLabel: 'MRR' },
+    RADAR_RRC: { fill: '#dde5e8', stroke: '#264653', label: 'MRR-35 (RRC)',     shortLabel: 'MRR' },
     SW_FL:     { fill: '#e8ecf4', stroke: '#6366F1', label: 'SW Front-Left',   shortLabel: 'SW_FL' },
     SW_FR:     { fill: '#e8ecf4', stroke: '#6366F1', label: 'SW Front-Right',  shortLabel: 'SW_FR' },
     SW_REAR:   { fill: '#e8ecf4', stroke: '#6366F1', label: 'SW Rear',         shortLabel: 'SW_R' },
@@ -2473,11 +2473,11 @@
   };
 
   const LABELS_3D = {
-    LIDAR_FC:  'VLP-32C',    LIDAR_FL:  'Pandar40P',
-    LIDAR_FR:  'Pandar40P',  LIDAR_R:   'VLP-16',
-    RADAR_F:   'ARS548',     RADAR_FLC: 'MRR-FLC',
-    RADAR_FRC: 'MRR-FRC',    RADAR_RLC: 'MRR-RLC',
-    RADAR_RRC: 'MRR-RRC',
+    LIDAR_FC:  'G32-FC',      LIDAR_FL:  'Pandar40P',
+    LIDAR_FR:  'Pandar40P',  LIDAR_R:   'G32-Rear',
+    RADAR_F:   'ARS548',     RADAR_FLC: 'MRR35-FLC',
+    RADAR_FRC: 'MRR35-FRC',  RADAR_RLC: 'MRR35-RLC',
+    RADAR_RRC: 'MRR35-RRC',
     SW_FL:     'Front-L ZC', SW_FR:     'Front-R ZC',
     SW_REAR:   'Rear-GW',    ACU_IT:    'ACU-IT'
   };
