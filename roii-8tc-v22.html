@@ -434,6 +434,7 @@
     <button id="btnStop" title="Stop" style="font-size:12px;">&#9632;</button>
     <input type="range" id="playbackSlider" min="0" max="1000" value="0" step="1">
     <span class="playback-time" id="playbackTime">0.0 / 500.0 &micro;s</span>
+    <span id="playbackActive" style="font-size:0.72rem;font-weight:700;color:var(--blue);min-width:60px;"></span>
     <span style="color:var(--text-3);font-size:0.65rem;">Speed:</span>
     <button class="speed-btn active" data-speed="1">1x</button>
     <button class="speed-btn" data-speed="2">2x</button>
@@ -3143,19 +3144,66 @@
     if (!xref.topoSvg || !anim.pktTrails.length) return;
 
     const activeNodes = new Set();
+    let inFlight = 0, stCount = 0, bgCount = 0;
+
+    // Trail history: keep last few positions per packet
+    if (!anim.history) anim.history = {};
+    const TRAIL_LEN = 4;
 
     for (const trail of anim.pktTrails) {
-      if (t < trail.totalStart || t > trail.totalEnd) continue;
+      if (t < trail.totalStart || t > trail.totalEnd) {
+        // Check if packet just arrived at ACU (burst effect)
+        if (t > trail.totalEnd && t < trail.totalEnd + anim.cycleTime * 0.015) {
+          const acuPos = xref.topoPos['ACU_IT'];
+          if (acuPos) {
+            const progress = (t - trail.totalEnd) / (anim.cycleTime * 0.015);
+            const burstR = 8 + progress * 18;
+            const burst = xref.topoSvg.append('circle')
+              .attr('cx', acuPos.x).attr('cy', acuPos.y).attr('r', burstR)
+              .attr('fill', 'none').attr('stroke', trail.color)
+              .attr('stroke-width', 2 * (1 - progress))
+              .attr('opacity', 0.7 * (1 - progress))
+              .style('pointer-events', 'none');
+            anim.dots.push(burst);
+          }
+        }
+        delete anim.history[trail.id];
+        continue;
+      }
+
       const pos = getTrailPos(trail, t);
       if (!pos) continue;
 
+      inFlight++;
+      if (trail.isST) stCount++; else bgCount++;
+
+      // Update trail history
+      if (!anim.history[trail.id]) anim.history[trail.id] = [];
+      const hist = anim.history[trail.id];
+      if (!hist.length || Math.abs(hist.at(-1).x - pos.x) > 0.5 || Math.abs(hist.at(-1).y - pos.y) > 0.5) {
+        hist.push({ x: pos.x, y: pos.y });
+        if (hist.length > TRAIL_LEN) hist.shift();
+      }
+
+      // Draw trail (older = smaller, more transparent)
+      for (let i = 0; i < hist.length - 1; i++) {
+        const age = (hist.length - 1 - i) / TRAIL_LEN;
+        const tr = xref.topoSvg.append('circle')
+          .attr('cx', hist[i].x).attr('cy', hist[i].y)
+          .attr('r', (trail.isST ? 4 : 2.5) * (1 - age * 0.6))
+          .attr('fill', trail.color).attr('opacity', 0.25 * (1 - age))
+          .style('pointer-events', 'none');
+        anim.dots.push(tr);
+      }
+
+      // Draw main dot
       const r = trail.isST ? 6 : 4;
       const dot = xref.topoSvg.append('circle')
         .attr('cx', pos.x).attr('cy', pos.y).attr('r', r)
         .attr('fill', trail.color).attr('opacity', 0.9)
         .attr('stroke', '#fff').attr('stroke-width', 1.5)
         .style('pointer-events', 'none')
-        .style('filter', 'drop-shadow(0 0 3px ' + trail.color + ')');
+        .style('filter', 'drop-shadow(0 0 4px ' + trail.color + ')');
       anim.dots.push(dot);
 
       if (pos.node_at) activeNodes.add(pos.node_at);
@@ -3168,11 +3216,15 @@
           .attr('filter', 'drop-shadow(0 0 4px rgba(99,102,241,0.5))');
       } else if (activeNodes.has(n.nid) && n.nid === 'ACU_IT') {
         n.el.attr('stroke-width', 4)
-          .attr('filter', 'drop-shadow(0 0 4px rgba(34,197,94,0.5))');
+          .attr('filter', 'drop-shadow(0 0 6px rgba(34,197,94,0.6))');
       } else {
         n.el.attr('stroke-width', 2).attr('filter', null);
       }
     }
+
+    // Active packet counter
+    const el = document.getElementById('playbackActive');
+    if (el) el.textContent = inFlight > 0 ? `${stCount} ST + ${bgCount} BG` : '';
 
     // Gantt cursor
     if (xref.ganttG && xref.ganttX) {
@@ -3236,8 +3288,11 @@
   function stopPlayback() {
     pausePlayback();
     anim.time = 0;
+    anim.history = {};
     cleanAnim();
     updatePlaybackUI();
+    const el = document.getElementById('playbackActive');
+    if (el) el.textContent = '';
   }
 
   // Playback controls
