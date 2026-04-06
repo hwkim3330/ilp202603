@@ -1345,6 +1345,15 @@
       }
     }
 
+    // Utilization heat-map: green→yellow→orange→red
+    function utilColor(pct) {
+      if (pct <= 0) return null;
+      if (pct <= 30) return 'rgba(34,197,94,0.55)';   // green
+      if (pct <= 50) return 'rgba(234,179,8,0.6)';    // yellow
+      if (pct <= 70) return 'rgba(249,115,22,0.65)';  // orange
+      return 'rgba(239,68,68,0.7)';                    // red
+    }
+
     // Draw links
     for (const lnk of topoBase.links) {
       const p1 = pos[lnk.from], p2 = pos[lnk.to];
@@ -1357,14 +1366,6 @@
       }
       const isFailed = failedSet.has(lnk.id);
       const isGateway = lnk.id === 'l_swrear_acu';
-      // Utilization heat-map: green→yellow→orange→red
-      function utilColor(pct) {
-        if (pct <= 0) return null;
-        if (pct <= 30) return 'rgba(34,197,94,0.55)';   // green
-        if (pct <= 50) return 'rgba(234,179,8,0.6)';    // yellow
-        if (pct <= 70) return 'rgba(249,115,22,0.65)';  // orange
-        return 'rgba(239,68,68,0.7)';                    // red
-      }
       const maxUtil = Math.max(linkUtil[lnk.id] || 0, isBackbone ? (linkUtil[BACKBONE_REVERSE[lnk.id]] || 0) : 0);
       let color, width, dash;
       if (isFailed) { color = 'rgba(239,68,68,0.6)'; width = 3; dash = '8,5'; }
